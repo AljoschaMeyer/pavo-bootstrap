@@ -1,0 +1,15 @@
+[package]
+name = "pavo-bootstrap"
+version = "0.1.0"
+authors = ["AljoschaMeyer <mail@aljoscha-meyer.de>"]
+edition = "2018"
+
+[dependencies]
+failure = "0.1.5"
+failure_derive = "0.1.5"
+gc = "0.3.2"
+gc_derive = "0.3.2"
+im-rc = "12.3.3"
+nom = "4.2.2"
+nom_locate = "0.3.1"
+ref_thread_local = "0.0.0"
