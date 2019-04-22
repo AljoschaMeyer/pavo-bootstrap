@@ -4,7 +4,8 @@ mod env;
 mod eval;
 mod expand;
 mod gc_foreign;
-mod object;
+mod special_forms;
+mod value;
 mod read;
 mod toplevel;
 

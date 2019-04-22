@@ -1,4 +1,4 @@
-//! A parser that turns a string of source code into a pavo object.
+//! A parser that turns a string of source code into a pavo valect.
 
 use failure_derive::Fail;
 use nom::{
@@ -6,12 +6,12 @@ use nom::{
     {value, tag, take_while1},
     {do_parse, alt, many0, opt, preceded},
     {delimited, terminated},
-    {named, not, map, try_parse},
+    {named, named_args, call, not, map, try_parse},
     IResult, Err, Context, ErrorKind,
     types::CompleteStr,
 };
 
-use crate::object::Object;
+use crate::value::Value;
 
 named!(linecomment(CompleteStr) -> (), do_parse!(
     tag!("#") >>
@@ -87,51 +87,51 @@ fn num(i: CompleteStr) -> IResult<CompleteStr, i64> {
     }
 }
 
-named!(app(CompleteStr) -> Object, map!(
-    delimited!(lparen, many0!(obj), rparen),
-    |objs| Object::app_from_vec(objs)
+named_args!(app(color: usize)<CompleteStr, Value>, map!(
+    delimited!(lparen, many0!(call!(val, color)), rparen),
+    |vals| Value::app_from_vec(vals)
 ));
 
-named!(arr(CompleteStr) -> Object, map!(
-    delimited!(lbracket, many0!(obj), rbracket),
-    |objs| Object::arr_from_vec(objs)
+named_args!(arr(color: usize)<CompleteStr, Value>, map!(
+    delimited!(lbracket, many0!(call!(val, color)), rbracket),
+    |vals| Value::arr_from_vec(vals)
 ));
 
-// named!(map_(CompleteStr) -> Object, map!(
-//     delimited!(lbrace, many0!(do_parse!(
-//         key: obj >>
-//         val: obj >>
-//         ((key, val))
-//     )), rbrace),
-//     |entries| Object::map_from_vec(entries) TODO map(bla, Object::map_from_vec) instead?
-// ));
+named_args!(map_(color: usize)<CompleteStr, Value>, map!(
+    delimited!(lbrace, many0!(do_parse!(
+        key: call!(val, color) >>
+        val: call!(val, color) >>
+        ((key, val))
+    )), rbrace),
+    |entries| Value::map_from_vec(entries)
+));
 
-named!(obj(CompleteStr) -> Object, terminated!(alt!(
-    app |
-    arr |
-    // map_ |
-    map!(num, |n| Object::int(n)) |
-    map!(kw_str, |kw| Object::kw_str(kw.0)) |
+named_args!(val(color: usize)<CompleteStr, Value>, terminated!(alt!(
+    call!(app, color) |
+    call!(arr, color) |
+    call!(map_, color) |
+    map!(num, |n| Value::int(n)) |
+    map!(kw_str, |kw| Value::kw_str(kw.0)) |
     map!(id_str, |id| if id.0 == "nil" {
-        Object::nil()
+        Value::nil()
     } else if id.0 == "true" {
-        Object::bool_(true)
+        Value::bool_(true)
     } else if id.0 == "false" {
-        Object::bool_(false)
+        Value::bool_(false)
     } else {
-        Object::id_str(id.0)
+        Value::id_str_color(id.0, color)
     })
 ), ws0));
 
-named!(read_(CompleteStr) -> Object, do_parse!(
+named_args!(read_(color: usize)<CompleteStr, Value>, do_parse!(
     ws0 >>
-    o: obj >>
+    o: call!(val, color) >>
     eof!() >>
     (o)
 ));
 
-pub fn read(i: CompleteStr) -> Result<Object, ParseError> {
-    match read_(i) {
+pub fn read(i: CompleteStr, color: usize) -> Result<Value, ParseError> {
+    match read_(i, color) {
         Ok((_, o)) => return Ok(o),
         Err(Err::Incomplete(_)) => unreachable!(),
         Err(Err::Error(cx)) | Err(Err::Failure(cx)) => {

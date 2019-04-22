@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use failure_derive::Fail;
 
 use crate::env::Env;
-use crate::object::{Object, Id};
+use crate::value::{Value, Id};
 
 /// All the things the syntax checker disallows.
 #[derive(PartialEq, Eq, Debug, Clone, Fail)]
@@ -21,16 +21,16 @@ pub enum StaticError {
 
 /// Check the object `o` in the given environment. Treats all bindings in the environment as
 /// immutable.
-pub fn check(o: &Object, env: &Env) -> Result<(), StaticError> {
+pub fn check(v: &Value, env: &Env) -> Result<(), StaticError> {
     let mut bindings = BTreeMap::new();
     for id in (env.0).0.keys() {
         bindings.insert(id.clone(), false);
     }
-    do_check(o, &mut bindings)
+    do_check(v, &mut bindings)
 }
 
 fn do_check(
-    o: &Object,
+    v: &Value,
     bindings: &mut BTreeMap<Id, bool /*mutability*/>
 ) -> Result<(), StaticError> {
     unimplemented!()
@@ -38,7 +38,7 @@ fn do_check(
 
 // Check that all unquoted identifiers are either binders or bound, that all special forms are
 // well-formed, and that only mutable bindings are being mutated.
-// fn check_static(o: &Object, cx: &mut Context, bindings: &mut BTreeMap<Id, bool>) -> Result<(), StaticError> {
+// fn check_static(o: &Value, cx: &mut Context, bindings: &mut BTreeMap<Id, bool>) -> Result<(), StaticError> {
 //     match &o.0 {
 //         Value::Nil | Value::Bool(..) | Value::Int(..) | Value::Keyword(..)
 //         | Value::Closure(..) | Value::Builtin(..) => Ok(()),
