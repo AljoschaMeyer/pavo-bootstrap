@@ -1,4 +1,5 @@
-//! A parser that turns a string of source code into a pavo valect.
+
+//! A parser that turns a string of source code into a pavo value.
 
 use failure_derive::Fail;
 use nom::{
@@ -6,7 +7,7 @@ use nom::{
     {value, tag, take_while1},
     {do_parse, alt, many0, opt, preceded},
     {delimited, terminated},
-    {named, named_args, call, not, map, try_parse},
+    {named, not, map, try_parse},
     IResult, Err, Context, ErrorKind,
     types::CompleteStr,
 };
@@ -37,6 +38,7 @@ named!(lbracket(CompleteStr) -> (), do_parse!(tag!("[") >> ws0 >> (())));
 named!(rbracket(CompleteStr) -> (), do_parse!(tag!("]") >> ws0 >> (())));
 named!(lparen(CompleteStr) -> (), do_parse!(tag!("(") >> ws0 >> (())));
 named!(rparen(CompleteStr) -> (), do_parse!(tag!(")") >> ws0 >> (())));
+named!(at_lbrace(CompleteStr) -> (), do_parse!(tag!("@{") >> ws0 >> (())));
 
 fn is_id_char(c: char) -> bool {
     return c.is_ascii_alphanumeric() || c == '!' || c == '*' || c == '+'
@@ -87,29 +89,35 @@ fn num(i: CompleteStr) -> IResult<CompleteStr, i64> {
     }
 }
 
-named_args!(app(color: usize)<CompleteStr, Value>, map!(
-    delimited!(lparen, many0!(call!(val, color)), rparen),
-    |vals| Value::app_from_vec(vals)
+named!(app(CompleteStr) -> Value, map!(
+    delimited!(lparen, many0!(obj), rparen),
+    |objs| Value::app_from_vec(objs)
 ));
 
-named_args!(arr(color: usize)<CompleteStr, Value>, map!(
-    delimited!(lbracket, many0!(call!(val, color)), rbracket),
-    |vals| Value::arr_from_vec(vals)
+named!(arr(CompleteStr) -> Value, map!(
+    delimited!(lbracket, many0!(obj), rbracket),
+    |objs| Value::arr_from_vec(objs)
 ));
 
-named_args!(map_(color: usize)<CompleteStr, Value>, map!(
+named!(map_(CompleteStr) -> Value, map!(
     delimited!(lbrace, many0!(do_parse!(
-        key: call!(val, color) >>
-        val: call!(val, color) >>
+        key: obj >>
+        val: obj >>
         ((key, val))
     )), rbrace),
     |entries| Value::map_from_vec(entries)
 ));
 
-named_args!(val(color: usize)<CompleteStr, Value>, terminated!(alt!(
-    call!(app, color) |
-    call!(arr, color) |
-    call!(map_, color) |
+named!(set(CompleteStr) -> Value, map!(
+    delimited!(at_lbrace, many0!(obj), rbrace),
+    |objs| Value::set_from_vec(objs)
+));
+
+named!(obj(CompleteStr) -> Value, terminated!(alt!(
+    app |
+    arr |
+    map_ |
+    set |
     map!(num, |n| Value::int(n)) |
     map!(kw_str, |kw| Value::kw_str(kw.0)) |
     map!(id_str, |id| if id.0 == "nil" {
@@ -119,19 +127,19 @@ named_args!(val(color: usize)<CompleteStr, Value>, terminated!(alt!(
     } else if id.0 == "false" {
         Value::bool_(false)
     } else {
-        Value::id_str_color(id.0, color)
+        Value::id_str(id.0)
     })
 ), ws0));
 
-named_args!(read_(color: usize)<CompleteStr, Value>, do_parse!(
+named!(read_(CompleteStr) -> Value, do_parse!(
     ws0 >>
-    o: call!(val, color) >>
+    o: obj >>
     eof!() >>
     (o)
 ));
 
-pub fn read(i: CompleteStr, color: usize) -> Result<Value, ParseError> {
-    match read_(i, color) {
+pub fn read(i: CompleteStr) -> Result<Value, ParseError> {
+    match read_(i) {
         Ok((_, o)) => return Ok(o),
         Err(Err::Incomplete(_)) => unreachable!(),
         Err(Err::Error(cx)) | Err(Err::Failure(cx)) => {

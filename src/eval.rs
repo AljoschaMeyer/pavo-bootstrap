@@ -23,5 +23,6 @@ enum TCO {
 // Lambdas are evaluated in a loop, continuing to loop while their body `eval_tco`s to
 // a TailCall.
 fn eval_tco(v: &Value, tail: bool, env: &Env, cx: &mut Context) -> TCO {
+    // TODO needs to pass the set of identifiers that are eligable for tco
     unimplemented!();
 }

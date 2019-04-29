@@ -24,7 +24,7 @@ pub enum Value {
     App(Vector<Value>),
     Set(OrdSet<Value>),
     Map(OrdMap<Value, Value>),
-    Fun(Fun),
+    Fun(Fun, u64),
 }
 
 impl Value {
@@ -56,17 +56,7 @@ impl Value {
     }
 
     pub fn id_str(id: &str) -> Value {
-        Value::Id(Id {
-            chars: id.to_string(),
-            color: 0,
-        })
-    }
-
-    pub fn id_str_color(id: &str, color: usize) -> Value {
-        Value::Id(Id {
-            chars: id.to_string(),
-            color,
-        })
+        Value::Id(Id::User(id.to_string()))
     }
 
     pub fn kw(kw: String) -> Value {
@@ -109,17 +99,52 @@ impl Value {
         Value::map(OrdMap(ImOrdMap::from(objs)))
     }
 
-    pub fn closure(c: Closure) -> Value {
-        Value::Fun(Fun::Closure(c))
+    pub fn closure(c: Closure, cx: &mut Context) -> Value {
+        Value::Fun(Fun::Closure(c), cx.next_fun_id())
     }
 
-    pub fn builtin(b: Builtin) -> Value {
-        Value::Fun(Fun::Builtin(b))
+    pub fn builtin(b: Builtin, cx: &mut Context) -> Value {
+        Value::Fun(Fun::Builtin(b), cx.next_fun_id())
     }
 
     pub fn as_id(&self) -> Option<&Id> {
         match self {
             Value::Id(id) => Some(id),
+            _ => None,
+        }
+    }
+
+    pub fn as_user_id(&self) -> Option<&str> {
+        match self {
+            Value::Id(Id::User(id)) => Some(id),
+            _ => None,
+        }
+    }
+
+    pub fn as_atomic(&self) -> Option<&Atomic> {
+        match self {
+            Value::Atomic(atomic) => Some(atomic),
+            _ => None,
+        }
+    }
+
+    pub fn as_kw(&self) -> Option<&str> {
+        self.as_atomic().and_then(|atomic| match atomic {
+            Atomic::Keyword(kw) => Some(kw.as_str()),
+            _ => None,
+        })
+    }
+
+    pub fn is_kw(&self, expected: &str) -> bool {
+        match self.as_kw() {
+            Some(kw) => kw == expected,
+            None => false,
+        }
+    }
+
+    pub fn as_app(&self) -> Option<&Vector<Value>> {
+        match self {
+            Value::App(app) => Some(app),
             _ => None,
         }
     }
@@ -139,30 +164,23 @@ pub enum Atomic {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
-pub struct Id {
-    chars: String,
-    // Macro hygiene is implemented by coloring identifiers. Two ids can only compare as equal
-    // if they have the same color. When read, all Ids start out with the color 0, recoloring
-    // happens during macro expansion.
-    color: usize,
+pub enum Id {
+    User(String),
+    Symbol(u64),
 }
-
-impl Id {
-    pub fn get_chars(&self) -> &str {
-        &self.chars
-    }
-
-    pub fn get_color(&self) -> usize {
-        self.color
-    }
-
-    pub fn set_color(&mut self, color: usize) {
-        self.color = color;
-    }
-}
+//
+// #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
+// pub struct Id(String);
+//
+// impl Id {
+//     pub fn get_chars(&self) -> &str {
+//         &self.0
+//     }
+// }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub enum Fun {
+    // TODO ids!
     Closure(Closure),
     Builtin(Builtin),
     Apply, // the builtin function `apply` requires special interpretation logic

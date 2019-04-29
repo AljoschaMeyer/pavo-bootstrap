@@ -7,12 +7,17 @@ Pavo is a lisp dialect, featuring:
 - hygienic, scoped macros
 - immutable arrays, sets and maps
 - exceptions
-- an event loop accessed via lazy, cancellable promises
 - a module loading mechanism that acts as a [capability system](https://en.wikipedia.org/wiki/Capability-based_security) for effectful code
-- fully deterministic semantics
+- a large subset  of the semantics is fully deterministic, capabilities can be used to only allow deterministic code
 - tail recursion elemination (not for all tail calls, but according to a decidable syntactic criterium)
 
-The closest relative of pavo is probably [clojure](https://clojure.org/index), other important influences include [lua](http://www.lua.org/), [E](http://www.erights.org/) and [node.js](https://nodejs.org/en/).
+The closest relative of pavo is probably [clojure](https://clojure.org/index), other important influences include [lua](http://www.lua.org/) and [E](http://www.erights.org/).
+
+TODO
+
+- cooperative multitasking (futures vs channels? Isolation of (background) resources? Cancellations?)
+- preemptive multitasking (simple implementation via slightly modified metacircular evaluator, isolation?)
+- counting reduction steps, eval up to a precise number of reduction steps (this can also be used for deterministic preemptive multitasking), bounded eval (up until a monotonically growing measure hits a limit, the measure may not grow faster than the number of reduction steps)
 
 ---
 
@@ -50,11 +55,11 @@ Additionally, < and > are used to group elements for these regular expressions.
 
 ### (quote *expr*)
 
-Evaluates to the expression, without evaluating it.
+Evaluates to the literal *expr*, without evaluating it.
 
 ```pavo
 (quote nil) # nil
-(quote true) # true
+(quote 42) # 42
 (quote x) # x
 (quote quote) # quote
 (quote (foo)) # (foo)
@@ -68,10 +73,61 @@ Evaluates the expressions in sequence, yields the result of the last one. Evalua
 
 The last *expr* is in tail position.
 
+Note that there is a macro of the same name that compiles into this form but adds some extra functionality (`:def`, `:defn` and `:break`).
+
 ```pavo
 (do :foo) # :foo
 (do :foo :bar) # :bar
 (do) # nil
+```
+
+### (let *pattern* *expr* *in*)
+
+Evaluate the *expr* and try to destructure it against the *pattern*. If successful, evaluate *in*, with the identifiers bound by the pattern in scope, the form evaluates to the value of *in*. If the pattern does not match, throws the value `{ :tag :no-match, :value expr }` (where `expr` is the evaluated *expr*).
+
+The *in* expression is in tail position.
+
+```pavo
+(let x 42 x) # 42
+(let x 42 (do
+    17
+    x
+)) # 42
+(let x 42
+    (let x 43 x)
+) # 43
+```
+
+### (set! *id* *expr*)
+
+Evaluates the *expr* and changes the mutable binding of the *id* to the value. Evaluates to `nil`.
+
+It is a (static) special form syntax error if the *id* does not refer to a mutable binding (and in particular if the id is not bound at all).
+
+```pavo
+(do
+    (def (:mut x) 42)
+    (set! x 43)
+    x
+) # 43
+
+(do
+    (def x 42)
+    (do
+        (def (:mut x) 43)
+        (set! x 44)
+        x
+    )
+) # 44
+
+(do
+    (def x 42)
+    (do
+        (def (:mut x) 43)
+        (set! x 44)
+    )
+    x
+) # 42
 ```
 
 ### (if <*cond* *then*>\* *else*?)
@@ -90,23 +146,24 @@ All *then* expressions and the *else* expression are in tail position.
 (if) # nil
 ```
 
-### (case *cond* <*pattern* *then*>\* *else*?)
+### (case *cond* <*pattern* *then*>\*)
 
-Evaluate the *cond* expression. Next, starting with the first pair of *pattern* and *then*: Try to destructure the *cond* against the *pattern*. If successful, the form then evaluates to *then*. Otherwise, the next pair of *cond*/*then* is tried. If all patterns have been tried unsuccesfully, the form evaluates to *else* if supplied or throws the value `{ :tag :no-case, :value cond }` otherwise (where `cond` is the evaluated *cond* expression).
+Evaluate the *cond* expression. Next, starting with the first pair of *pattern* and *then*: Try to destructure the *cond* against the *pattern*. If successful, the form then evaluates to *then*. Otherwise, the next pair of *cond*/*then* is tried. If all patterns have been tried unsuccesfully, the form throws the value `{ :tag :no-match, :value cond }` otherwise (where `cond` is the evaluated *cond* expression).
 
 All *then* expressions and the *else* expression are in tail position.
 
 ```pavo
 (case 42 42 :42) # :42
-(case 43 42 :42) # throws { :tag :no-case, :value 43 }
-(case 43 42 :42 :else) # :else
-(case 43) # throws { :tag :no-case, :value 43 }
-(case 43 :else) # :else
+(case 43 42 :42) # throws { :tag :no-match, :value 43 }
+(case 43) # throws { :tag :no-match, :value 43 }
 (case 43
     42 :42
     43 :43
-    :else
 ) # :43
+(case 44
+    42 :42
+    43 :43
+) # throws { :tag :no-match, :value 44 }
 ```
 
 ### (throw *expr*?)
@@ -140,20 +197,19 @@ All *then* expressions are in tail position.
 ) # throws 43
 ```
 
-### (fn *name*? *pattern* *body*)
-### (fn *name*? (*pattern* *body*)\*)
+### (fn *name*? <*pattern* *body*>\*)
 
-Evaluates to a function. If a *name* identifier is given, this name is bound in the function body to the function itself, allowing for direct recursion. When invoking the function, the supplied against the first *pattern* (the only one in case of the paren-less syntax of the form). If it matches, the function then evaluates to the corresponding *body*, with identifiers bound according to the pattern. If the pattern does not match, the next *pattern*/*body* pair is tried. If all patterns have been tried unsuccesfully (or the form didn't define any in the first place), the value `{ :tag :no-case, :value arg }` is thrown (where `arg` is the argument to the function application).
+Evaluates to a function. If a *name* identifier is given, this name is bound in the function body to the function itself, allowing for direct recursion. When invoking the function, match the supplied argument against the first *pattern*. If it matches, the function then evaluates to the corresponding *body*, with identifiers bound according to the pattern. If the pattern does not match, the next *pattern*/*body* pair is tried. If all patterns have been tried unsuccesfully (or the form didn't define any in the first place), the value `{ :tag :no-match, :value arg }` is thrown (where `arg` is the argument to the function application).
 
 ```pavo
 ((fn [x] x) 42) # 42
 ((fn identity [x] 42)) # 42
-((fn)) # throws { :tag :no-case, :value [] }
+((fn)) # throws { :tag :no-match, :value [] }
 ((fn assert-42 [42] nil) 42) # nil
-((fn assert-42 [42] nil) [42]) # throws { :tag :no-case, :value [[42]] }
+((fn assert-42 [42] nil) [42]) # throws { :tag :no-match, :value [[42]] }
 ((fn assert-42-or-43
-    ([42] :42)
-    ([43] :43)
+    [42] :42
+    [43] :43
 ) 43) # :43
 ```
 
@@ -172,6 +228,10 @@ Pavo guarantees tail-call recursion elimination for application expressions in t
     (omega)
     42
 ))) # Stack overflow, the recursive call is not in tail position.
+# An optimizing compiler might try to be clever and introduce tco
+# nonetheless. An really clever optimizing compiler should not do
+# tco deliberately, to preserve "naive" "semantics" (technically,
+# this is not part of the language semantics).
 
 ((fn should-not-be-omega _ (
     let w should-not-be-omega
@@ -179,8 +239,8 @@ Pavo guarantees tail-call recursion elimination for application expressions in t
     )
 ))
 # While tco *can* be applied here, it fails the syntactic criterion,
-# w is not the name of the function. Thus this is allowed (and should)
-# to cause a stack overflow.
+# w is not the name of the function. Thus this is allowed to overflow
+# the call stack.
 
 ((fn should-not-be-omega-either _ (
     let should-not-be-omega-either should-not-be-omega-either
@@ -190,19 +250,53 @@ Pavo guarantees tail-call recursion elimination for application expressions in t
 # This also fails the syntactic criterion, the name has been rebound.
 ```
 
-TODO def, let, defn, letfn
+### (letfn (*name* <*pattern* *body*>\*)\* *in*)
+
+Creates functions, with all names of those functions being available in all the function bodies, and tail recursion working for all those identifiers. Evaluate *in*, with names of the functions in scope, the form evaluates to the value of *in*.
+
+The *in* expression is in tail position.
+
+```pavo
+(letfn
+    (even? [n] (if
+        (= n 0) true
+        (< n 0) (odd? (+ n 1))
+        (odd? (- n 1))
+    ))
+    (odd?
+        [0] false
+        [n] (even? (+ n (if (< n 0) 1 -1)))
+    )
+
+    (even? 99999) # false, tco guarantees no stack overflow
+)
+```
 
 ## Patterns
 
 Patterns are used to introduce bindings to an environment, destructuring some value in the process. In all composite patterns, identifiers that are bound later shadow equal earlier identifiers.
+
+When a special form requires a pattern but the given expression is none of these, that is a special form syntax error.
 
 ### Identifier
 
 An identifier is a pattern. It matches any value, and the identifier is bound to that value.
 
 ```pavo
-(case 42 x :then :else) # :then
-(case 42 x x :else) # 42
+(case 42 x :then) # :then
+(case 42 x x) # 42
+```
+
+### Mutable
+
+An application `(:mut some-id)` is a pattern, matching any value and mutably binding it to the identifier.
+
+```pavo
+(case 42 (:mut x) :then) # :then
+(case 42 (:mut x) (do
+    (set! x (+ x 1))
+    x
+)) # 43
 ```
 
 ### Atomic
@@ -210,9 +304,9 @@ An identifier is a pattern. It matches any value, and the identifier is bound to
 Any of the atomic expressions (`nil`, bools, ints, floats, chars, strings, bytes and keywords) are patterns. They match only themselves (i.e. values that are equal to the value of the atomic expression) and do not bind any identifiers.
 
 ```pavo
-(case 42 42 :then :else) # :then
-(case 17 0x11 :then :else) # :then
-(case 43 42 :then :else) # :else
+(case 42 42 :then) # :then
+(case 17 0x11 :then) # :then
+(case 43 42 :then) # throws { :tag :no-match, :value 43 }
 ```
 
 ### Array
@@ -220,15 +314,63 @@ Any of the atomic expressions (`nil`, bools, ints, floats, chars, strings, bytes
 An array pattern fails to match if the value is not an array of at least the same length as the pattern. If it is, it attempts to match the inner patterns from left to right, immediately failing to match if any of them fails to match.
 
 ```pavo
-(case [42] [x] x :else) # 42
-(case 42 [x] x :else) # :else
-(case [42] [x, y] :else) # :else
-(case [42, 43] [x] x :else) # 42
+(case [42] [x] x) # 42
+(case 42 [x] x) # throws { :tag :no-match, :value 42 }
+(case [42] [x, y]) # throws { :tag :no-match, :value [42] }
+(case [42, 43] [x]) # 42
 ```
 
-TODO set, map, app (starts with :app keyword), mut, immut, named (mut?), opt (with the ability to specify the default, defaulting to nil), alt, guard
+TODO set, map, app (starts with :app keyword), mut, named (mut?), opt (with the ability to specify the default, defaulting to nil), alt, guard
 
 TODO add examples where a guard/default is an infinite loop, but the evaluation order of the containing composite pattern means it is never executed (also for length comparisons before starting to match inner patterns)
+
+<!-- ### (:def *pattern* *expr*)
+
+Evaluate the *expr* and try to destructure it against the *pattern*. If successful, the pattern identifiers bound by the pattern become available for the remainder of the parent `do` form, and the form itself evaluates to `nil`. If the pattern does not match, throws the value `{ :tag :no-match, :value expr }` (where `expr` is the evaluated *expr*).
+
+```pavo
+(do (def _ 42)) # nil
+(do
+    (def x 42)
+    x
+) # 42
+(do
+    (def x 42)
+    (def x 43) # shadows the old one, does *not* overwrite/mutate anything
+    17
+    x
+) # 43
+```
+
+### (:defn (*name* <*pattern* *body*>\*)\*)
+
+**This is only a special form if the parent expression is a `do` form.**
+
+Creates functions, with all names of those functions being available in all the function bodies, and tail recursion working for all those identifiers. Creates bindings from each name to its function that become available for the remainder of the parent `do` form. The form itself evaluates to `nil`.
+
+```pavo
+(do
+    (defn
+        (even? [n] (if
+            (= n 0) true
+            (< n 0) (odd? (+ n 1))
+            (odd? (- n 1))
+        ))
+        (odd? [n] (if
+            (= n 0) false
+            (< n 0) (even? (+ n 1))
+            (even? (- n 1))
+        ))
+    )
+    (odd? 99999) # true, tco guarantees no stack overflow
+)
+```
+
+### (:break expr?)
+
+-->
+
+
 
 <!-- ## Syntax (Expressions)
 
