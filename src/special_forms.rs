@@ -42,13 +42,6 @@ pub enum SpecialFormSyntaxError {
     FnName(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
-pub enum Pattern<'a> {
-    Id(bool /* mutability */, &'a Id),
-    Atomic(&'a Atomic),
-    Arr(Vec<Pattern<'a>>),
-}
-
 pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, SpecialFormSyntaxError> {
     if v.0.len() == 0 {
         return Ok(None);
@@ -80,6 +73,9 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
             }
 
             let (mutable, id) = mut_id(&v.0, 1, FormType::Let)?;
+            if !mutable && v.0.len() == 5 {
+                return Err(SpecialFormSyntaxError::Arity(FormType::Let, v.0.len()));
+            }
             let val = &v.0[if mutable { 3 } else { 2 }];
             let cont = &v.0[if mutable { 4 } else { 3 }];
 
@@ -104,7 +100,7 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
                 return Err(SpecialFormSyntaxError::Arity(FormType::If, v.0.len()));
             }
 
-            return Ok(Some(SpecialForm::If(&v.0[0], &v.0[1], &v.0[2])));
+            return Ok(Some(SpecialForm::If(&v.0[1], &v.0[2], &v.0[3])));
         }
 
         Some("sf-throw") => {
@@ -120,8 +116,11 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
                 return Err(SpecialFormSyntaxError::Arity(FormType::Try, v.0.len()));
             }
 
-            let to_try = &v.0[0];
-            let (mutable, id) = mut_id(&v.0, 2, FormType::Let)?;
+            let to_try = &v.0[1];
+            let (mutable, id) = mut_id(&v.0, 2, FormType::Try)?;
+            if !mutable && v.0.len() == 5 {
+                return Err(SpecialFormSyntaxError::Arity(FormType::Try, v.0.len()));
+            }
             let cont = &v.0[if mutable { 4 } else { 3 }];
 
             return Ok(Some(SpecialForm::Try(to_try, mutable, id, cont)));

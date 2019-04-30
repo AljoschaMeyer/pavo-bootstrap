@@ -24,7 +24,7 @@ pub enum Value {
     App(Vector<Value>),
     Set(OrdSet<Value>),
     Map(OrdMap<Value, Value>),
-    Fun(Fun, u64),
+    Fun(Fun),
 }
 
 impl Value {
@@ -56,7 +56,7 @@ impl Value {
     }
 
     pub fn id_str(id: &str) -> Value {
-        Value::Id(Id::User(id.to_string()))
+        Value::id(Id::user(id))
     }
 
     pub fn kw(kw: String) -> Value {
@@ -67,44 +67,57 @@ impl Value {
         Value::kw(kw.to_string())
     }
 
-    fn arr(objs: Vector<Value>) -> Value {
-        Value::Arr(objs)
+    fn arr(vals: Vector<Value>) -> Value {
+        Value::Arr(vals)
     }
 
-    pub fn arr_from_vec(objs: Vec<Value>) -> Value {
-        Value::arr(Vector(ImVector::from(&objs)))
+    pub fn arr_from_vec(vals: Vec<Value>) -> Value {
+        Value::arr(Vector(ImVector::from(&vals)))
     }
 
-    fn app(objs: Vector<Value>) -> Value {
-        Value::App(objs)
+    pub fn app(vals: Vector<Value>) -> Value {
+        Value::App(vals)
     }
 
-    pub fn app_from_vec(objs: Vec<Value>) -> Value {
-        Value::app(Vector(ImVector::from(objs)))
+    pub fn app_from_vec(vals: Vec<Value>) -> Value {
+        Value::app(Vector(ImVector::from(vals)))
     }
 
-    pub fn set(objs: OrdSet<Value>) -> Value {
-        Value::Set(objs)
+    pub fn set(vals: OrdSet<Value>) -> Value {
+        Value::Set(vals)
     }
 
-    pub fn set_from_vec(objs: Vec<Value>) -> Value {
-        Value::set(OrdSet(ImOrdSet::from(objs)))
+    pub fn set_from_vec(vals: Vec<Value>) -> Value {
+        Value::set(OrdSet(ImOrdSet::from(vals)))
     }
 
-    pub fn map(objs: OrdMap<Value, Value>) -> Value {
-        Value::Map(objs)
+    pub fn map(vals: OrdMap<Value, Value>) -> Value {
+        Value::Map(vals)
     }
 
-    pub fn map_from_vec(objs: Vec<(Value, Value)>) -> Value {
-        Value::map(OrdMap(ImOrdMap::from(objs)))
+    pub fn map_from_vec(vals: Vec<(Value, Value)>) -> Value {
+        Value::map(OrdMap(ImOrdMap::from(vals)))
     }
 
     pub fn closure(c: Closure, cx: &mut Context) -> Value {
-        Value::Fun(Fun::Closure(c), cx.next_fun_id())
+        Value::Fun(Fun {
+            fun: _Fun::Closure(c),
+            id: cx.next_fun_id()
+        })
     }
 
     pub fn builtin(b: Builtin, cx: &mut Context) -> Value {
-        Value::Fun(Fun::Builtin(b), cx.next_fun_id())
+        Value::Fun(Fun {
+            fun: _Fun::Builtin(b),
+            id: cx.next_fun_id()
+        })
+    }
+
+    pub fn apply(cx: &mut Context) -> Value {
+        Value::Fun(Fun {
+            fun: _Fun::Apply,
+            id: cx.next_fun_id()
+        })
     }
 
     pub fn as_id(&self) -> Option<&Id> {
@@ -148,6 +161,13 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn truthy(&self) -> bool {
+        match self {
+            Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(false)) => false,
+            _ => true,
+        }
+    }
 }
 
 /// The atomic values are those that do not contain other objects and that use synactic equality.
@@ -168,70 +188,68 @@ pub enum Id {
     User(String),
     Symbol(u64),
 }
-//
-// #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
-// pub struct Id(String);
-//
-// impl Id {
-//     pub fn get_chars(&self) -> &str {
-//         &self.0
-//     }
-// }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
-pub enum Fun {
-    // TODO ids!
+impl Id {
+    pub fn user(id: &str) -> Id {
+        Id::User(id.to_string())
+    }
+}
+
+// Eq and Ord are only considering the id.
+#[derive(Debug, Clone, Trace, Finalize)]
+pub struct Fun {
+    pub fun: _Fun,
+    pub id: u64,
+}
+
+impl PartialEq for Fun {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for Fun {}
+
+impl Ord for Fun {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl PartialOrd for Fun {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Debug, Clone, Trace, Finalize)]
+pub enum _Fun {
     Closure(Closure),
     Builtin(Builtin),
     Apply, // the builtin function `apply` requires special interpretation logic
 }
 
 /// Runtime representation of a value produced by a lambda special form.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub struct Closure {
     // funs: Gc<BTreeMap<Id, (Id /* arg */, bool /*arg mutable*/, Value /*body*/)>>,
     // entry: Id,
     // env: Gc<Environment>
 }
 
-/// A function that is provided by pavo (as opposed to a programmer-defined closure).
-#[derive(Trace, Finalize)]
-pub struct Builtin {
-    #[unsafe_ignore_trace]
-    fun: fn(Value, &mut Context) -> Result<Value, Value>,
-    // Each builtin is assigned an id that is distinct from the id of all other builtins.
-    // Ids are used for comparisons.
-    id: usize,
+impl fmt::Debug for Closure {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        unimplemented!();
+        // write!(f, "Builtin({:?})", self.0 as usize)
+    }
 }
+
+/// A function that is provided by pavo (as opposed to a programmer-defined closure).
+#[derive(Clone, Trace, Finalize)]
+pub struct Builtin(#[unsafe_ignore_trace] pub fn(Value, &mut Context) -> Result<Value, Value>);
 
 impl fmt::Debug for Builtin {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Builtin {{ fun: {:?}, id: {:?} }}", self.fun as usize, self.id)
-    }
-}
-
-impl Clone for Builtin {
-    fn clone(&self) -> Self {
-        Builtin { fun: self.fun.clone(), id: self.id }
-    }
-}
-
-impl PartialEq for Builtin {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for Builtin {}
-
-impl Ord for Builtin {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.id.cmp(&other.id)
-    }
-}
-
-impl PartialOrd for Builtin {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+        write!(f, "Builtin({:?})", self.0 as usize)
     }
 }

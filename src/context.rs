@@ -15,6 +15,10 @@ impl Context {
         }
     }
 
+    pub fn default() -> Context {
+        Context::new()
+    }
+
     pub fn next_symbol_id(&mut self) -> u64 {
         let old = self.symbol_id;
         self.symbol_id = self.symbol_id.checked_add(1).expect("symbol id counter overflow");

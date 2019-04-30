@@ -5,40 +5,138 @@
 //! - All special forms are well-formed.
 //! - The `set!` special form only mutates mutable bindings.
 
-use std::collections::BTreeMap;
-
 use failure_derive::Fail;
+use im_rc::OrdMap;
 
 use crate::env::Env;
+use crate::special_forms::{SpecialForm, SpecialFormSyntaxError, special};
 use crate::value::{Value, Id};
 
 /// All the things the syntax checker disallows.
-#[derive(PartialEq, Eq, Debug, Clone, Fail)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum StaticError {
-    #[fail(display = "TODO remove this")]
-    Foo
+    Free(Id),
+    Immutable(Id),
+    SpecialFormSyntax(SpecialFormSyntaxError),
 }
 
-/// Check the object `o` in the given environment. Treats all bindings in the environment as
+impl From<SpecialFormSyntaxError> for StaticError {
+    fn from(err: SpecialFormSyntaxError) -> Self {
+        StaticError::SpecialFormSyntax(err)
+    }
+}
+
+/// Check the valect `o` in the given environment. Treats all bindings in the environment as
 /// immutable.
 pub fn check(v: &Value, env: &Env) -> Result<(), StaticError> {
-    let mut bindings = BTreeMap::new();
+    let mut bindings = OrdMap::new();
     for id in (env.0).0.keys() {
         bindings.insert(id.clone(), false);
     }
-    do_check(v, &mut bindings)
+    do_check(v, &bindings)
 }
 
 fn do_check(
     v: &Value,
-    bindings: &mut BTreeMap<Id, bool /*mutability*/>
+    bindings: &OrdMap<Id, bool /*mutability*/>
 ) -> Result<(), StaticError> {
-    unimplemented!()
+    match v {
+        Value::Atomic(..) | Value::Fun(..) => Ok(()),
+
+        Value::Id(id) => match bindings.get(id) {
+            Some(_) => Ok(()),
+            None => Err(StaticError::Free(id.clone())),
+        }
+
+        Value::Arr(vals) => {
+            for val in vals.0.iter() {
+                do_check(val, bindings)?
+            }
+            Ok(())
+        }
+
+        Value::Map(m) => {
+            for entry in m.0.iter() {
+                do_check(&entry.0, bindings)?;
+                do_check(&entry.1, bindings)?;
+            }
+            Ok(())
+        }
+
+        Value::Set(vals) => {
+            for val in vals.0.iter() {
+                do_check(val, bindings)?
+            }
+            Ok(())
+        }
+
+        Value::App(params) => {
+            if params.0.len() == 0 {
+                return Ok(());
+            }
+
+            let fst = &params.0[0];
+
+            match &fst {
+                Value::Id(id) => {
+                    match bindings.get(id) {
+                        Some(_) => {
+                            for param in params.0.iter() {
+                                do_check(param, bindings)?;
+                            }
+                            Ok(())
+                        }
+                        None => {
+                            match special(params)? {
+                                Some(SpecialForm::Do(stmts)) => {
+                                    for stmt in stmts.iter() {
+                                        do_check(stmt, bindings)?;
+                                    }
+                                    Ok(())
+                                }
+                                Some(SpecialForm::Quote(_)) => Ok(()),
+                                Some(SpecialForm::Let(mutable, bound, _, cont)) => {
+                                    do_check(cont, &bindings.update(bound.clone(), mutable))
+                                }
+                                Some(SpecialForm::SetBang(id, _)) => {
+                                    match bindings.get(id) {
+                                        Some(true) => Ok(()),
+                                        Some(false) => Err(StaticError::Immutable(id.clone())),
+                                        None => Err(StaticError::Free(id.clone())),
+                                    }
+                                }
+                                Some(SpecialForm::If(cond, then, else_)) => {
+                                    do_check(cond, bindings)?;
+                                    do_check(then, bindings)?;
+                                    do_check(else_, bindings)
+                                }
+                                Some(SpecialForm::Throw(thrown)) => do_check(thrown, bindings),
+                                Some(SpecialForm::Try(try_, mutable, bound, catch)) => {
+                                    let _ = do_check(try_, bindings)?;
+                                    do_check(catch, &bindings.update(bound.clone(), mutable))
+                                }
+                                Some(_) => unimplemented!(),
+                                None => Err(StaticError::Free(id.clone())),
+                            }
+                        }
+                    }
+                }
+
+                // First element is not an identifier.
+                _ => {
+                    for param in params.0.iter() {
+                        do_check(param, bindings)?;
+                    }
+                    Ok(())
+                },
+            }
+        }
+    }
 }
 
 // Check that all unquoted identifiers are either binders or bound, that all special forms are
 // well-formed, and that only mutable bindings are being mutated.
-// fn check_static(o: &Value, cx: &mut Context, bindings: &mut BTreeMap<Id, bool>) -> Result<(), StaticError> {
+// fn do_check(o: &Value, cx: &mut Context, bindings: &mut BTreeMap<Id, bool>) -> Result<(), StaticError> {
 //     match &o.0 {
 //         Value::Nil | Value::Bool(..) | Value::Int(..) | Value::Keyword(..)
 //         | Value::Closure(..) | Value::Builtin(..) => Ok(()),
@@ -46,38 +144,38 @@ fn do_check(
 //             Some(_) => Ok(()),
 //             None => Err(StaticError::Free(id.clone())),
 //         }
-//         Value::Arr(objs) => {
-//             for obj in objs.0.iter() {
-//                 check_static(obj, cx, bindings)?
+//         Value::Arr(vals) => {
+//             for val in vals.0.iter() {
+//                 do_check(val, cx, bindings)?
 //             }
 //             Ok(())
 //         }
 //         Value::Map(m) => {
 //             for entry in m.0.iter() {
-//                 check_static(&entry.0, cx, bindings)?;
-//                 check_static(&entry.1, cx, bindings)?;
+//                 do_check(&entry.0, cx, bindings)?;
+//                 do_check(&entry.1, cx, bindings)?;
 //             }
 //             Ok(())
 //         }
-//         Value::App(objs) => {
-//             if objs.len() == 0 {
+//         Value::App(vals) => {
+//             if vals.len() == 0 {
 //                 return Ok(());
 //             }
 //
-//             let fst = &objs.0[0];
+//             let fst = &vals.0[0];
 //
 //             match &fst.0 {
 //                 Value::Id(id) => {
 //                     match bindings.get(id) {
 //                         Some(_) => {
-//                             for arg in objs.0.iter() {
-//                                 check_static(arg, cx, bindings)?;
+//                             for arg in vals.0.iter() {
+//                                 do_check(arg, cx, bindings)?;
 //                             }
 //                             Ok(())
 //                         }
 //                         None => match &id.chars[..] {
 //                             "quote" => {
-//                                 if objs.len() == 2 {
+//                                 if vals.len() == 2 {
 //                                     Ok(())
 //                                 } else {
 //                                     Err(StaticError::QuoteArity(o.clone()))
@@ -85,12 +183,12 @@ fn do_check(
 //                             }
 //
 //                             "named-lambdas" => {
-//                                 let len = objs.len();
+//                                 let len = vals.len();
 //                                 if len != 3 {
 //                                     return Err(StaticError::LambdasArity(o.clone()));
 //                                 }
 //
-//                                 let lambdas = objs.0[1].to_arr_vec_ref();
+//                                 let lambdas = vals.0[1].to_arr_vec_ref();
 //                                 let lambdas_len = lambdas.len();
 //
 //                                 let mut names = Vec::with_capacity(lambdas_len);
@@ -134,14 +232,14 @@ fn do_check(
 //                                             };
 //
 //                                             bindings.insert(bound.clone(), named_lambda.len() == 4);
-//                                             check_static(&named_lambda.0[binder_id_index + 1], cx, bindings)?;
+//                                             do_check(&named_lambda.0[binder_id_index + 1], cx, bindings)?;
 //                                             bindings.remove(&bound);
 //                                         }
 //                                         _ => unreachable!(),
 //                                     }
 //                                 }
 //
-//                                 check_static(&objs.0[2], cx, bindings)?;
+//                                 do_check(&vals.0[2], cx, bindings)?;
 //
 //                                 for name in names.iter() {
 //                                     bindings.remove(name);
@@ -151,35 +249,35 @@ fn do_check(
 //                             }
 //
 //                             "do" => {
-//                                 for (i, inner) in objs.0.iter().enumerate() {
+//                                 for (i, inner) in vals.0.iter().enumerate() {
 //                                     if i != 0 {
-//                                         check_static(inner, cx, bindings)?;
+//                                         do_check(inner, cx, bindings)?;
 //                                     }
 //                                 }
 //                                 Ok(())
 //                             }
 //
 //                             "if" => {
-//                                 if objs.len() != 3 && objs.len() != 4 {
+//                                 if vals.len() != 3 && vals.len() != 4 {
 //                                     return Err(StaticError::IfArity(o.clone()));
 //                                 }
 //
-//                                 check_static(&objs.0[1], cx, bindings)?;
-//                                 check_static(&objs.0[2], cx, bindings)?;
+//                                 do_check(&vals.0[1], cx, bindings)?;
+//                                 do_check(&vals.0[2], cx, bindings)?;
 //
-//                                 if objs.len() == 4 {
-//                                     check_static(&objs.0[3], cx, bindings)?;
+//                                 if vals.len() == 4 {
+//                                     do_check(&vals.0[3], cx, bindings)?;
 //                                 }
 //
 //                                 Ok(())
 //                             }
 //
 //                             "set!" => {
-//                                 if objs.len() != 3 {
+//                                 if vals.len() != 3 {
 //                                     return Err(StaticError::SetArity(o.clone()));
 //                                 }
 //
-//                                 let snd = &objs.0[1];
+//                                 let snd = &vals.0[1];
 //                                 match &snd.0 {
 //                                     Value::Id(id) => match bindings.get(id) {
 //                                         Some(true) => { /* noop, everything fine */}
@@ -189,26 +287,26 @@ fn do_check(
 //                                     _ => return Err(StaticError::SetNotId(snd.clone())),
 //                                 }
 //
-//                                 check_static(&objs.0[2], cx, bindings)
+//                                 do_check(&vals.0[2], cx, bindings)
 //                             }
 //
 //                             "throw" => {
-//                                 if objs.len() == 2 {
-//                                     check_static(&objs.0[1], cx, bindings)
+//                                 if vals.len() == 2 {
+//                                     do_check(&vals.0[1], cx, bindings)
 //                                 } else {
 //                                     Err(StaticError::ThrowArity(o.clone()))
 //                                 }
 //                             }
 //
 //                             "try" => {
-//                                 if objs.len() != 4 && objs.len() != 5 {
+//                                 if vals.len() != 4 && vals.len() != 5 {
 //                                     return Err(StaticError::TryArity(o.clone()));
 //                                 }
 //
-//                                 check_static(&objs.0[1], cx, bindings)?;
+//                                 do_check(&vals.0[1], cx, bindings)?;
 //
-//                                 let binder_id_index = if objs.len() == 5 {
-//                                     match &objs.0[2].0 {
+//                                 let binder_id_index = if vals.len() == 5 {
+//                                     match &vals.0[2].0 {
 //                                         Value::Keyword(kw) if kw == "mut" => { /* noop*/ }
 //                                         _ => return Err(StaticError::TryMut(o.clone())),
 //                                     }
@@ -218,13 +316,13 @@ fn do_check(
 //                                     2
 //                                 };
 //
-//                                 let bound = match &objs.0[binder_id_index].0 {
+//                                 let bound = match &vals.0[binder_id_index].0 {
 //                                     Value::Id(id) => id.clone(),
 //                                     _ => return Err(StaticError::TryId(o.clone())),
 //                                 };
 //
-//                                 bindings.insert(bound.clone(), objs.len() == 5);
-//                                 check_static(&objs.0[binder_id_index + 1], cx, bindings)?;
+//                                 bindings.insert(bound.clone(), vals.len() == 5);
+//                                 do_check(&vals.0[binder_id_index + 1], cx, bindings)?;
 //                                 bindings.remove(&bound);
 //
 //                                 Ok(())
@@ -238,8 +336,8 @@ fn do_check(
 //                 }
 //
 //                 Value::App(_) => {
-//                     for inner in objs.0.iter() {
-//                         check_static(inner, cx, bindings)?;
+//                     for inner in vals.0.iter() {
+//                         do_check(inner, cx, bindings)?;
 //                     }
 //                     Ok(())
 //                 }

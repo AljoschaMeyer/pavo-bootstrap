@@ -77,10 +77,10 @@ fn num(i: CompleteStr) -> IResult<CompleteStr, i64> {
             buf.push_str(&start[3..end.len() - start.len()]);
             buf
         } else {
-            start[2..end.len() - start.len()].to_string()
+            start[2..start.len() - end.len()].to_string()
         }
     } else {
-        start[..end.len() - start.len()].to_string()
+        start[..start.len() - end.len()].to_string()
     };
 
     match i64::from_str_radix(&raw, if is_hex { 16 } else { 10 }) {
