@@ -1,9 +1,13 @@
+use std::collections::BTreeMap;
+
+use gc::Gc;
+
 use crate::builtins::{index_error, type_error};
 use crate::context::Context;
 use crate::env::Env;
 use crate::gc_foreign::Vector;
 use crate::special_forms::{SpecialForm, special};
-use crate::value::{Value, Fun, _Fun, Builtin, Closure};
+use crate::value::{Value, Id, Fun, _Fun, Builtin, Closure};
 
 // Takes an already syntactically checked value and reduces it.
 pub fn eval(v: Value, env: Env, cx: &mut Context) -> Result<Value, Value> {
@@ -51,9 +55,9 @@ pub fn do_eval(mut v: Value, mut env: Env, cx: &mut Context, tail: bool) -> Resu
                 let fst = &params.0[0];
 
                 match fst {
-                    Value::App(inner_params) => {
+                    Value::App(_) => {
                         let first_evaluated = do_eval(fst.clone(), env.clone(), cx, tail)?;
-                        v = Value::app(Vector(inner_params.0.update(0, first_evaluated)));
+                        v = Value::app(Vector(params.0.update(0, first_evaluated)));
                     }
 
                     Value::Id(id) => {
@@ -105,7 +109,43 @@ pub fn do_eval(mut v: Value, mut env: Env, cx: &mut Context, tail: bool) -> Resu
                                             }
                                         }
                                     }
-                                    Some(_) => unimplemented!(),
+                                    Some(SpecialForm::Lambda(mutable, bound, body)) => {
+                                        let mut funs_map = BTreeMap::new();
+                                        funs_map.insert(
+                                            Id::user("ß"),
+                                            (bound.clone(), mutable, body.clone())
+                                        );
+
+                                        return Ok(Value::closure(Closure {
+                                            funs: Gc::new(funs_map),
+                                            entry: Id::user("ß"),
+                                            env: env.clone(),
+                                        }, cx))
+                                    }
+                                    Some(SpecialForm::LetFn(funs, cont)) => {
+                                        let mut funs_map = BTreeMap::new();
+                                        let mut new_env = env.clone();
+                                        for (name, mutable, bound, body) in funs.iter() {
+                                            funs_map.insert(
+                                                (*name).clone(),
+                                                ((*bound).clone(), *mutable, (*body).clone())
+                                            );
+                                            new_env = new_env.update((*name).clone(), Value::nil());
+                                        }
+
+                                        let funs_gc = Gc::new(funs_map);
+
+                                        for (name, ..) in funs.iter() {
+                                            new_env.set(name.clone(), Value::closure(Closure {
+                                                funs: funs_gc.clone(),
+                                                entry: (*name).clone(),
+                                                env: new_env.clone(),
+                                            }, cx));
+                                        }
+
+                                        env = new_env;
+                                        v = (*cont).clone();
+                                    }
                                     None => panic!("static analysis should have caught free ids"),
                                 }
                             }
@@ -113,7 +153,7 @@ pub fn do_eval(mut v: Value, mut env: Env, cx: &mut Context, tail: bool) -> Resu
                     }
 
                     Value::Fun(Fun {fun: _Fun::Builtin(Builtin(b)), ..}) => {
-                        let mut arg_vec = Vec::with_capacity(params.0.len());
+                        let mut arg_vec = Vec::with_capacity(params.0.len() - 1);
                         for param in params.0.iter().skip(1) {
                             arg_vec.push(do_eval(param.clone(), env.clone(), cx, false)?);
                         }
@@ -122,8 +162,21 @@ pub fn do_eval(mut v: Value, mut env: Env, cx: &mut Context, tail: bool) -> Resu
                         return b(arg, cx);
                     }
 
-                    Value::Fun(Fun {fun: _Fun::Closure(c), ..}) => {
-                        unimplemented!();
+                    Value::Fun(Fun {fun: _Fun::Closure(Closure {
+                        funs,
+                        entry,
+                        env: c_env,
+                    }), ..}) => {
+                        let (arg_id, _, body) = funs.get(entry).unwrap();
+
+                        let mut arg_vec = Vec::with_capacity(params.0.len() - 1);
+                        for param in params.0.iter().skip(1) {
+                            arg_vec.push(do_eval(param.clone(), env.clone(), cx, false)?);
+                        }
+                        let arg = Value::arr_from_vec(arg_vec);
+
+                        env = c_env.update(arg_id.clone(), arg);
+                        v = body.clone();
                     }
 
                     Value::Fun(Fun {fun: _Fun::Apply, ..}) => {
@@ -153,22 +206,3 @@ pub fn do_eval(mut v: Value, mut env: Env, cx: &mut Context, tail: bool) -> Resu
         }
     }
 }
-
-// enum TCO {
-//     Ok(Value),
-//     Err(Value),
-//     TailCall {
-//         id: Id,
-//         arg: Value,
-//     }
-// }
-//
-// // If `tail` and v is an application, this returns a TailCall, else it performs regular,
-// // recursive evaluation.
-// //
-// // Lambdas are evaluated in a loop, continuing to loop while their body `eval_tco`s to
-// // a TailCall.
-// fn eval_tco(v: &Value, tail: bool, env: &Env, cx: &mut Context) -> TCO {
-//     // TODO needs to pass the set of identifiers that are eligable for tco
-//     unimplemented!();
-// }

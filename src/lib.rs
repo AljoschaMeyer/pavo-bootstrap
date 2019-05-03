@@ -1,3 +1,6 @@
+#![feature(reverse_bits)]
+#![feature(euclidean_division)]
+
 use nom::types::CompleteStr;
 
 mod builtins;
@@ -237,5 +240,40 @@ mod tests {
         assert_static_err("(sf-try false true false)", StaticError::SpecialFormSyntax(
             SpecialFormSyntaxError::Id(FormType::Try, Value::bool_(true))
         ));
+    }
+
+    #[test]
+    fn test_sf_lambda() {
+        assert_ok("((sf-lambda x (nil? (arr-get 0 x))) nil)", Value::bool_(true));
+        assert_ok("((sf-lambda x (nil? (arr-get 0 x))) false)", Value::bool_(false));
+        assert_ok("((sf-lambda :mut x (sf-do (sf-set! x nil) (nil? x))) false)", Value::bool_(true));
+
+        assert_static_err("(sf-lambda)", StaticError::SpecialFormSyntax(
+            SpecialFormSyntaxError::Arity(FormType::Lambda, 1)
+        ));
+        assert_static_err("(sf-lambda x)", StaticError::SpecialFormSyntax(
+            SpecialFormSyntaxError::Arity(FormType::Lambda, 2)
+        ));
+        assert_static_err("(sf-lambda x x x)", StaticError::SpecialFormSyntax(
+            SpecialFormSyntaxError::Arity(FormType::Lambda, 4)
+        ));
+        assert_static_err("(sf-lambda :mut x x x)", StaticError::SpecialFormSyntax(
+            SpecialFormSyntaxError::Arity(FormType::Lambda, 5)
+        ));
+    }
+
+    #[test]
+    fn test_sf_letfn() {
+        assert_ok("(sf-letfn (foo x (bar (arr-get 0 x))) (bar x (nil? (arr-get 0 x))) (foo nil))", Value::bool_(true));
+        assert_ok("(sf-letfn (foo x (bar (arr-get 0 x))) (bar x (nil? (arr-get 0 x))) (foo 42))", Value::bool_(false));
+    }
+
+    #[test]
+    fn test_tco() {
+        assert_ok("(sf-letfn
+            (even? n (sf-if (= (arr-get 0 n) 0) true (odd? (int-sub (arr-get 0 n) 1))))
+            (odd? n (sf-if (= (arr-get 0 n) 0) false (even? (int-sub (arr-get 0 n) 1))))
+            (even? 9999)
+        )", Value::bool_(false));
     }
 }

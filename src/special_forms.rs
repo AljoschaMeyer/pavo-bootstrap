@@ -132,6 +132,9 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
             }
 
             let (mutable, id) = mut_id(&v.0, 1, FormType::Let)?;
+            if !mutable && v.0.len() == 4 {
+                return Err(SpecialFormSyntaxError::Arity(FormType::Lambda, v.0.len()));
+            }
             let cont = &v.0[if mutable { 3 } else { 2 }];
 
             return Ok(Some(SpecialForm::Lambda(mutable, id, cont)));
@@ -147,12 +150,19 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
             for exp in v.0.iter().skip(1).take(total - 2) {
                 match exp.as_app() {
                     Some(fun_def) => {
+                        if fun_def.0.len() != 3 && fun_def.0.len() != 4  {
+                            return Err(SpecialFormSyntaxError::Arity(FormType::LetFn, fun_def.0.len()));
+                        }
+
                         let name = match fun_def.0[0].as_id() {
                             Some(name) => name,
                             None => return Err(SpecialFormSyntaxError::FnName(fun_def.0[0].clone())),
                         };
-                        let (mutable, id) = mut_id(&fun_def.0, 0, FormType::LetFn)?;
-                        let cont = &fun_def.0[if mutable { 2 } else { 1 }];
+                        let (mutable, id) = mut_id(&fun_def.0, 1, FormType::LetFn)?;
+                        if !mutable && fun_def.0.len() == 4 {
+                            return Err(SpecialFormSyntaxError::Arity(FormType::LetFn, fun_def.0.len()));
+                        }
+                        let cont = &fun_def.0[if mutable { 3 } else { 2 }];
 
                         funs.push((name, mutable, id, cont));
                     }

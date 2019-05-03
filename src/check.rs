@@ -5,7 +5,6 @@
 //! - All special forms are well-formed.
 //! - The `set!` special form only mutates mutable bindings.
 
-use failure_derive::Fail;
 use im_rc::OrdMap;
 
 use crate::env::Env;
@@ -115,7 +114,21 @@ fn do_check(
                                     let _ = do_check(try_, bindings)?;
                                     do_check(catch, &bindings.update(bound.clone(), mutable))
                                 }
-                                Some(_) => unimplemented!(),
+                                Some(SpecialForm::Lambda(mutable, bound, body)) => {
+                                    do_check(body, &bindings.update(bound.clone(), mutable))
+                                }
+                                Some(SpecialForm::LetFn(funs, cont)) => {
+                                    let mut inner_bindings = bindings.clone();
+                                    for (name, ..) in funs.iter() {
+                                        inner_bindings = inner_bindings.update((*name).clone(), false);
+                                    }
+
+                                    for (_, mutable, bound, body) in funs.iter() {
+                                        let _ = do_check(body, &inner_bindings.update((*bound).clone(), *mutable))?;
+                                    }
+
+                                    do_check(cont, &inner_bindings)
+                                }
                                 None => Err(StaticError::Free(id.clone())),
                             }
                         }

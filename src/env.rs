@@ -19,11 +19,76 @@ impl Env {
     pub fn default(cx: &mut Context) -> Env {
         let mut m = ImOrdMap::new();
 
+        // TODO sort these to be added in lexicographical order such that the ordering between builtin functions is equal to the lexicographical ordering of their names
+
         m.insert(Id::user("apply"), GcCell::new(Value::apply(cx)));
 
-        env_add(&mut m, "typeof", builtins::typeof_, cx);
         env_add(&mut m, "nil?", builtins::is_nil, cx);
+
         env_add(&mut m, "bool?", builtins::is_bool, cx);
+        env_add(&mut m, "bool-not", builtins::bool_not, cx);
+        env_add(&mut m, "bool-and", builtins::bool_and, cx);
+        env_add(&mut m, "bool-or", builtins::bool_or, cx);
+        env_add(&mut m, "bool-if", builtins::bool_if, cx);
+        env_add(&mut m, "bool-iff", builtins::bool_iff, cx);
+        env_add(&mut m, "bool-xor", builtins::bool_xor, cx);
+
+        env_add(&mut m, "int?", builtins::is_int, cx);
+        env_add_val(&mut m, "int-max", Value::int(std::i64::MAX), cx);
+        env_add_val(&mut m, "int-min", Value::int(std::i64::MIN), cx);
+        env_add(&mut m, "int-count-ones", builtins::int_count_ones, cx);
+        env_add(&mut m, "int-count-zeros", builtins::int_count_zeros, cx);
+        env_add(&mut m, "int-leading-ones", builtins::int_leading_ones, cx);
+        env_add(&mut m, "int-leading-zeros", builtins::int_leading_zeros, cx);
+        env_add(&mut m, "int-trailing-ones", builtins::int_trailing_ones, cx);
+        env_add(&mut m, "int-trailing-zeros", builtins::int_trailing_zeros, cx);
+        env_add(&mut m, "int-rotate-left", builtins::int_rotate_left, cx);
+        env_add(&mut m, "int-rotate-right", builtins::int_rotate_right, cx);
+        env_add(&mut m, "int-reverse-bytes", builtins::int_reverse_bytes, cx);
+        env_add(&mut m, "int-reverse-bits", builtins::int_reverse_bits, cx);
+        env_add(&mut m, "int-add", builtins::int_add, cx);
+        env_add(&mut m, "int-sub", builtins::int_sub, cx);
+        env_add(&mut m, "int-mul", builtins::int_mul, cx);
+        env_add(&mut m, "int-div", builtins::int_div, cx);
+        env_add(&mut m, "int-div-trunc", builtins::int_div_trunc, cx);
+        env_add(&mut m, "int-mod", builtins::int_mod, cx);
+        env_add(&mut m, "int-mod-trunc", builtins::int_mod_trunc, cx);
+        env_add(&mut m, "int-neg", builtins::int_neg, cx);
+        env_add(&mut m, "int-shl", builtins::int_shl, cx);
+        env_add(&mut m, "int-shr", builtins::int_shr, cx);
+        env_add(&mut m, "int-abs", builtins::int_abs, cx);
+        env_add(&mut m, "int-pow", builtins::int_pow, cx);
+        env_add(&mut m, "int-add-sat", builtins::int_add_sat, cx);
+        env_add(&mut m, "int-sub-sat", builtins::int_sub_sat, cx);
+        env_add(&mut m, "int-mul-sat", builtins::int_mul_sat, cx);
+        env_add(&mut m, "int-pow-sat", builtins::int_pow_sat, cx);
+        env_add(&mut m, "int-add-wrap", builtins::int_add_wrap, cx);
+        env_add(&mut m, "int-sub-wrap", builtins::int_sub_wrap, cx);
+        env_add(&mut m, "int-mul-wrap", builtins::int_mul_wrap, cx);
+        env_add(&mut m, "int-div-wrap", builtins::int_div_wrap, cx);
+        env_add(&mut m, "int-div-trunc-wrap", builtins::int_div_trunc_wrap, cx);
+        env_add(&mut m, "int-mod-wrap", builtins::int_mod_wrap, cx);
+        env_add(&mut m, "int-mod-trunc-wrap", builtins::int_mod_trunc_wrap, cx);
+        env_add(&mut m, "int-neg-wrap", builtins::int_neg_wrap, cx);
+        env_add(&mut m, "int-abs-wrap", builtins::int_abs_wrap, cx);
+        env_add(&mut m, "int-pow-wrap", builtins::int_pow_wrap, cx);
+        env_add(&mut m, "int-signum", builtins::int_signum, cx);
+
+        env_add(&mut m, "arr-get", builtins::arr_get, cx);
+
+        env_add(&mut m, "assert", builtins::pavo_assert, cx);
+        env_add(&mut m, "assert-not", builtins::pavo_assert_not, cx);
+        env_add(&mut m, "assert-eq", builtins::pavo_assert_eq, cx);
+        env_add(&mut m, "assert-type", builtins::pavo_assert_type, cx);
+
+        env_add(&mut m, "=", builtins::pavo_eq, cx);
+        env_add(&mut m, "<", builtins::pavo_lt, cx);
+        env_add(&mut m, "<=", builtins::pavo_lte, cx);
+        env_add(&mut m, ">", builtins::pavo_gt, cx);
+        env_add(&mut m, ">=", builtins::pavo_gte, cx);
+
+        env_add(&mut m, "typeof", builtins::typeof_, cx);
+        env_add(&mut m, "truthy?", builtins::is_truthy, cx);
 
         Env(OrdMap(m))
     }
@@ -51,5 +116,17 @@ fn env_add(
     m.insert(
         Id::user(name),
         GcCell::new(Value::builtin(Builtin(b), cx))
+    );
+}
+
+fn env_add_val(
+    m: &mut ImOrdMap<Id, GcCell<Value>>,
+    name: &str,
+    v: Value,
+    _cx: &mut Context,
+) {
+    m.insert(
+        Id::user(name),
+        GcCell::new(v)
     );
 }

@@ -2,10 +2,12 @@
 
 use std::{
     cmp::Ordering,
+    collections::BTreeMap,
     fmt,
     num::FpCategory,
 };
 
+use gc::Gc;
 use gc_derive::{Trace, Finalize};
 use im_rc::{
     Vector as ImVector,
@@ -13,8 +15,9 @@ use im_rc::{
     OrdMap as ImOrdMap,
 };
 
-use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
 use crate::context::Context;
+use crate::env::Env;
+use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub enum Value {
@@ -232,15 +235,14 @@ pub enum _Fun {
 /// Runtime representation of a value produced by a lambda special form.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub struct Closure {
-    // funs: Gc<BTreeMap<Id, (Id /* arg */, bool /*arg mutable*/, Value /*body*/)>>,
-    // entry: Id,
-    // env: Gc<Environment>
+    pub funs: Gc<BTreeMap<Id, (Id /* arg */, bool /*arg mutable*/, Value /*body*/)>>,
+    pub entry: Id,
+    pub env: Env,
 }
 
 impl fmt::Debug for Closure {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        unimplemented!();
-        // write!(f, "Builtin({:?})", self.0 as usize)
+        write!(f, "Closure entry: {:?}, funs: {:?}", self.entry, self.funs)
     }
 }
 
