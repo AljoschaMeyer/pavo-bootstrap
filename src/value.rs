@@ -70,7 +70,7 @@ impl Value {
         Value::kw(kw.to_string())
     }
 
-    fn arr(vals: Vector<Value>) -> Value {
+    pub fn arr(vals: Vector<Value>) -> Value {
         Value::Arr(vals)
     }
 
@@ -203,6 +203,12 @@ impl Id {
 pub struct Fun {
     pub fun: _Fun,
     pub id: u64,
+}
+
+impl Fun {
+    pub fn apply(&self, args: &Value) -> Result<Value, Value> {
+        unimplemented!()
+    }
 }
 
 impl PartialEq for Fun {

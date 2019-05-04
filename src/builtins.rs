@@ -1,7 +1,9 @@
-use im_rc::OrdMap as ImOrdMap;
+use std::cmp::{min, max};
+
+use im_rc::{OrdMap as ImOrdMap, Vector as ImVector};
 
 use crate::context::Context;
-use crate::gc_foreign::OrdMap;
+use crate::gc_foreign::{OrdMap, Vector};
 use crate::value::{Value, Atomic, Id};
 
 pub fn typeof__(v: &Value) -> Value {
@@ -72,12 +74,12 @@ pub fn zero_error() -> Value {
         ])))
 }
 
-fn int_to_usize(n: i64) -> Result<usize, Value> {
-    if n >= 0 {
-        Ok(n as usize)
-    } else {
-        Err(negative_error(n))
-    }
+fn index_clamp(arr: &Vector<Value>, n: i64) -> usize {
+    min(max(n, 0) as usize, arr.0.len() - 1)
+}
+
+fn index_clamp_inclusive(arr: &Vector<Value>, n: i64) -> usize {
+    min(max(n, 0) as usize, arr.0.len())
 }
 
 fn int_to_u64(n: i64) -> Result<u64, Value> {
@@ -86,6 +88,32 @@ fn int_to_u64(n: i64) -> Result<u64, Value> {
     } else {
         Err(negative_error(n))
     }
+}
+
+macro_rules! index {
+    ($arr:expr, $n:expr, $fb:expr) => (
+        if $n < 0 || $n as usize >= $arr.0.len() {
+            match $fb {
+                Some(fb) => return Ok(fb.clone()),
+                None => return Err(index_error($n as usize)),
+            }
+        } else {
+            $n as usize
+        }
+    )
+}
+
+macro_rules! index_incl {
+    ($arr:expr, $n:expr, $fb:expr) => (
+        if $n < 0 || $n as usize > $arr.0.len() {
+            match $fb {
+                Some(fb) => return Ok(fb.clone()),
+                None => return Err(index_error($n as usize)),
+            }
+        } else {
+            $n as usize
+        }
+    )
 }
 
 macro_rules! bool_ {
@@ -111,6 +139,15 @@ macro_rules! arr {
         match &$v {
             Value::Arr(arr) => arr.clone(),
             _ => return Err(type_error(&$v, "array")),
+        }
+    )
+}
+
+macro_rules! fun {
+    ($v:expr) => (
+        match &$v {
+            Value::Fun(fun) => fun.clone(),
+            _ => return Err(type_error(&$v, "function")),
         }
     )
 }
@@ -512,15 +549,271 @@ pub fn int_signum(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 /////////////////////////////////////////////////////////////////////////////
 
-pub fn arr_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let index = int_to_usize(int!(arg!(args, 0)))?;
+pub fn arr_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let arr = arr!(arg!(args, 1));
+    Ok(Value::int(arr.0.len() as i64))
+}
 
-    match arr.0.get(index) {
+pub fn arr_is_empty(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 1));
+    Ok(Value::bool_(arr.0.is_empty()))
+}
+
+pub fn arr_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let index = index!(&arr, int!(arg!(args, 1)), arg_opt!(args, 2));
+
+    Ok(arr.0[index].clone())
+}
+
+pub fn arr_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+
+    match arr.0.front() {
         Some(yay) => Ok(yay.clone()),
-        None => Err(index_error(index)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(index_error(0))
+        }
     }
 }
+
+pub fn arr_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+
+    match arr.0.back() {
+        Some(yay) => Ok(yay.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(index_error(0))
+        }
+    }
+}
+
+pub fn arr_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let start = index_incl!(&arr, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let end = index_incl!(&arr, int!(arg!(args, 2)), arg_opt!(args, 3));
+
+    if start > end {
+        match arg_opt!(args, 3) {
+            Some(fallback) => return Ok(fallback.clone()),
+            None => return Err(index_error(end)),
+        }
+    }
+
+    let (tmp, _) = arr.0.split_at(end);
+    Ok(Value::arr(Vector(tmp.skip(start))))
+}
+
+pub fn arr_slice_sat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let start = int!(arg!(args, 1));
+    let end = int!(arg!(args, 2));
+
+    let start = index_clamp_inclusive(&arr, start);
+    let end = index_clamp_inclusive(&arr, end);
+
+    let (tmp, _) = arr.0.split_at(end);
+    Ok(Value::arr(Vector(tmp.skip(start))))
+}
+
+pub fn arr_split(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let index = index_incl!(&arr, int!(arg!(args, 1)), arg_opt!(args, 2));
+
+    let (fst, snd) = arr.0.split_at(index);
+
+    Ok(Value::arr_from_vec(vec![Value::arr(Vector(fst)), Value::arr(Vector(snd))]))
+}
+
+pub fn arr_split_sat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let index = int!(arg!(args, 1));
+    let index = index_clamp_inclusive(&arr, index);
+
+    let (fst, snd) = arr.0.split_at(index);
+
+    Ok(Value::arr_from_vec(vec![Value::arr(Vector(fst)), Value::arr(Vector(snd))]))
+}
+
+pub fn arr_take(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let n = index_incl!(&arr, int!(arg!(args, 1)), arg_opt!(args, 2));
+
+    Ok(Value::arr(Vector(arr.0.take(n))))
+}
+
+pub fn arr_take_sat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let n = int!(arg!(args, 1));
+    let n = index_clamp_inclusive(&arr, n);
+
+    Ok(Value::arr(Vector(arr.0.take(n))))
+}
+
+pub fn arr_take_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let n = index_incl!(&arr, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let len = arr.0.len();
+
+    let (_, snd) = arr.0.split_at(len - n);
+    Ok(Value::arr(Vector(snd)))
+}
+
+pub fn arr_take_back_sat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let n = int!(arg!(args, 1));
+    let n = index_clamp_inclusive(&arr, n);
+    let len = arr.0.len();
+
+    let (_, snd) = arr.0.split_at(len - n);
+    Ok(Value::arr(Vector(snd)))
+}
+
+pub fn arr_take_while(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let pred = fun!(arg!(args, 1));
+
+    match arr.0.iter().try_fold(ImVector::new(), |acc, elem| {
+        match pred.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    let mut new_acc = acc.clone();
+                    new_acc.push_back(yay);
+                    Ok(new_acc)
+                } else {
+                    Err(Ok(acc))
+                }
+            }
+            Err(thrown) => Err(Err(thrown)),
+        }
+    }) {
+        Ok(yay) => Ok(Value::arr(Vector(yay))),
+        Err(Ok(yay)) => Ok(Value::arr(Vector(yay))),
+        Err(Err(thrown)) => Err(thrown),
+    }
+}
+
+pub fn arr_take_while_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let pred = fun!(arg!(args, 1));
+
+    match arr.0.iter().rev().try_fold(ImVector::new(), |acc, elem| {
+        match pred.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    let mut new_acc = acc.clone();
+                    new_acc.push_back(yay);
+                    Ok(new_acc)
+                } else {
+                    Err(Ok(acc))
+                }
+            }
+            Err(thrown) => Err(Err(thrown)),
+        }
+    }) {
+        Ok(yay) => Ok(Value::arr(Vector(yay))),
+        Err(Ok(yay)) => Ok(Value::arr(Vector(yay))),
+        Err(Err(thrown)) => Err(thrown),
+    }
+}
+
+pub fn arr_skip(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let n = index_incl!(&arr, int!(arg!(args, 1)), arg_opt!(args, 2));
+
+    Ok(Value::arr(Vector(arr.0.skip(n))))
+}
+
+pub fn arr_skip_sat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let n = int!(arg!(args, 1));
+    let n = index_clamp_inclusive(&arr, n);
+
+    Ok(Value::arr(Vector(arr.0.skip(n))))
+}
+
+pub fn arr_skip_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let n = index_incl!(&arr, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let len = arr.0.len();
+
+    let (fst, _) = arr.0.split_at(len - n);
+    Ok(Value::arr(Vector(fst)))
+}
+
+pub fn arr_skip_back_sat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let n = int!(arg!(args, 1));
+    let n = index_clamp_inclusive(&arr, n);
+    let len = arr.0.len();
+
+    let (fst, _) = arr.0.split_at(len - n);
+    Ok(Value::arr(Vector(fst)))
+}
+
+pub fn arr_take_while(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let pred = fun!(arg!(args, 1));
+
+    match arr.0.iter().try_fold(ImVector::new(), |acc, elem| {
+        match pred.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    let mut new_acc = acc.clone();
+                    new_acc.push_back(yay);
+                    Ok(new_acc)
+                } else {
+                    Err(Ok(acc))
+                }
+            }
+            Err(thrown) => Err(Err(thrown)),
+        }
+    }) {
+        Ok(yay) => Ok(Value::arr(Vector(yay))),
+        Err(Ok(yay)) => Ok(Value::arr(Vector(yay))),
+        Err(Err(thrown)) => Err(thrown),
+    }
+}
+
+pub fn arr_take_while_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let pred = fun!(arg!(args, 1));
+
+    match arr.0.iter().rev().try_fold(ImVector::new(), |acc, elem| {
+        match pred.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    let mut new_acc = acc.clone();
+                    new_acc.push_back(yay);
+                    Ok(new_acc)
+                } else {
+                    Err(Ok(acc))
+                }
+            }
+            Err(thrown) => Err(Err(thrown)),
+        }
+    }) {
+        Ok(yay) => Ok(Value::arr(Vector(yay))),
+        Err(Ok(yay)) => Ok(Value::arr(Vector(yay))),
+        Err(Err(thrown)) => Err(thrown),
+    }
+}
+
+
+// pub fn arr_init(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+//     let arr = arr!(arg!(args, 0));
+//
+//     if arr.0.len() == 0 {
+//         match arg_opt!(args, 1) {
+//             Some(fallback) => return Ok(fallback.clone()),
+//             None => return Err(index_error(0)),
+//         }
+//     }
+//
+//     Ok(Value::arr(Vector(arr.0.take(arr.0.len() - 1))))
+// }
 
 /////////////////////////////////////////////////////////////////////////////
 

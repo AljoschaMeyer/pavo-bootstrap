@@ -244,8 +244,8 @@ mod tests {
 
     #[test]
     fn test_sf_lambda() {
-        assert_ok("((sf-lambda x (nil? (arr-get 0 x))) nil)", Value::bool_(true));
-        assert_ok("((sf-lambda x (nil? (arr-get 0 x))) false)", Value::bool_(false));
+        assert_ok("((sf-lambda x (nil? (arr-get x 0))) nil)", Value::bool_(true));
+        assert_ok("((sf-lambda x (nil? (arr-get x 0))) false)", Value::bool_(false));
         assert_ok("((sf-lambda :mut x (sf-do (sf-set! x nil) (nil? x))) false)", Value::bool_(true));
 
         assert_static_err("(sf-lambda)", StaticError::SpecialFormSyntax(
@@ -264,16 +264,30 @@ mod tests {
 
     #[test]
     fn test_sf_letfn() {
-        assert_ok("(sf-letfn (foo x (bar (arr-get 0 x))) (bar x (nil? (arr-get 0 x))) (foo nil))", Value::bool_(true));
-        assert_ok("(sf-letfn (foo x (bar (arr-get 0 x))) (bar x (nil? (arr-get 0 x))) (foo 42))", Value::bool_(false));
+        assert_ok("(sf-letfn (foo x (bar (arr-get x 0))) (bar x (nil? (arr-get x 0))) (foo nil))", Value::bool_(true));
+        assert_ok("(sf-letfn (foo x (bar (arr-get x 0))) (bar x (nil? (arr-get x 0))) (foo 42))", Value::bool_(false));
     }
 
     #[test]
     fn test_tco() {
         assert_ok("(sf-letfn
-            (even? n (sf-if (= (arr-get 0 n) 0) true (odd? (int-sub (arr-get 0 n) 1))))
-            (odd? n (sf-if (= (arr-get 0 n) 0) false (even? (int-sub (arr-get 0 n) 1))))
+            (even? n (sf-if (= (arr-get n 0) 0) true (odd? (int-sub (arr-get n 0) 1))))
+            (odd? n (sf-if (= (arr-get n 0) 0) false (even? (int-sub (arr-get n 0) 1))))
             (even? 9999)
         )", Value::bool_(false));
+    }
+
+    #[test]
+    fn test_toplevel_values() {
+        // TODO test all the stuff from the reference docs. For now, this is just to check that particular stuff works
+        assert_ok("(sf-do
+            (assert-eq (arr-get [] 0 nil) nil)
+        )", Value::nil());
+    }
+
+    use im_rc::Vector;
+    #[test]
+    fn test_name() {
+        println!("{:?}", Vector::unit(42).split_at(1));
     }
 }

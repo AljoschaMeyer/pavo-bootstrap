@@ -617,6 +617,333 @@ Returns `-1` if the int `n` is less than `0`, `0` if `n` is equal to `0`, `1` if
 (assert-eq (int-signum 42) 1)
 ```
 
+### Arrays
+
+### `(arr-count arr)`
+
+Returns the number of elements in the array `arr`.
+
+```pavo
+(assert-eq (arr-count []) 0)
+(assert-eq (arr-count [nil]) 1)
+(assert-eq (arr-count [0, 1, 2]) 3)
+```
+
+### `(arr-empty? arr)`
+
+Returns whether the count of elements in the array `arr` is zero.
+
+Equivalent to `(= (arr-count arr) 0)`.
+
+```pavo
+(assert (arr-empty? []))
+(assert (arr-empty? [nil]))
+```
+
+### `(arr-get arr index)` `(arr-get arr index default)`
+
+Returns the element at the int `index` in the array `arr`. If `default` is not supplied, throws `{ :tag :err-index, :got index}` if the index is out of bounds. If `default` is supplied, returns `default` if the index is out of bounds.
+
+```pavo
+(assert-eq (arr-get [true] 0) true)
+(assert-throw (arr-get [] 0) { :tag :err-index, :got 0})
+(assert-eq (arr-get [] 0 nil) nil)
+```
+
+### `(arr-front arr)` `(arr-front arr default)`
+
+Returns the first element in the array `arr`. If `default` is not supplied, throws `{ :tag :err-index, :got 0}` if the array is empty. If `default` is supplied, returns `default` if the array is empty.
+
+Equivalent to `(arr-get arr 0)` and `(arr-get arr 0 default)`.
+
+```pavo
+(assert-eq (arr-front [true false]) true)
+(assert-throw (arr-front []) { :tag :err-index, :got 0})
+(assert-eq (arr-front [] nil) nil)
+```
+
+### `(arr-back arr)` `(arr-back arr default)`
+
+Returns the last element in the array `arr`. If `default` is not supplied, throws `{ :tag :err-index, :got 0}` if the array is empty. If `default` is supplied, returns `default` if the array is empty.
+
+Equivalent to `(arr-get arr (- (arr-count arr) 1))` and `(arr-get arr (- (arr-count arr) 1) default)`.
+
+```pavo
+(assert-eq (arr-back [true false]) false)
+(assert-throw (arr-back []) { :tag :err-index, :got 0})
+(assert-eq (arr-back [] nil) nil)
+```
+
+### `(arr-slice arr start end)` `(arr-slice arr start end default)`
+
+Returns an array containing a subsequence of the elements of the array `arr`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
+
+Throws `{ :tag :err-index, :got end}` if `start` is greater than `end`.
+Throws `{ :tag :err-index, :got start}` if `start` is out of bounds.
+Throws `{ :tag :err-index, :got end}` if `end` is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+```pavo
+(assert-eq (arr-slice [true false] 1 1) [])
+(assert-eq (arr-slice [true false] 0 1) [true])
+(assert-eq (arr-slice [true false] 1 2) [false])
+(assert-eq (arr-slice [true false] 0 2) [true false])
+(assert-throw (arr-slice [] 0 1) { :tag :err-index, :got 1})
+(assert-throw (arr-slice [] 2 3) { :tag :err-index, :got 2})
+(assert-throw (arr-slice [0 1 2 3] 2 1) { :tag :err-index, :got 1})
+(assert-eq (arr-slice [] 0 1 nil) nil)
+```
+
+### `(arr-slice-sat arr start end)`
+
+Returns an array containing a subsequence of the elements of the array `arr`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive). Clamps `start` and `end` to valid indexes. Returns the empty array if `start` is greater than `end`.
+
+```pavo
+(assert-eq (arr-slice-sat [true false] 1 1) [])
+(assert-eq (arr-slice-sat [true false] 0 1) [true])
+(assert-eq (arr-slice-sat [true false] 1 2) [false])
+(assert-eq (arr-slice-sat [true false] 0 2) [true false])
+(assert-eq (arr-slice-sat [true false] -42 42) [true false])
+(assert-eq (arr-slice-sat [] 2 3) [])
+(assert-eq (arr-slice-sat [0 1 2 3] 2 1) [])
+```
+
+### `(arr-split arr index)` `(arr-split arr index default)`
+
+Returns an array of two elements, first an array containing all the elements of the array `arr` up until the index int `index`, and second an array containing all remaining elements.
+
+Throws `{ :tag :err-index, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+```pavo
+(assert-eq (arr-split [true false] 0) [[] [true false]])
+(assert-eq (arr-split [true false] 1) [[true] [false]])
+(assert-eq (arr-split [true false] 2) [[true false] []])
+(assert-throw (arr-split [true false] 3) { :tag :err-index, :got 3})
+(assert-eq (arr-split [true false] 3 nil) nil)
+```
+
+### `(arr-split-sat arr index)`
+
+Returns an array of two elements, first an array containing all the elements of the array `arr` up until the index int `index`, and second an array containing all remaining elements. Clamps `index` to a valid index.
+
+
+```pavo
+(assert-eq (arr-split [true false] 0) [[] [true false]])
+(assert-eq (arr-split [true false] 1) [[true] [false]])
+(assert-eq (arr-split [true false] 2) [[true false] []])
+(assert-eq (arr-split [true false] -42) [[] [true false]])
+(assert-throw (arr-split [true false] 3) [[true false] []])
+```
+
+### `(arr-take arr n)` `(arr-take arr n fallback)`
+
+Returns an array containing the first `n` elements of the array `arr`.
+
+Throws `{ :tag :err-index, :got index}` if the `n` is greater than `(arr-count arr)`.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+```pavo
+(assert-eq (arr-take [true false] 0) [])
+(assert-eq (arr-take [true false] 1) [true])
+(assert-eq (arr-take [true false] 2) [true false])
+(assert-throw (arr-take [true false] 3) { :tag :err-index, :got 3})
+(assert-eq (arr-take [true false] 3 nil) nil)
+```
+
+### `(arr-take-sat arr n)`
+
+Returns an array containing the first `n` elements of the array `arr`. Clamps `n` to a valid int.
+
+```pavo
+(assert-eq (arr-take-sat [true false] 0) [])
+(assert-eq (arr-take-sat [true false] 1) [true])
+(assert-eq (arr-take-sat [true false] 2) [true false])
+(assert-eq (arr-take-sat [true false] -42) [])
+(assert-eq (arr-take-sat [true false] 3) [true false])
+```
+
+### `(arr-take-back arr n)` `(arr-take-back arr n fallback)`
+
+Returns an array containing the last `n` elements of the array `arr`.
+
+Throws `{ :tag :err-index, :got index}` if the `n` is greater than `(arr-count arr)`.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+```pavo
+(assert-eq (arr-take-back [true false] 0) [])
+(assert-eq (arr-take-back [true false] 1) [false])
+(assert-eq (arr-take-back [true false] 2) [true false])
+(assert-throw (arr-take-back [true false] 3) { :tag :err-index, :got 3})
+(assert-eq (arr-take-back [true false] 3 nil) nil)
+```
+
+### `(arr-take-back-sat arr n)`
+
+Returns an array containing the last `n` elements of the array `arr`. Clamps `n` to a valid int.
+
+```pavo
+(assert-eq (arr-take-back-sat [true false] 0) [])
+(assert-eq (arr-take-back-sat [true false] 1) [false])
+(assert-eq (arr-take-back-sat [true false] 2) [true false])
+(assert-eq (arr-take-back-sat [true false] -42) [])
+(assert-eq (arr-take-back-sat [true false] 3) [true false])
+```
+
+### `(arr-take-while arr pred)`
+
+Returns the longest prefix of elements in the array `arr` for which `(pred elem)` evaluates truthy. Iterates over the elements from left to right.
+
+```pavo
+(assert-eq (arr-take-while [0 1 nil false 4] int?) [0 1])
+(assert-eq (arr-take-while [nil false 2] int?) [])
+(assert-eq (arr-take-while [] int?) [])
+(assert-eq (arr-take-while [0 1] int?) [0 1])
+```
+
+### `(arr-take-while-back arr pred)`
+
+Returns the longest suffix of elements in the array `arr` for which `(pred elem)` evaluates truthy. Iterates over the elements from right to left.
+
+```pavo
+(assert-eq (arr-take-while-back [4 false nil 1 0] int?) [1 0])
+(assert-eq (arr-take-while-back [4 false nil] int?) [])
+(assert-eq (arr-take-while-back [] int?) [])
+(assert-eq (arr-take-while-back [1 0] int?) [1 0])
+```
+
+### `(arr-skip arr n)` `(arr-skip arr n fallback)`
+
+Returns an array containing all but the first `n` elements of the array `arr`.
+
+Throws `{ :tag :err-index, :got index}` if the `n` is greater than `(arr-count arr)`.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+```pavo
+(assert-eq (arr-skip [true false] 0) [true false])
+(assert-eq (arr-skip [true false] 1) [false])
+(assert-eq (arr-skip [true false] 2) [])
+(assert-throw (arr-skip [true false] 3) { :tag :err-index, :got 3})
+(assert-eq (arr-skip [true false] 3 nil) nil)
+```
+
+### `(arr-skip-sat arr n)`
+
+Returns an array containing all but the first `n` elements of the array `arr`. Clamps `n` to a valid int.
+
+```pavo
+(assert-eq (arr-skip-sat [true false] 0) [true false])
+(assert-eq (arr-skip-sat [true false] 1) [true])
+(assert-eq (arr-skip-sat [true false] 2) [])
+(assert-eq (arr-skip-sat [true false] -42) [true false])
+(assert-eq (arr-skip-sat [true false] 3) [])
+```
+
+### `(arr-skip-back arr n)` `(arr-skip-back arr n fallback)`
+
+Returns an array containing all but the last `n` elements of the array `arr`.
+
+Throws `{ :tag :err-index, :got index}` if the `n` is greater than `(arr-count arr)`.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+```pavo
+(assert-eq (arr-skip-back [true false] 0) [true false])
+(assert-eq (arr-skip-back [true false] 1) [true])
+(assert-eq (arr-skip-back [true false] 2) [])
+(assert-throw (arr-skip-back [true false] 3) { :tag :err-index, :got 3})
+(assert-eq (arr-skip-back [true false] 3 nil) nil)
+```
+
+### `(arr-skip-back-sat arr n)`
+
+Returns an array containing all but the last `n` elements of the array `arr`. Clamps `n` to a valid int.
+
+```pavo
+(assert-eq (arr-skip-back-sat [true false] 0) [true false])
+(assert-eq (arr-skip-back-sat [true false] 1) [true])
+(assert-eq (arr-skip-back-sat [true false] 2) [])
+(assert-eq (arr-skip-back-sat [true false] -42) [true false])
+(assert-eq (arr-skip-back-sat [true false] 3) [])
+```
+
+### `(arr-skip-while arr pred)`
+
+Returns the array obtained by removing the longest prefix of elements in the array `arr` for which `(pred elem)` evaluates truthy. Iterates over the elements from left to right.
+
+```pavo
+(assert-eq (arr-skip-while [0 1 nil false 4] int?) [nil false 4])
+(assert-eq (arr-skip-while [nil false 2] int?) [nil false 2])
+(assert-eq (arr-skip-while [] int?) [])
+(assert-eq (arr-skip-while [0 1] int?) [])
+```
+
+### `(arr-skip-while-back arr pred)`
+
+Returns the array obtained by removing the longest suffix of elements in the array `arr` for which `(pred elem)` evaluates truthy. Iterates over the elements from right to left.
+
+```pavo
+(assert-eq (arr-skip-while-back [4 false nil 1 0] int?) [4 false nil])
+(assert-eq (arr-skip-while-back [2 false nil] int?) [2 false nil])
+(assert-eq (arr-skip-while-back [] int?) [])
+(assert-eq (arr-skip-while-back [1 0] int?) [])
+```
+
+---
+
+init, tail
+append, prepend, concat
+insert, insert-all, update
+all?, any?, none?
+prefix?, suffix?
+chain/flatmap
+filter/retain, reject
+(for-)each, map
+fold, fold-back, fold-while, fold-back-while
+unfold, unfold-back
+scan, scan-back
+repeat, unit, empty
+reverse
+
+<!-- ### `(arr-tail arr)` `(arr-tail arr default)`
+
+Returns an array containing all but the first element of the array `arr`.
+
+Throws `{ :tag :err-index, :got 1}` if the array is empty.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Equivalent to `(arr-drop arr 1)` and `(arr-drop arr 1 default)`.
+
+```pavo
+(assert-eq (arr-tail [true false 42]) [false 42])
+(assert-throw (arr-tail []) { :tag :err-index, :got 1})
+(assert-eq (arr-tail [] nil) nil)
+```
+
+### `(arr-init arr)` `(arr-init arr default)`
+
+Returns an array containing all but the last element of the array `arr`.
+
+Throws `{ :tag :err-index, :got 1}` if the array is empty.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Equivalent to `(arr-drop-back arr 1)` and `(arr-drop-back arr 1 default)`.
+
+```pavo
+(assert-eq (arr-init [true false 42]) [true false])
+(assert-throw (arr-init []) { :tag :err-index, :got 1})
+(assert-eq (arr-init [] nil) nil)
+``` -->
+
+from-set, from-map-keys, from-map-vals, from-map-entries, from-map-zipped
+
 ### Assertions
 
 #### `(assert x)`

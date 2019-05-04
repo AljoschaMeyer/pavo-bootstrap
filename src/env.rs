@@ -74,7 +74,21 @@ impl Env {
         env_add(&mut m, "int-pow-wrap", builtins::int_pow_wrap, cx);
         env_add(&mut m, "int-signum", builtins::int_signum, cx);
 
+        env_add(&mut m, "arr-count", builtins::arr_count, cx);
+        env_add(&mut m, "arr-empty?", builtins::arr_is_empty, cx);
         env_add(&mut m, "arr-get", builtins::arr_get, cx);
+        env_add(&mut m, "arr-front", builtins::arr_front, cx);
+        env_add(&mut m, "arr-back", builtins::arr_back, cx);
+        env_add(&mut m, "arr-slice", builtins::arr_slice, cx);
+        env_add(&mut m, "arr-slice-sat", builtins::arr_slice_sat, cx);
+        env_add(&mut m, "arr-split", builtins::arr_split, cx);
+        env_add(&mut m, "arr-split-sat", builtins::arr_split_sat, cx);
+        env_add(&mut m, "arr-take", builtins::arr_take, cx);
+        env_add(&mut m, "arr-take-sat", builtins::arr_take_sat, cx);
+        env_add(&mut m, "arr-take-back", builtins::arr_take_back, cx);
+        env_add(&mut m, "arr-take-back-sat", builtins::arr_take_back_sat, cx);
+        env_add(&mut m, "arr-take--while", builtins::arr_take_while, cx);
+        env_add(&mut m, "arr-take-while-back", builtins::arr_take_while_back, cx);
 
         env_add(&mut m, "assert", builtins::pavo_assert, cx);
         env_add(&mut m, "assert-not", builtins::pavo_assert_not, cx);
