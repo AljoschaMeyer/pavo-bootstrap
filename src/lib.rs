@@ -277,17 +277,17 @@ mod tests {
         )", Value::bool_(false));
     }
 
-    #[test]
-    fn test_toplevel_values() {
-        // TODO test all the stuff from the reference docs. For now, this is just to check that particular stuff works
-        assert_ok("(sf-do
-            (assert-eq (arr-get [] 0 nil) nil)
-        )", Value::nil());
-    }
+    // #[test]
+    // fn test_toplevel_values() {
+    //     // TODO test all the stuff from the reference docs. For now, this is just to check that particular stuff works
+    //     assert_ok("(sf-do
+    //         (assert-eq (arr-get [] 0 nil) nil)
+    //     )", Value::nil());
+    // }
 
-    use im_rc::Vector;
-    #[test]
-    fn test_name() {
-        println!("{:?}", Vector::unit(42).split_at(1));
-    }
+    // use im_rc::Vector;
+    // #[test]
+    // fn test_name() {
+    //     println!("{:?}", Vector::unit(42).split_at(1));
+    // }
 }

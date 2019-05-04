@@ -23,9 +23,6 @@ impl Env {
 
         m.insert(Id::user("apply"), GcCell::new(Value::apply(cx)));
 
-        env_add(&mut m, "nil?", builtins::is_nil, cx);
-
-        env_add(&mut m, "bool?", builtins::is_bool, cx);
         env_add(&mut m, "bool-not", builtins::bool_not, cx);
         env_add(&mut m, "bool-and", builtins::bool_and, cx);
         env_add(&mut m, "bool-or", builtins::bool_or, cx);
@@ -33,7 +30,6 @@ impl Env {
         env_add(&mut m, "bool-iff", builtins::bool_iff, cx);
         env_add(&mut m, "bool-xor", builtins::bool_xor, cx);
 
-        env_add(&mut m, "int?", builtins::is_int, cx);
         env_add_val(&mut m, "int-max", Value::int(std::i64::MAX), cx);
         env_add_val(&mut m, "int-min", Value::int(std::i64::MIN), cx);
         env_add(&mut m, "int-count-ones", builtins::int_count_ones, cx);
@@ -75,25 +71,13 @@ impl Env {
         env_add(&mut m, "int-signum", builtins::int_signum, cx);
 
         env_add(&mut m, "arr-count", builtins::arr_count, cx);
-        env_add(&mut m, "arr-empty?", builtins::arr_is_empty, cx);
         env_add(&mut m, "arr-get", builtins::arr_get, cx);
-        env_add(&mut m, "arr-front", builtins::arr_front, cx);
-        env_add(&mut m, "arr-back", builtins::arr_back, cx);
+        env_add(&mut m, "arr-insert", builtins::arr_insert, cx);
+        env_add(&mut m, "arr-remove", builtins::arr_remove, cx);
+        env_add(&mut m, "arr-update", builtins::arr_update, cx);
         env_add(&mut m, "arr-slice", builtins::arr_slice, cx);
-        env_add(&mut m, "arr-slice-sat", builtins::arr_slice_sat, cx);
-        env_add(&mut m, "arr-split", builtins::arr_split, cx);
-        env_add(&mut m, "arr-split-sat", builtins::arr_split_sat, cx);
-        env_add(&mut m, "arr-take", builtins::arr_take, cx);
-        env_add(&mut m, "arr-take-sat", builtins::arr_take_sat, cx);
-        env_add(&mut m, "arr-take-back", builtins::arr_take_back, cx);
-        env_add(&mut m, "arr-take-back-sat", builtins::arr_take_back_sat, cx);
-        env_add(&mut m, "arr-take--while", builtins::arr_take_while, cx);
-        env_add(&mut m, "arr-take-while-back", builtins::arr_take_while_back, cx);
-
-        env_add(&mut m, "assert", builtins::pavo_assert, cx);
-        env_add(&mut m, "assert-not", builtins::pavo_assert_not, cx);
-        env_add(&mut m, "assert-eq", builtins::pavo_assert_eq, cx);
-        env_add(&mut m, "assert-type", builtins::pavo_assert_type, cx);
+        env_add(&mut m, "arr-splice", builtins::arr_splice, cx);
+        env_add(&mut m, "arr-concat", builtins::arr_concat, cx);
 
         env_add(&mut m, "=", builtins::pavo_eq, cx);
         env_add(&mut m, "<", builtins::pavo_lt, cx);

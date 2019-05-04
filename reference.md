@@ -14,7 +14,9 @@
 
 These are all the values that are bound to an identifier in the toplevel environment in which code is executed by default. All of these bindings are immutable.
 
-In the example code blocks, all "statements" evaluate to `nil`, none throws. If you put all examples into a `sf-do` special form, it would evaluate to `nil`.
+In the example code blocks, all "statements" evaluate to `nil`, none throws. If you put all examples into a `sf-do` special form, it would evaluate to `nil`. TODO introduce assertion functions/macros.
+
+The given time complexities are the minimum that a pavo implementation must provide. An implementation is of course free to provide *better* complexity bounds than those required. In particular, any amortized complexity bound can be implemented as non-amortized. The converse is not true: If a complexity requirement is unamortized, then implementations are not allowed to provide only amortized bounds.
 
 Whenever a function is described to "throw a type error", it throws a map `{ :tag :err-type, :expected <expected>, :got <got>}` where `<expected>` and `<got>` are the keywords denoting the respective types (see `(typeof x)`). Type errors are also trown when an argument is described as having a certain type, but an argument of a different type is supplied. For example "Do foo to the int `n`" throws a type error with `:expected :int` if `n` is not an int.
 
@@ -23,34 +25,18 @@ Whenever an argument is referred to as a "positive int", but an int less than ze
 TODO Specify errors that are thrown on incorrect number of args
 TODO specify in which order all errors apply.
 
-### Nil
+TODO: reformulate the following paragraphs on endianess, add conversions from/to bytes, and move the text to a sensible place.
 
-#### `(nil? x)`
+There are no functions whose behavior depends on the endianess of the executing machine, since this would be nondeterministic behavior with respect to the pavo semantics. Implementations are highly encouraged to supply the following functions to the entry of a pavo program:
 
-Returns `true` if `x` is `nil`, `false` otherwise.
+- `(int-from-be n)`: Converts the int `n` from big endian to the target's endianness.
+- `(int-from-le n)`: Converts the int `n` from little endian to the target's endianness.
+- `(int-to-be n)`: Converts the int `n` to big endian from the target's endianness.
+- `(int-to-le n)`: Converts the int `n` to little endian from the target's endianness.
 
-Equivalent to `(= (typeof x) :nil)`.
-
-```pavo
-(assert (nil? nil))
-(assert-not (nil? false))
-(assert-not (nil? 0))
-```
+Additionally, they should provide the value `endianess`: Either `:be` or `le` depending on the target's endianess.
 
 ### Bool
-
-#### `(bool? x)`
-
-Returns `true` if `x` is a bool, `false` otherwise.
-
-Equivalent to `(= (typeof x) :bool)`.
-
-```pavo
-(assert (bool? true))
-(assert (bool? false))
-(assert-not (bool? nil))
-(assert-not (bool? "true"))
-```
 
 #### `(bool-not b)`
 
@@ -167,28 +153,6 @@ Throws a type error if any of the arguments is not a bool.
 ### Int
 
 Most of this has been taken/adapted from the [rust i64 docs](https://doc.rust-lang.org/std/primitive.i64.html). A helpful discussion of various design choices for the behavior of the modulus and division operations is [Boute, Raymond T. "The Euclidean definition of the functions div and mod."](https://biblio.ugent.be/publication/314490/file/452146.pdf).
-
-There are no functions whose behavior depends on the endianess of the executing machine, since this would be nondeterministic behavior with respect to the pavo semantics. Implementations are highly encouraged to supply the following functions to the entry of a pavo program:
-
-- `(int-from-be n)`: Converts the int `n` from big endian to the target's endianness.
-- `(int-from-le n)`: Converts the int `n` from little endian to the target's endianness.
-- `(int-to-be n)`: Converts the int `n` to big endian from the target's endianness.
-- `(int-to-le n)`: Converts the int `n` to little endian from the target's endianness.
-
-Additionally, they should provide the value `endianess`: Either `:be` or `le` depending on the target's endianess.
-
-TODO move the section on endianess somewhere else, since this also effects some bytes methods
-
-#### `(int? x)`
-
-Returns `true` if `x` is an int, `false` otherwise.
-
-Equivalent to `(= (typeof x) :int)`.
-
-```pavo
-(assert (int? 0))
-(assert-not (int? 0.0))
-```
 
 #### `int-max`
 
@@ -619,9 +583,11 @@ Returns `-1` if the int `n` is less than `0`, `0` if `n` is equal to `0`, `1` if
 
 ### Arrays
 
-### `(arr-count arr)`
+#### `(arr-count arr)`
 
 Returns the number of elements in the array `arr`.
+
+Time: O(1).
 
 ```pavo
 (assert-eq (arr-count []) 0)
@@ -629,20 +595,15 @@ Returns the number of elements in the array `arr`.
 (assert-eq (arr-count [0, 1, 2]) 3)
 ```
 
-### `(arr-empty? arr)`
+#### `(arr-get arr index)` `(arr-get arr index default)`
 
-Returns whether the count of elements in the array `arr` is zero.
+Returns the element at the int `index` in the array `arr`.
 
-Equivalent to `(= (arr-count arr) 0)`.
+Throws `{ :tag :err-index, :got index}` if the index is out of bounds.
 
-```pavo
-(assert (arr-empty? []))
-(assert (arr-empty? [nil]))
-```
+If `default` is supplied, returns `default` instead of throwing.
 
-### `(arr-get arr index)` `(arr-get arr index default)`
-
-Returns the element at the int `index` in the array `arr`. If `default` is not supplied, throws `{ :tag :err-index, :got index}` if the index is out of bounds. If `default` is supplied, returns `default` if the index is out of bounds.
+Time: O(log n), where n is `(arr-count arr)`.
 
 ```pavo
 (assert-eq (arr-get [true] 0) true)
@@ -650,31 +611,60 @@ Returns the element at the int `index` in the array `arr`. If `default` is not s
 (assert-eq (arr-get [] 0 nil) nil)
 ```
 
-### `(arr-front arr)` `(arr-front arr default)`
+#### `(arr-insert arr index new)` `(arr-insert arr index new default)`
 
-Returns the first element in the array `arr`. If `default` is not supplied, throws `{ :tag :err-index, :got 0}` if the array is empty. If `default` is supplied, returns `default` if the array is empty.
+Inserts the value `new` into the array `arr` at the index int `index`.
 
-Equivalent to `(arr-get arr 0)` and `(arr-get arr 0 default)`.
+Throws `{ :tag :err-index, :got index}` if the index is out of bounds.
+Throws `{ :tag :err-collection-size }` if the resulting array would contain 2^63 or more elements.
 
-```pavo
-(assert-eq (arr-front [true false]) true)
-(assert-throw (arr-front []) { :tag :err-index, :got 0})
-(assert-eq (arr-front [] nil) nil)
-```
+If `default` is supplied, returns `default` instead of throwing.
 
-### `(arr-back arr)` `(arr-back arr default)`
-
-Returns the last element in the array `arr`. If `default` is not supplied, throws `{ :tag :err-index, :got 0}` if the array is empty. If `default` is supplied, returns `default` if the array is empty.
-
-Equivalent to `(arr-get arr (- (arr-count arr) 1))` and `(arr-get arr (- (arr-count arr) 1) default)`.
+Time: O(log n), where n is `(arr-count arr)`.
 
 ```pavo
-(assert-eq (arr-back [true false]) false)
-(assert-throw (arr-back []) { :tag :err-index, :got 0})
-(assert-eq (arr-back [] nil) nil)
+(assert-eq (arr-insert [0 1] 42 0) [42 0 1])
+(assert-eq (arr-insert [0 1] 42 1) [0 42 1])
+(assert-eq (arr-insert [0 1] 42 2) [0 1 42])
+(assert-throw (arr-insert [0 1] 42 3) { :tag :err-index, :got 3})
+(assert-eq (arr-insert [0 1] 42 3 nil) nil)
 ```
 
-### `(arr-slice arr start end)` `(arr-slice arr start end default)`
+#### `(arr-remove arr index)` `(arr-remove arr index)`
+
+Returns the array obtained by removing the element at the index int `index` from the array `arr`.
+
+Throws `{ :tag :err-index, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(arr-count arr)`.
+
+```pavo
+(assert-eq (arr-remove [0 1] 0) [1])
+(assert-eq (arr-remove [0 1] 1) [0])
+(assert-throw (arr-remove [0 1] 3) { :tag :err-index, :got 3})
+(assert-eq (arr-remove [0 1] 3 nil) nil)
+```
+
+#### `(arr-update arr index new)` `(arr-update arr index new default)`
+
+Returns the array obtained by replacing the element at the index int `index` in the array `arr` with the value `new`.
+
+Throws `{ :tag :err-index, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(arr-count arr)`.
+
+```pavo
+(assert-eq (arr-update [0 1] 42 0) [42 1])
+(assert-eq (arr-remove [0 1] 42 1) [0 42])
+(assert-throw (arr-remove [0 1] 42 3) { :tag :err-index, :got 3})
+(assert-eq (arr-remove [0 1] 42 3 nil) nil)
+```
+
+#### `(arr-slice arr start end)` `(arr-slice arr start end default)`
 
 Returns an array containing a subsequence of the elements of the array `arr`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
 
@@ -683,6 +673,8 @@ Throws `{ :tag :err-index, :got start}` if `start` is out of bounds.
 Throws `{ :tag :err-index, :got end}` if `end` is out of bounds.
 
 If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(arr-count arr)`.
 
 ```pavo
 (assert-eq (arr-slice [true false] 1 1) [])
@@ -695,303 +687,40 @@ If `default` is supplied, returns `default` instead of throwing.
 (assert-eq (arr-slice [] 0 1 nil) nil)
 ```
 
-### `(arr-slice-sat arr start end)`
+#### `(arr-splice old index new)` `(arr-splice old index new default)`
 
-Returns an array containing a subsequence of the elements of the array `arr`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive). Clamps `start` and `end` to valid indexes. Returns the empty array if `start` is greater than `end`.
+Inserts the elements of the array `new` into the array `old`, starting at the index int `index`.
 
-```pavo
-(assert-eq (arr-slice-sat [true false] 1 1) [])
-(assert-eq (arr-slice-sat [true false] 0 1) [true])
-(assert-eq (arr-slice-sat [true false] 1 2) [false])
-(assert-eq (arr-slice-sat [true false] 0 2) [true false])
-(assert-eq (arr-slice-sat [true false] -42 42) [true false])
-(assert-eq (arr-slice-sat [] 2 3) [])
-(assert-eq (arr-slice-sat [0 1 2 3] 2 1) [])
-```
-
-### `(arr-split arr index)` `(arr-split arr index default)`
-
-Returns an array of two elements, first an array containing all the elements of the array `arr` up until the index int `index`, and second an array containing all remaining elements.
-
-Throws `{ :tag :err-index, :got index}` if the index is out of bounds.
+Throws `{ :tag :err-index, :got index}` if the index is out of bounds (of the `old` array).
+Throws `{ :tag :err-collection-size }` if the resulting array would contain 2^63 or more elements.
 
 If `default` is supplied, returns `default` instead of throwing.
 
+Time: O(log (n + m)), where n is `(arr-count old)` and m is `(arr-count new)`.
+
 ```pavo
-(assert-eq (arr-split [true false] 0) [[] [true false]])
-(assert-eq (arr-split [true false] 1) [[true] [false]])
-(assert-eq (arr-split [true false] 2) [[true false] []])
-(assert-throw (arr-split [true false] 3) { :tag :err-index, :got 3})
-(assert-eq (arr-split [true false] 3 nil) nil)
+(assert-eq (arr-splice [0 1] [10 11] 0) [10 11 0 1])
+(assert-eq (arr-splice [0 1] [10 11] 1) [0 10 11 1])
+(assert-eq (arr-splice [0 1] [10 11] 2) [0 1 10 11])
+(assert-throw (arr-splice [0 1] [10 11] 3) { :tag :err-index, :got 3})
+(assert-eq (arr-splice [0 1] [10 11] 3 nil) nil)
 ```
 
-### `(arr-split-sat arr index)`
+#### `(arr-concat left right)`
 
-Returns an array of two elements, first an array containing all the elements of the array `arr` up until the index int `index`, and second an array containing all remaining elements. Clamps `index` to a valid index.
+Returns an array that contains all elements of the array `left` followed by all elements of the array `right`.
 
+Throws `{ :tag :err-collection-size }` if the resulting array would contain 2^63 or more elements.
+
+Time: O(log (n + m)), where n is `(arr-count left)` and m is `(arr-count right)`.
 
 ```pavo
-(assert-eq (arr-split [true false] 0) [[] [true false]])
-(assert-eq (arr-split [true false] 1) [[true] [false]])
-(assert-eq (arr-split [true false] 2) [[true false] []])
-(assert-eq (arr-split [true false] -42) [[] [true false]])
-(assert-throw (arr-split [true false] 3) [[true false] []])
+(assert-eq (arr-concat [0 1] [2 3]) [0 1 2 3])
+(assert-eq (arr-concat [] [0 1]) [0 1])
+(assert-eq (arr-concat [0 1] []) [0 1])
 ```
 
-### `(arr-take arr n)` `(arr-take arr n fallback)`
-
-Returns an array containing the first `n` elements of the array `arr`.
-
-Throws `{ :tag :err-index, :got index}` if the `n` is greater than `(arr-count arr)`.
-
-If `default` is supplied, returns `default` instead of throwing.
-
-```pavo
-(assert-eq (arr-take [true false] 0) [])
-(assert-eq (arr-take [true false] 1) [true])
-(assert-eq (arr-take [true false] 2) [true false])
-(assert-throw (arr-take [true false] 3) { :tag :err-index, :got 3})
-(assert-eq (arr-take [true false] 3 nil) nil)
-```
-
-### `(arr-take-sat arr n)`
-
-Returns an array containing the first `n` elements of the array `arr`. Clamps `n` to a valid int.
-
-```pavo
-(assert-eq (arr-take-sat [true false] 0) [])
-(assert-eq (arr-take-sat [true false] 1) [true])
-(assert-eq (arr-take-sat [true false] 2) [true false])
-(assert-eq (arr-take-sat [true false] -42) [])
-(assert-eq (arr-take-sat [true false] 3) [true false])
-```
-
-### `(arr-take-back arr n)` `(arr-take-back arr n fallback)`
-
-Returns an array containing the last `n` elements of the array `arr`.
-
-Throws `{ :tag :err-index, :got index}` if the `n` is greater than `(arr-count arr)`.
-
-If `default` is supplied, returns `default` instead of throwing.
-
-```pavo
-(assert-eq (arr-take-back [true false] 0) [])
-(assert-eq (arr-take-back [true false] 1) [false])
-(assert-eq (arr-take-back [true false] 2) [true false])
-(assert-throw (arr-take-back [true false] 3) { :tag :err-index, :got 3})
-(assert-eq (arr-take-back [true false] 3 nil) nil)
-```
-
-### `(arr-take-back-sat arr n)`
-
-Returns an array containing the last `n` elements of the array `arr`. Clamps `n` to a valid int.
-
-```pavo
-(assert-eq (arr-take-back-sat [true false] 0) [])
-(assert-eq (arr-take-back-sat [true false] 1) [false])
-(assert-eq (arr-take-back-sat [true false] 2) [true false])
-(assert-eq (arr-take-back-sat [true false] -42) [])
-(assert-eq (arr-take-back-sat [true false] 3) [true false])
-```
-
-### `(arr-take-while arr pred)`
-
-Returns the longest prefix of elements in the array `arr` for which `(pred elem)` evaluates truthy. Iterates over the elements from left to right.
-
-```pavo
-(assert-eq (arr-take-while [0 1 nil false 4] int?) [0 1])
-(assert-eq (arr-take-while [nil false 2] int?) [])
-(assert-eq (arr-take-while [] int?) [])
-(assert-eq (arr-take-while [0 1] int?) [0 1])
-```
-
-### `(arr-take-while-back arr pred)`
-
-Returns the longest suffix of elements in the array `arr` for which `(pred elem)` evaluates truthy. Iterates over the elements from right to left.
-
-```pavo
-(assert-eq (arr-take-while-back [4 false nil 1 0] int?) [1 0])
-(assert-eq (arr-take-while-back [4 false nil] int?) [])
-(assert-eq (arr-take-while-back [] int?) [])
-(assert-eq (arr-take-while-back [1 0] int?) [1 0])
-```
-
-### `(arr-skip arr n)` `(arr-skip arr n fallback)`
-
-Returns an array containing all but the first `n` elements of the array `arr`.
-
-Throws `{ :tag :err-index, :got index}` if the `n` is greater than `(arr-count arr)`.
-
-If `default` is supplied, returns `default` instead of throwing.
-
-```pavo
-(assert-eq (arr-skip [true false] 0) [true false])
-(assert-eq (arr-skip [true false] 1) [false])
-(assert-eq (arr-skip [true false] 2) [])
-(assert-throw (arr-skip [true false] 3) { :tag :err-index, :got 3})
-(assert-eq (arr-skip [true false] 3 nil) nil)
-```
-
-### `(arr-skip-sat arr n)`
-
-Returns an array containing all but the first `n` elements of the array `arr`. Clamps `n` to a valid int.
-
-```pavo
-(assert-eq (arr-skip-sat [true false] 0) [true false])
-(assert-eq (arr-skip-sat [true false] 1) [true])
-(assert-eq (arr-skip-sat [true false] 2) [])
-(assert-eq (arr-skip-sat [true false] -42) [true false])
-(assert-eq (arr-skip-sat [true false] 3) [])
-```
-
-### `(arr-skip-back arr n)` `(arr-skip-back arr n fallback)`
-
-Returns an array containing all but the last `n` elements of the array `arr`.
-
-Throws `{ :tag :err-index, :got index}` if the `n` is greater than `(arr-count arr)`.
-
-If `default` is supplied, returns `default` instead of throwing.
-
-```pavo
-(assert-eq (arr-skip-back [true false] 0) [true false])
-(assert-eq (arr-skip-back [true false] 1) [true])
-(assert-eq (arr-skip-back [true false] 2) [])
-(assert-throw (arr-skip-back [true false] 3) { :tag :err-index, :got 3})
-(assert-eq (arr-skip-back [true false] 3 nil) nil)
-```
-
-### `(arr-skip-back-sat arr n)`
-
-Returns an array containing all but the last `n` elements of the array `arr`. Clamps `n` to a valid int.
-
-```pavo
-(assert-eq (arr-skip-back-sat [true false] 0) [true false])
-(assert-eq (arr-skip-back-sat [true false] 1) [true])
-(assert-eq (arr-skip-back-sat [true false] 2) [])
-(assert-eq (arr-skip-back-sat [true false] -42) [true false])
-(assert-eq (arr-skip-back-sat [true false] 3) [])
-```
-
-### `(arr-skip-while arr pred)`
-
-Returns the array obtained by removing the longest prefix of elements in the array `arr` for which `(pred elem)` evaluates truthy. Iterates over the elements from left to right.
-
-```pavo
-(assert-eq (arr-skip-while [0 1 nil false 4] int?) [nil false 4])
-(assert-eq (arr-skip-while [nil false 2] int?) [nil false 2])
-(assert-eq (arr-skip-while [] int?) [])
-(assert-eq (arr-skip-while [0 1] int?) [])
-```
-
-### `(arr-skip-while-back arr pred)`
-
-Returns the array obtained by removing the longest suffix of elements in the array `arr` for which `(pred elem)` evaluates truthy. Iterates over the elements from right to left.
-
-```pavo
-(assert-eq (arr-skip-while-back [4 false nil 1 0] int?) [4 false nil])
-(assert-eq (arr-skip-while-back [2 false nil] int?) [2 false nil])
-(assert-eq (arr-skip-while-back [] int?) [])
-(assert-eq (arr-skip-while-back [1 0] int?) [])
-```
-
----
-
-init, tail
-append, prepend, concat
-insert, insert-all, update
-all?, any?, none?
-prefix?, suffix?
-chain/flatmap
-filter/retain, reject
-(for-)each, map
-fold, fold-back, fold-while, fold-back-while
-unfold, unfold-back
-scan, scan-back
-repeat, unit, empty
-reverse
-
-<!-- ### `(arr-tail arr)` `(arr-tail arr default)`
-
-Returns an array containing all but the first element of the array `arr`.
-
-Throws `{ :tag :err-index, :got 1}` if the array is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
-
-Equivalent to `(arr-drop arr 1)` and `(arr-drop arr 1 default)`.
-
-```pavo
-(assert-eq (arr-tail [true false 42]) [false 42])
-(assert-throw (arr-tail []) { :tag :err-index, :got 1})
-(assert-eq (arr-tail [] nil) nil)
-```
-
-### `(arr-init arr)` `(arr-init arr default)`
-
-Returns an array containing all but the last element of the array `arr`.
-
-Throws `{ :tag :err-index, :got 1}` if the array is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
-
-Equivalent to `(arr-drop-back arr 1)` and `(arr-drop-back arr 1 default)`.
-
-```pavo
-(assert-eq (arr-init [true false 42]) [true false])
-(assert-throw (arr-init []) { :tag :err-index, :got 1})
-(assert-eq (arr-init [] nil) nil)
-``` -->
-
-from-set, from-map-keys, from-map-vals, from-map-entries, from-map-zipped
-
-### Assertions
-
-#### `(assert x)`
-
-Returns `nil` if `x` is truthy (neither `nil` nor `false`), throws `{ :tag :err-assert }` otherwise.
-
-Equivalent to `(sf-if x nil (sf-throw {:tag :err-assert }))`.
-
-```pavo
-(assert-not (assert 42))
-(assert-throw (assert false) { :tag :err-assert })
-(assert-throw (assert nil) { :tag :err-assert })
-```
-
-#### `(assert-not x)`
-
-Returns `nil` if `x` is falsey (either `nil` or `false`), throws `{ :tag :err-assert }` otherwise.
-
-Equivalent to `(sf-if x (sf-throw {:tag :err-assert }) nil)`.
-
-```pavo
-(assert-not (assert-not nil))
-(assert-not (assert-not false))
-(assert-throw (assert-not 42) { :tag :err-assert, :got 42})
-```
-
-#### `(assert-eq x y)`
-
-Returns `nil` if `x`is equal to `y`, throws `{ :tag :err-assert }` otherwise.
-
-Equivalent to `(assert (= x y))`.
-
-```pavo
-(assert-not (assert-eq nil nil))
-(assert-throw (assert-eq nil false) { :tag :err-assert })
-```
-
-#### `(assert-type type x)`
-
-Throws a type error unless `x` has the type `type`. Use this function if you want to report type errors like the toplevel functions do.
-
-Equivalent to `(sf-if (= (typeof x) type) nil (sf-throw {:tag :err-type, :expected type, :got (typeof x)}))`.
-
-```pavo
-(assert-not (assert-type 42 :int))
-(assert-throw (assert-type 42 :float) { :tag :err-type, :expected :float, :got :int})
-(assert-throw (assert-type 42 43) { :tag :err-type, :expected 43, :got :int}) # Please don't do this.
-```
+TODO push/pop on both ends in amortized O(1) time?
 
 #### Equality and Ordering
 TODO introduction, explain equality and the total order over all values, talk about determinism
