@@ -78,6 +78,8 @@ impl Env {
         env_add(&mut m, "arr-slice", builtins::arr_slice, cx);
         env_add(&mut m, "arr-splice", builtins::arr_splice, cx);
         env_add(&mut m, "arr-concat", builtins::arr_concat, cx);
+        env_add(&mut m, "arr-iter", builtins::arr_iter, cx);
+        env_add(&mut m, "arr-iter-back", builtins::arr_iter_back, cx);
 
         env_add(&mut m, "=", builtins::pavo_eq, cx);
         env_add(&mut m, "<", builtins::pavo_lt, cx);

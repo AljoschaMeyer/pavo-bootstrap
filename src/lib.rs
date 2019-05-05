@@ -94,18 +94,17 @@ mod tests {
         assert_ok("# com#ment\n nil #this comment ends with eof", Value::nil());
         assert_ok("nil#", Value::nil());
 
-        assert_ok("(nil? nil)", Value::bool_(true));
-        assert_ok("(nil? false)", Value::bool_(false));
+        assert_ok("(typeof nil)", Value::kw_str("nil"));
     }
 
     #[test]
     fn test_apply() {
-        assert_ok("(apply nil? [nil, false])", Value::bool_(true));
-        assert_ok("(apply nil? [false])", Value::bool_(false));
+        assert_ok("(apply typeof [nil, false])", Value::kw_str("nil"));
+        assert_ok("(apply typeof [false])", Value::kw_str("bool"));
 
         assert_any_runtime_error("(apply true [])");
-        assert_any_runtime_error("(apply nil? true)");
-        assert_any_runtime_error("(apply nil?)");
+        assert_any_runtime_error("(apply typeof true)");
+        assert_any_runtime_error("(apply typeof)");
         assert_any_runtime_error("(apply)");
 
         assert_any_runtime_error("()");
@@ -124,10 +123,10 @@ mod tests {
         assert_ok("(sf-quote true)", Value::bool_(true));
         assert_ok("(sf-quote x)", Value::id_str("x"));
         assert_ok("(sf-quote sf-quote)", Value::id_str("sf-quote"));
-        assert_ok("(sf-quote nil?)", Value::id_str("nil?"));
+        assert_ok("(sf-quote typeof)", Value::id_str("typeof"));
         assert_ok("(sf-quote ())", Value::app_from_vec(vec![]));
-        assert_ok("(sf-quote (nil? nil))", Value::app_from_vec(vec![
-                Value::id_str("nil?"),
+        assert_ok("(sf-quote (typeof nil))", Value::app_from_vec(vec![
+                Value::id_str("typeof"),
                 Value::nil(),
             ]));
 
@@ -244,9 +243,9 @@ mod tests {
 
     #[test]
     fn test_sf_lambda() {
-        assert_ok("((sf-lambda x (nil? (arr-get x 0))) nil)", Value::bool_(true));
-        assert_ok("((sf-lambda x (nil? (arr-get x 0))) false)", Value::bool_(false));
-        assert_ok("((sf-lambda :mut x (sf-do (sf-set! x nil) (nil? x))) false)", Value::bool_(true));
+        assert_ok("((sf-lambda x (typeof (arr-get x 0))) nil)", Value::kw_str("nil"));
+        assert_ok("((sf-lambda x (typeof (arr-get x 0))) false)", Value::kw_str("bool"));
+        assert_ok("((sf-lambda :mut x (sf-do (sf-set! x nil) (typeof x))) false)", Value::kw_str("nil"));
 
         assert_static_err("(sf-lambda)", StaticError::SpecialFormSyntax(
             SpecialFormSyntaxError::Arity(FormType::Lambda, 1)
@@ -264,8 +263,8 @@ mod tests {
 
     #[test]
     fn test_sf_letfn() {
-        assert_ok("(sf-letfn (foo x (bar (arr-get x 0))) (bar x (nil? (arr-get x 0))) (foo nil))", Value::bool_(true));
-        assert_ok("(sf-letfn (foo x (bar (arr-get x 0))) (bar x (nil? (arr-get x 0))) (foo 42))", Value::bool_(false));
+        assert_ok("(sf-letfn (foo x (bar (arr-get x 0))) (bar x (typeof (arr-get x 0))) (foo nil))", Value::kw_str("nil"));
+        assert_ok("(sf-letfn (foo x (bar (arr-get x 0))) (bar x (typeof (arr-get x 0))) (foo 42))", Value::kw_str("int"));
     }
 
     #[test]

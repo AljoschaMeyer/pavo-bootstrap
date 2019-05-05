@@ -595,6 +595,42 @@ pub fn arr_concat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::arr(Vector(ret)))
 }
 
+pub fn arr_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let fun = fun!(arg!(args, 1));
+
+    for elem in arr.0.iter() {
+        match fun.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn arr_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let arr = arr!(arg!(args, 0));
+    let fun = fun!(arg!(args, 1));
+
+    for elem in arr.0.iter().rev() {
+        match fun.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
 /////////////////////////////////////////////////////////////////////////////
 
 pub fn pavo_eq(args: Value, _cx: &mut Context) -> Result<Value, Value> {

@@ -18,6 +18,8 @@ In the example code blocks, all "statements" evaluate to `nil`, none throws. If 
 
 The given time complexities are the minimum that a pavo implementation must provide. An implementation is of course free to provide *better* complexity bounds than those required. In particular, any amortized complexity bound can be implemented as non-amortized. The converse is not true: If a complexity requirement is unamortized, then implementations are not allowed to provide only amortized bounds.
 
+All time complexities are allowed to be probabilistic, but they must be preserved under adversarial input (under the assumption that the adversary can not predict the source of randomness).
+
 Whenever a function is described to "throw a type error", it throws a map `{ :tag :err-type, :expected <expected>, :got <got>}` where `<expected>` and `<got>` are the keywords denoting the respective types (see `(typeof x)`). Type errors are also trown when an argument is described as having a certain type, but an argument of a different type is supplied. For example "Do foo to the int `n`" throws a type error with `:expected :int` if `n` is not an int.
 
 Whenever an argument is referred to as a "positive int", but an int less than zero is supplied, the function throws `{ :tag :err-negative, :got <got>}`, where `<got>` is the supplied, negative int.
@@ -718,6 +720,46 @@ Time: O(log (n + m)), where n is `(arr-count left)` and m is `(arr-count right)`
 (assert-eq (arr-concat [0 1] [2 3]) [0 1 2 3])
 (assert-eq (arr-concat [] [0 1]) [0 1])
 (assert-eq (arr-concat [0 1] []) [0 1])
+```
+
+#### `(arr-iter arr fun)`
+
+Starting from the beginning of the array `arr`, applies the function `fun` to the elements of `arr` in sequence until either `fun` returns a truthy value or the end of the array is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
+
+```pavo
+(let :mut product 1 (do
+    (arr-iter [1 2 3 4] (fn [elem] (set! product (int_mul product elem))))
+    (assert-eq product 24)
+))
+(let :mut product 1 (do
+    (arr-iter [1 2 3 4] (fn [elem] (if
+            (= elem 3) true
+            (set! product (int_mul product elem))
+        )))
+    (assert-eq product 2)
+))
+```
+
+#### `(arr-iter-back arr fun)`
+
+Starting from the back of the array `arr`, applies the function `fun` to the elements of `arr` in reverse order until either `fun` returns a truthy value or the end of the array is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
+
+```pavo
+(let :mut product 1 (do
+    (arr-iter-back [1 2 3 4] (fn [elem] (set! product (int_mul product elem))))
+    (assert-eq product 24)
+))
+(let :mut product 1 (do
+    (arr-iter-back [1 2 3 4] (fn [elem] (if
+            (= elem 3) true
+            (set! product (int_mul product elem))
+        )))
+    (assert-eq product 4)
+))
 ```
 
 TODO push/pop on both ends in amortized O(1) time?
