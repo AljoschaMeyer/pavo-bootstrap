@@ -601,7 +601,7 @@ Time: O(1).
 
 Returns the element at the int `index` in the array `arr`.
 
-Throws `{ :tag :err-index, :got index}` if the index is out of bounds.
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
 
 If `default` is supplied, returns `default` instead of throwing.
 
@@ -609,7 +609,7 @@ Time: O(log n), where n is `(arr-count arr)`.
 
 ```pavo
 (assert-eq (arr-get [true] 0) true)
-(assert-throw (arr-get [] 0) { :tag :err-index, :got 0})
+(assert-throw (arr-get [] 0) { :tag :err-lookup, :got 0})
 (assert-eq (arr-get [] 0 nil) nil)
 ```
 
@@ -617,10 +617,10 @@ Time: O(log n), where n is `(arr-count arr)`.
 
 Inserts the value `new` into the array `arr` at the index int `index`.
 
-Throws `{ :tag :err-index, :got index}` if the index is out of bounds.
-Throws `{ :tag :err-collection-size }` if the resulting array would contain 2^63 or more elements.
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63 or more elements.
 
-If `default` is supplied, returns `default` instead of throwing.
+If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log n), where n is `(arr-count arr)`.
 
@@ -628,15 +628,15 @@ Time: O(log n), where n is `(arr-count arr)`.
 (assert-eq (arr-insert [0 1] 42 0) [42 0 1])
 (assert-eq (arr-insert [0 1] 42 1) [0 42 1])
 (assert-eq (arr-insert [0 1] 42 2) [0 1 42])
-(assert-throw (arr-insert [0 1] 42 3) { :tag :err-index, :got 3})
+(assert-throw (arr-insert [0 1] 42 3) { :tag :err-lookup, :got 3})
 (assert-eq (arr-insert [0 1] 42 3 nil) nil)
 ```
 
-#### `(arr-remove arr index)` `(arr-remove arr index)`
+#### `(arr-remove arr index)` `(arr-remove arr index default)`
 
 Returns the array obtained by removing the element at the index int `index` from the array `arr`.
 
-Throws `{ :tag :err-index, :got index}` if the index is out of bounds.
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
 
 If `default` is supplied, returns `default` instead of throwing.
 
@@ -645,7 +645,7 @@ Time: O(log n), where n is `(arr-count arr)`.
 ```pavo
 (assert-eq (arr-remove [0 1] 0) [1])
 (assert-eq (arr-remove [0 1] 1) [0])
-(assert-throw (arr-remove [0 1] 3) { :tag :err-index, :got 3})
+(assert-throw (arr-remove [0 1] 3) { :tag :err-lookup, :got 3})
 (assert-eq (arr-remove [0 1] 3 nil) nil)
 ```
 
@@ -653,26 +653,26 @@ Time: O(log n), where n is `(arr-count arr)`.
 
 Returns the array obtained by replacing the element at the index int `index` in the array `arr` with the value `new`.
 
-Throws `{ :tag :err-index, :got index}` if the index is out of bounds.
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
 
 If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(arr-count arr)`.
 
 ```pavo
-(assert-eq (arr-update [0 1] 42 0) [42 1])
-(assert-eq (arr-remove [0 1] 42 1) [0 42])
-(assert-throw (arr-remove [0 1] 42 3) { :tag :err-index, :got 3})
-(assert-eq (arr-remove [0 1] 42 3 nil) nil)
+(assert-eq (arr-update [0 1] 0 42) [42 1])
+(assert-eq (arr-update [0 1] 1 42) [0 42])
+(assert-throw (arr-update [0 1] 2 42) { :tag :err-lookup, :got 2})
+(assert-eq (arr-update [0 1] 2 42 nil) nil)
 ```
 
 #### `(arr-slice arr start end)` `(arr-slice arr start end default)`
 
 Returns an array containing a subsequence of the elements of the array `arr`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
 
-Throws `{ :tag :err-index, :got end}` if `start` is greater than `end`.
-Throws `{ :tag :err-index, :got start}` if `start` is out of bounds.
-Throws `{ :tag :err-index, :got end}` if `end` is out of bounds.
+Throws `{ :tag :err-lookup, :got end}` if `start` is greater than `end`.
+Throws `{ :tag :err-lookup, :got start}` if `start` is out of bounds.
+Throws `{ :tag :err-lookup, :got end}` if `end` is out of bounds.
 
 If `default` is supplied, returns `default` instead of throwing.
 
@@ -683,9 +683,9 @@ Time: O(log n), where n is `(arr-count arr)`.
 (assert-eq (arr-slice [true false] 0 1) [true])
 (assert-eq (arr-slice [true false] 1 2) [false])
 (assert-eq (arr-slice [true false] 0 2) [true false])
-(assert-throw (arr-slice [] 0 1) { :tag :err-index, :got 1})
-(assert-throw (arr-slice [] 2 3) { :tag :err-index, :got 2})
-(assert-throw (arr-slice [0 1 2 3] 2 1) { :tag :err-index, :got 1})
+(assert-throw (arr-slice [] 0 1) { :tag :err-lookup, :got 1})
+(assert-throw (arr-slice [] 2 3) { :tag :err-lookup, :got 2})
+(assert-throw (arr-slice [0 1 2 3] 2 1) { :tag :err-lookup, :got 1})
 (assert-eq (arr-slice [] 0 1 nil) nil)
 ```
 
@@ -693,10 +693,10 @@ Time: O(log n), where n is `(arr-count arr)`.
 
 Inserts the elements of the array `new` into the array `old`, starting at the index int `index`.
 
-Throws `{ :tag :err-index, :got index}` if the index is out of bounds (of the `old` array).
-Throws `{ :tag :err-collection-size }` if the resulting array would contain 2^63 or more elements.
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds (of the `old` array).
+Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63 or more elements.
 
-If `default` is supplied, returns `default` instead of throwing.
+If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log (n + m)), where n is `(arr-count old)` and m is `(arr-count new)`.
 
@@ -704,7 +704,7 @@ Time: O(log (n + m)), where n is `(arr-count old)` and m is `(arr-count new)`.
 (assert-eq (arr-splice [0 1] [10 11] 0) [10 11 0 1])
 (assert-eq (arr-splice [0 1] [10 11] 1) [0 10 11 1])
 (assert-eq (arr-splice [0 1] [10 11] 2) [0 1 10 11])
-(assert-throw (arr-splice [0 1] [10 11] 3) { :tag :err-index, :got 3})
+(assert-throw (arr-splice [0 1] [10 11] 3) { :tag :err-lookup, :got 3})
 (assert-eq (arr-splice [0 1] [10 11] 3 nil) nil)
 ```
 
@@ -712,7 +712,7 @@ Time: O(log (n + m)), where n is `(arr-count old)` and m is `(arr-count new)`.
 
 Returns an array that contains all elements of the array `left` followed by all elements of the array `right`.
 
-Throws `{ :tag :err-collection-size }` if the resulting array would contain 2^63 or more elements.
+Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63 or more elements.
 
 Time: O(log (n + m)), where n is `(arr-count left)` and m is `(arr-count right)`.
 
@@ -730,13 +730,13 @@ Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
 
 ```pavo
 (let :mut product 1 (do
-    (arr-iter [1 2 3 4] (fn [elem] (set! product (int_mul product elem))))
+    (arr-iter [1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
 (let :mut product 1 (do
     (arr-iter [1 2 3 4] (fn [elem] (if
             (= elem 3) true
-            (set! product (int_mul product elem))
+            (set! product (int-mul product elem))
         )))
     (assert-eq product 2)
 ))
@@ -750,19 +750,455 @@ Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
 
 ```pavo
 (let :mut product 1 (do
-    (arr-iter-back [1 2 3 4] (fn [elem] (set! product (int_mul product elem))))
+    (arr-iter-back [1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
 (let :mut product 1 (do
     (arr-iter-back [1 2 3 4] (fn [elem] (if
             (= elem 3) true
-            (set! product (int_mul product elem))
+            (set! product (int-mul product elem))
         )))
     (assert-eq product 4)
 ))
 ```
 
 TODO push/pop on both ends in amortized O(1) time?
+
+### Sets
+
+#### `(set-count set)`
+
+Returns the number of elements in the set `set`.
+
+Time: O(1).
+
+```pavo
+(assert-eq (set-count @{}) 0)
+(assert-eq (set-count @{nil}) 1)
+(assert-eq (set-count @{0, 1, 2}) 3)
+```
+
+#### `(set-contains? set elem)`
+
+Returns `true` if the value `elem` is in the set `set`, `false` otherwise.
+
+Time: O(log n), where n is `(set-count set)`.
+
+```pavo
+(assert-eq (set-contains? @{ nil } nil) true)
+(assert-eq (set-contains? @{ 42 } 43) false)
+(assert-eq (set-contains? @{} nil) false)
+```
+
+#### `(set-min set)` `(set-min set default)`
+
+Returns the minimal element in the set `set`.
+
+Throws `{ :tag :err-collection-empty }` if `set` is the empty set.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(set-count set)`.
+
+```pavo
+(assert-eq (set-min @{ 4 3 }) 3)
+(assert-throw (set-min @{}) { :tag :err-collection-empty })
+(assert-eq (set-min @{} nil) nil)
+```
+
+#### `(set-max set)` `(set-max set default)`
+
+Returns the maximal element in the set `set`.
+
+Throws `{ :tag :err-collection-empty }` if `set` is the empty set.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(set-count set)`.
+
+```pavo
+(assert-eq (set-max @{ 4 3 }) 4)
+(assert-throw (set-max @{}) { :tag :err-collection-empty })
+(assert-eq (set-max @{} nil) nil)
+```
+
+#### `(set-insert set new)`
+
+Inserts the value `new` into the set `set`.
+
+Throws `{ :tag :err-collection-full }` if the resulting set would contain 2^63 or more elements.
+
+Time: O(log n), where n is `(set-count set)`.
+
+```pavo
+(assert-eq (set-insert @{} nil) @{nil})
+(assert-eq (set-insert @{nil} nil) @{nil})
+```
+
+#### `(set-remove set elem)`
+
+Returns the set obtained by removing the element `elem` from the set `set`.
+
+Time: O(log n), where n is `(set-count set)`.
+
+```pavo
+(assert-eq (set-remove @{nil} nil) @{})
+(assert-eq (set-remove @{} nil) @{})
+```
+
+#### `(set-union lhs rhs)`
+
+Returns the set that contains all the elements in the set `lhs` and all the elements in the set `rhs`.
+
+Throws `{ :tag :err-collection-full }` if the resulting set would contain 2^63 or more elements.
+
+```pavo
+(assert-eq (set-union @{1 2} @{2 3}) @{1 2 3})
+(assert-eq (set-union @{1 2} @{}) @{1 2})
+(assert-eq (set-union @{} @{2 3}) @{2 3})
+(assert-eq (set-union @{} @{}) @{})
+```
+
+Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+
+#### `(set-intersection lhs rhs)`
+
+Returns the set that contains all the elements contained in both the set `lhs` and the set `rhs`.
+
+```pavo
+(assert-eq (set-intersection @{1 2} @{2 3}) @{2})
+(assert-eq (set-intersection @{1 2} @{}) @{})
+(assert-eq (set-intersection @{} @{2 3}) @{})
+(assert-eq (set-intersection @{} @{}) @{})
+```
+
+Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+
+#### `(set-difference lhs rhs)`
+
+Returns the set that contains all the elements contained in the set `lhs` but not contained in the set `rhs`.
+
+```pavo
+(assert-eq (set-difference @{1 2} @{2 3}) @{1})
+(assert-eq (set-difference @{1 2} @{}) @{})
+(assert-eq (set-difference @{} @{2 3}) @{})
+(assert-eq (set-difference @{} @{}) @{})
+```
+
+Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+
+#### `(set-symmetric-difference lhs rhs)`
+
+Returns the set that contains all the elements exactly one of the sets `lhs` and `rhs`.
+
+```pavo
+(assert-eq (set-symmetric-difference @{1 2} @{2 3}) @{1 3})
+(assert-eq (set-symmetric-difference @{1 2} @{}) @{1 2})
+(assert-eq (set-symmetric-difference @{} @{2 3}) @{2 3})
+(assert-eq (set-symmetric-difference @{} @{}) @{})
+```
+
+Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+
+#### `(set-iter set fun)`
+
+Starting from the minimal element of the set `set`, applies the function `fun` to the elements of `set` in ascending order until either `fun` returns a truthy value or the end of the set is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(set-count set)`.
+
+```pavo
+(let :mut product 1 (do
+    (set-iter @{4 2 3 1} (fn [elem] (set! product (int-mul product elem))))
+    (assert-eq product 24)
+))
+(let :mut product 1 (do
+    (set-iter @{4 2 3 1} (fn [elem] (if
+            (= elem 3) true
+            (set! product (int-mul product elem))
+        )))
+    (assert-eq product 2)
+))
+```
+
+#### `(set-iter-back set fun)`
+
+Starting from the maximal element of the set `set`, applies the function `fun` to the elements of `set` in descending order until either `fun` returns a truthy value or the end of the set is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(set-count set)`.
+
+```pavo
+(let :mut product 1 (do
+    (set-iter-back @{4 2 3 1} (fn [elem] (set! product (int-mul product elem))))
+    (assert-eq product 24)
+))
+(let :mut product 1 (do
+    (set-iter-back @{4 2 3 1} (fn [elem] (if
+            (= elem 3) true
+            (set! product (int-mul product elem))
+        )))
+    (assert-eq product 4)
+))
+```
+
+### Maps
+
+#### `(map-count map)`
+
+Returns the number of entries in the map `map`.
+
+Time: O(1).
+
+```pavo
+(assert-eq (map-count {}) 0)
+(assert-eq (map-count {{} nil}) 1)
+(assert-eq (map-count {0 42, 1 41, 2 40}) 3)
+```
+
+#### `(map-get map key)` `(map-get map key default)`
+
+Returns the value associated with the key `key` in the map `map`.
+
+Throws `{ :tag :err-lookup, :got key}` if the map contains no entry with this key.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (map-get {0 42} 0) 42)
+(assert-throw (map-get {} 0) { :tag :err-lookup, :got 0})
+(assert-eq (map-get {} 0 nil) nil)
+```
+
+#### `(map-contains? map key)`
+
+Returns `true` if the map `map` contains an entry with key `key`, `false` otherwise.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (map-contains? { nil 0 } nil) true)
+(assert-eq (map-contains? { 42 0 } 43) false)
+(assert-eq (map-contains? {} nil) false)
+```
+
+#### `(map-min map)` `(map-min map default)`
+
+Returns the value of the entry with the minimal key in the map `map`.
+
+Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (map-min @{0 42, 1 41}) 42)
+(assert-throw (map-min {}) { :tag :err-collection-empty })
+(assert-eq (map-min {} nil) nil)
+```
+
+#### `(map-min-key map)` `(map-min-key map default)`
+
+Returns the minimal key in the map `map`.
+
+Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (map-min-key @{0 42, 1 41}) 0)
+(assert-throw (map-min-key {}) { :tag :err-collection-empty })
+(assert-eq (map-min-key {} nil) nil)
+```
+
+#### `(map-min-entry map)` `(map-min-entry map default)`
+
+Returns the entry with the minimal key in the map `map`, as an array `[key value]`.
+
+Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (map-min-entry @{0 42, 1 41}) [0 42])
+(assert-throw (map-min-entry {}) { :tag :err-collection-empty })
+(assert-eq (map-min-entry {} nil) nil)
+```
+
+#### `(map-max map)` `(map-max map default)`
+
+Returns the value of the entry with the maximal key in the map `map`.
+
+Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (map-max @{0 42, 1 41}) 41)
+(assert-throw (map-max {}) { :tag :err-collection-empty })
+(assert-eq (map-max {} nil) nil)
+```
+
+#### `(map-max-key map)` `(map-max-key map default)`
+
+Returns the maximal key in the map `map`.
+
+Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (map-max-key @{0 42, 1 41}) 1)
+(assert-throw (map-max-key {}) { :tag :err-collection-empty })
+(assert-eq (map-max-key {} nil) nil)
+```
+
+#### `(map-max-entry map)` `(map-max-entry map default)`
+
+Returns the entry with the maximal key in the map `map`, as an array `[key value]`.
+
+Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (map-max-entry @{0 42, 1 41}) [1 41])
+(assert-throw (map-max-entry {}) { :tag :err-collection-empty })
+(assert-eq (map-max-entry {} nil) nil)
+```
+
+#### `(map-insert map key value)`
+
+Inserts the entry `key`, `value` into the map `map`, potentially overwriting an older entry.
+
+Throws `{ :tag :err-collection-full }` if the resulting map would contain 2^63 or more entries.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (map-insert {} 0 42) {0 42})
+(assert-eq (map-insert {0 42} 0 43) {0 43})
+```
+
+#### `(map-remove map key)`
+
+Returns the map obtained by removing the entry (if any) with the key `key` from the map `map`.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (set-remove {0 42} 0) {})
+(assert-eq (set-remove {} 0) {})
+```
+
+#### `(map-union lhs rhs)`
+
+Returns the map that contains all the entries in the map `lhs` and all the entries in the map `rhs`. For entries whose keys are contained in both maps, the value from the lhs map is used.
+
+Throws `{ :tag :err-collection-full }` if the resulting map would contain 2^63 or more elements.
+
+```pavo
+(assert-eq (map-union {0 42, 1 41} {1 17, 2 40}) {0 42, 1 41, 2 40})
+(assert-eq (map-union {0 42, 1 41} {}) {0 42, 1 41})
+(assert-eq (map-union {} {1 41, 2 40}) {1 41, 2 40})
+(assert-eq (map-union {} {}) {})
+```
+
+Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+
+#### `(map-intersection lhs rhs)`
+
+Returns the map that contains all the entries in the map `lhs` whose key is also the key of an entry in the map `rhs`.
+
+```pavo
+(assert-eq (map-intersection {0 42, 1 41} {1 17, 2 40}) {1 41})
+(assert-eq (map-intersection {0 42, 1 41} {}) {})
+(assert-eq (map-intersection {} {1 41, 2 40}) {})
+(assert-eq (map-intersection {} {}) {})
+```
+
+Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+
+#### `(map-difference lhs rhs)`
+
+Returns the map that contains all the entries in the map `lhs` whose key is not the key of an entry in the map `rhs`.
+
+```pavo
+(assert-eq (map-difference {0 42, 1 41} {1 17, 2 40}) {0 42})
+(assert-eq (map-difference {0 42, 1 41} {}) {0 42, 1 41})
+(assert-eq (map-difference {} {1 41, 2 40}) {})
+(assert-eq (map-difference {} {}) {})
+```
+
+Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+
+#### `(map-symmetric-difference lhs rhs)`
+
+Returns the map that contains all the entries in the maps `lhs` and `rhs` whose key does not occur in both maps.
+
+```pavo
+(assert-eq (map-symmetric-difference {0 42, 1 41} {1 17, 2 40}) {0 42, 2 40})
+(assert-eq (map-symmetric-difference {0 42, 1 41} {}) {0 42, 1 41})
+(assert-eq (map-symmetric-difference {} {1 41, 2 40}) {1 41, 2 40})
+(assert-eq (map-symmetric-difference {} {}) {})
+```
+
+Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+
+#### `(set-iter set fun)`
+
+Starting from the entry with the minimal key in the map `map`, applies the function `fun` to the entries of `map` in ascending order until either `fun` returns a truthy value or the end of the set is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Fun is passed the key first and the value second.
+
+Time: Iteration takes amortized O(n), where n is `(map-count map)`.
+
+```pavo
+(let :mut product 1 (do
+    (map-iter {4 2, 3 1} (fn [key value] (set! product (int-mul product (int-mul key value)))))
+    (assert-eq product 24)
+))
+(let :mut product 1 (do
+    (map-iter {4 2, 3 1} (fn [key value] (if
+            (= key 3) true
+            (set! product (int-mul product (int-mul key value)))
+        )))
+    (assert-eq product 3)
+))
+```
+
+#### `(map-iter-back set fun)`
+
+Starting from the entry with the maximal key in the map `map`, applies the function `fun` to the entries of `map` in descending order until either `fun` returns a truthy value or the end of the set is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Fun is passed the key first and the value second.
+
+Time: Iteration takes amortized O(n), where n is `(map-count map)`.
+
+```pavo
+(let :mut product 1 (do
+    (map-iter-back {4 2, 3 1} (fn [key value] (set! product (int-mul product (int-mul key value)))))
+    (assert-eq product 24)
+))
+(let :mut product 1 (do
+    (map-iter-back {4 2, 3 1} (fn [key value] (if
+            (= key 3) true
+            (set! product (int-mul product (int-mul key value)))
+        )))
+    (assert-eq product 8)
+))
+```
 
 #### Equality and Ordering
 TODO introduction, explain equality and the total order over all values, talk about determinism

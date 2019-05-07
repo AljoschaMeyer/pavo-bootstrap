@@ -1,7 +1,7 @@
 use im_rc::{OrdMap as ImOrdMap};
 
 use crate::context::Context;
-use crate::gc_foreign::{OrdMap, Vector};
+use crate::gc_foreign::{OrdMap, OrdSet, Vector};
 use crate::value::{Value, Atomic, Id};
 
 pub fn typeof__(v: &Value) -> Value {
@@ -24,9 +24,15 @@ pub fn typeof__(v: &Value) -> Value {
     }
 }
 
-pub fn coll_size_error() -> Value {
+pub fn coll_full_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
-            (Value::kw_str("tag"), Value::kw_str("err-collection-size")),
+            (Value::kw_str("tag"), Value::kw_str("err-collection-full")),
+        ])))
+}
+
+pub fn coll_empty_error() -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-collection-empty")),
         ])))
 }
 
@@ -46,11 +52,15 @@ pub fn type_error_(got: &Value, expected: &Value) -> Value {
         ])))
 }
 
-pub fn index_error(got: usize) -> Value {
+pub fn lookup_error(got: Value) -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
-        (Value::kw_str("tag"), Value::kw_str("err-index")),
-        (Value::kw_str("got"), Value::int(got as i64)),
+        (Value::kw_str("tag"), Value::kw_str("err-lookup")),
+        (Value::kw_str("got"), got),
         ])))
+}
+
+pub fn index_error(got: usize) -> Value {
+    lookup_error(Value::int(got as i64))
 }
 
 pub fn negative_error(got: i64) -> Value {
@@ -129,6 +139,24 @@ macro_rules! arr {
         match &$v {
             Value::Arr(arr) => arr.clone(),
             _ => return Err(type_error(&$v, "array")),
+        }
+    )
+}
+
+macro_rules! set {
+    ($v:expr) => (
+        match &$v {
+            Value::Set(set) => set.clone(),
+            _ => return Err(type_error(&$v, "set")),
+        }
+    )
+}
+
+macro_rules! map {
+    ($v:expr) => (
+        match &$v {
+            Value::Map(map) => map.clone(),
+            _ => return Err(type_error(&$v, "map")),
         }
     )
 }
@@ -534,7 +562,7 @@ pub fn arr_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let elem = arg!(args, 2);
 
     if arr.0.len() >= (i64::max as usize) {
-        return Err(coll_size_error());
+        return Err(coll_full_error());
     }
 
     let mut new = arr.0.clone();
@@ -583,6 +611,11 @@ pub fn arr_splice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let (mut left, right) = arr.0.split_at(index);
     left.append(new.0);
     left.append(right);
+
+    if left.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
     Ok(Value::arr(Vector(left)))
 }
 
@@ -592,6 +625,11 @@ pub fn arr_concat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     let mut ret = left.0.clone();
     ret.append(right.0);
+
+    if ret.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
     Ok(Value::arr(Vector(ret)))
 }
 
@@ -630,6 +668,358 @@ pub fn arr_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     Ok(Value::nil())
 }
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn set_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let set = set!(arg!(args, 1));
+    Ok(Value::int(set.0.len() as i64))
+}
+
+pub fn set_contains(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let set = set!(arg!(args, 0));
+    let needle = arg!(args, 1);
+
+    Ok(Value::bool_(set.0.contains(&needle)))
+}
+
+pub fn set_min(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let set = set!(arg!(args, 0));
+
+    match set.0.get_min() {
+        Some(min) => Ok(min.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn set_max(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let set = set!(arg!(args, 0));
+
+    match set.0.get_max() {
+        Some(min) => Ok(min.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn set_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let set = set!(arg!(args, 0));
+    let new = arg!(args, 1);
+
+    if set.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    let mut ret = set.0.clone();
+    ret.insert(new.clone());
+    Ok(Value::set(OrdSet(ret)))
+}
+
+pub fn set_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let set = set!(arg!(args, 0));
+    let elem = arg!(args, 1);
+
+    let mut new = set.0.clone();
+    let _ = new.remove(&elem);
+    Ok(Value::set(OrdSet(new)))
+}
+
+pub fn set_union(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let lhs = set!(arg!(args, 0));
+    let rhs = set!(arg!(args, 1));
+
+    let ret = lhs.0.union(rhs.0);
+    if ret.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+    Ok(Value::set(OrdSet(ret)))
+}
+
+pub fn set_intersection(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let lhs = set!(arg!(args, 0));
+    let rhs = set!(arg!(args, 1));
+
+    let ret = lhs.0.intersection(rhs.0);
+    Ok(Value::set(OrdSet(ret)))
+}
+
+pub fn set_difference(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let lhs = set!(arg!(args, 0));
+    let rhs = set!(arg!(args, 1));
+
+    let mut ret = lhs.0.clone();
+
+    for elem in rhs.0.iter() {
+        let _ = ret.remove(elem);
+    }
+
+    Ok(Value::set(OrdSet(ret)))
+}
+
+pub fn set_symmetric_difference(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let lhs = set!(arg!(args, 0));
+    let rhs = set!(arg!(args, 1));
+
+    let ret = lhs.0.difference(rhs.0);
+    Ok(Value::set(OrdSet(ret)))
+}
+
+pub fn set_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let set = set!(arg!(args, 0));
+    let fun = fun!(arg!(args, 1));
+
+    for elem in set.0.iter() {
+        match fun.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn set_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let set = set!(arg!(args, 0));
+    let fun = fun!(arg!(args, 1));
+
+    for elem in set.0.iter().rev() {
+        match fun.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn map_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 1));
+    Ok(Value::int(map.0.len() as i64))
+}
+
+pub fn map_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+    let key = arg!(args, 1);
+
+    match map.0.get(&key) {
+        Some(val) => Ok(val.clone()),
+        None => match arg_opt!(args, 2) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(lookup_error(key))
+        }
+    }
+}
+
+pub fn map_contains(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+    let key = arg!(args, 1);
+
+    Ok(Value::bool_(map.0.contains_key(&key)))
+}
+
+pub fn map_min(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+
+    match map.0.get_min() {
+        Some(min) => Ok(min.1.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn map_min_key(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+
+    match map.0.get_min() {
+        Some(min) => Ok(min.0.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn map_min_entry(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+
+    match map.0.get_min() {
+        Some(min) => Ok(Value::arr_from_vec(vec![min.0.clone(), min.1.clone()])),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn map_max(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+
+    match map.0.get_max() {
+        Some(max) => Ok(max.1.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn map_max_key(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+
+    match map.0.get_max() {
+        Some(max) => Ok(max.0.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn map_max_entry(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+
+    match map.0.get_max() {
+        Some(max) => Ok(Value::arr_from_vec(vec![max.0.clone(), max.1.clone()])),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn map_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+    let key = arg!(args, 1);
+    let value = arg!(args, 2);
+
+    if map.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    let mut ret = map.0.clone();
+    ret.insert(key.clone(), value.clone());
+    Ok(Value::map(OrdMap(ret)))
+}
+
+pub fn map_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+    let key = arg!(args, 1);
+
+    let mut new = map.0.clone();
+    let _ = new.remove(&key);
+    Ok(Value::map(OrdMap(new)))
+}
+
+pub fn map_union(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let lhs = map!(arg!(args, 0));
+    let rhs = map!(arg!(args, 1));
+
+    let ret = lhs.0.union(rhs.0);
+    if ret.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+    Ok(Value::map(OrdMap(ret)))
+}
+
+pub fn map_intersection(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let lhs = map!(arg!(args, 0));
+    let rhs = map!(arg!(args, 1));
+
+    let ret = lhs.0.intersection(rhs.0);
+    Ok(Value::map(OrdMap(ret)))
+}
+
+pub fn map_difference(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let lhs = map!(arg!(args, 0));
+    let rhs = map!(arg!(args, 1));
+
+    let mut ret = lhs.0.clone();
+
+    for key in rhs.0.keys() {
+        let _ = ret.remove(key);
+    }
+
+    Ok(Value::map(OrdMap(ret)))
+}
+
+pub fn map_symmetric_difference(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let lhs = map!(arg!(args, 0));
+    let rhs = map!(arg!(args, 1));
+
+    let ret = lhs.0.difference(rhs.0);
+    Ok(Value::map(OrdMap(ret)))
+}
+
+pub fn map_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+    let fun = fun!(arg!(args, 1));
+
+    for entry in map.0.iter() {
+        match fun.apply(&Value::arr_from_vec(vec![entry.0.clone(), entry.1.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn map_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let map = map!(arg!(args, 0));
+    let fun = fun!(arg!(args, 1));
+
+    for entry in map.0.iter().rev() {
+        match fun.apply(&Value::arr_from_vec(vec![entry.0.clone(), entry.1.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+// pub fn set_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+//     let set = set!(arg!(args, 0));
+//     let fun = fun!(arg!(args, 1));
+//
+//     for elem in set.0.iter().rev() {
+//         match fun.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+//             Ok(yay) => {
+//                 if yay.truthy() {
+//                     return Ok(Value::nil());
+//                 }
+//             }
+//             Err(thrown) => return Err(thrown),
+//         }
+//     }
+//
+//     Ok(Value::nil())
+// }
 
 /////////////////////////////////////////////////////////////////////////////
 

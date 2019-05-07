@@ -81,6 +81,37 @@ impl Env {
         env_add(&mut m, "arr-iter", builtins::arr_iter, cx);
         env_add(&mut m, "arr-iter-back", builtins::arr_iter_back, cx);
 
+        env_add(&mut m, "set-count", builtins::set_count, cx);
+        env_add(&mut m, "set-contains?", builtins::set_contains, cx);
+        env_add(&mut m, "set-min", builtins::set_min, cx);
+        env_add(&mut m, "set-max", builtins::set_max, cx);
+        env_add(&mut m, "set-insert", builtins::set_insert, cx);
+        env_add(&mut m, "set-remove", builtins::set_remove, cx);
+        env_add(&mut m, "set-union", builtins::set_union, cx);
+        env_add(&mut m, "set-intersection", builtins::set_intersection, cx);
+        env_add(&mut m, "set-difference", builtins::set_difference, cx);
+        env_add(&mut m, "set-symmetric-difference", builtins::set_symmetric_difference, cx);
+        env_add(&mut m, "set-iter", builtins::set_iter, cx);
+        env_add(&mut m, "set-iter-back", builtins::set_iter_back, cx);
+
+        env_add(&mut m, "map-count", builtins::map_count, cx);
+        env_add(&mut m, "map-get", builtins::map_get, cx);
+        env_add(&mut m, "map-contains?", builtins::map_contains, cx);
+        env_add(&mut m, "map-min", builtins::map_min, cx);
+        env_add(&mut m, "map-min-key", builtins::map_min_key, cx);
+        env_add(&mut m, "map-min-entry", builtins::map_min_entry, cx);
+        env_add(&mut m, "map-max", builtins::map_max, cx);
+        env_add(&mut m, "map-max-key", builtins::map_max_key, cx);
+        env_add(&mut m, "map-max-entry", builtins::map_max_entry, cx);
+        env_add(&mut m, "map-insert", builtins::map_insert, cx);
+        env_add(&mut m, "map-remove", builtins::map_remove, cx);
+        env_add(&mut m, "map-union", builtins::map_union, cx);
+        env_add(&mut m, "map-intersection", builtins::map_intersection, cx);
+        env_add(&mut m, "map-difference", builtins::map_difference, cx);
+        env_add(&mut m, "map-symmetric-difference", builtins::map_symmetric_difference, cx);
+        env_add(&mut m, "map-iter", builtins::map_iter, cx);
+        env_add(&mut m, "map-iter-back", builtins::map_iter_back, cx);
+
         env_add(&mut m, "=", builtins::pavo_eq, cx);
         env_add(&mut m, "<", builtins::pavo_lt, cx);
         env_add(&mut m, "<=", builtins::pavo_lte, cx);
