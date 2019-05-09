@@ -70,12 +70,20 @@ impl Value {
         Value::kw(kw.to_string())
     }
 
+    pub fn bytes(b: Vector<u8>) -> Value {
+        Value::Atomic(Atomic::Bytes(b))
+    }
+
+    pub fn bytes_from_vec(vals: Vec<u8>) -> Value {
+        Value::bytes(Vector(ImVector::from(vals)))
+    }
+
     pub fn arr(vals: Vector<Value>) -> Value {
         Value::Arr(vals)
     }
 
     pub fn arr_from_vec(vals: Vec<Value>) -> Value {
-        Value::arr(Vector(ImVector::from(&vals)))
+        Value::arr(Vector(ImVector::from(vals)))
     }
 
     pub fn app(vals: Vector<Value>) -> Value {

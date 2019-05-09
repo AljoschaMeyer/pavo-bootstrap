@@ -583,6 +583,191 @@ Returns `-1` if the int `n` is less than `0`, `0` if `n` is equal to `0`, `1` if
 (assert-eq (int-signum 42) 1)
 ```
 
+### Bytes
+
+#### `(bytes-count b)`
+
+Returns the number of bytes in the bytes `b`.
+
+Time: O(1).
+
+```pavo
+(assert-eq (bytes-count @[]) 0)
+(assert-eq (bytes-count @[0]) 1)
+(assert-eq (bytes-count @[0, 1, 2]) 3)
+```
+
+#### `(bytes-get b index)` `(bytes-get b index default)`
+
+Returns the byte at the int `index` in the bytes `b`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(bytes-count b)`.
+
+```pavo
+(assert-eq (bytes-get @[42] 0) 42)
+(assert-throw (bytes-get [] 0) { :tag :err-lookup, :got 0})
+(assert-eq (bytes-get [] 0 nil) nil)
+```
+
+#### `(bytes-insert b index new)` `(bytes-insert b index new default)`
+
+Inserts the byte `new` into the bytes `b` at the index int `index`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+Throws `{ :tag :not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
+Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
+
+If `default` is supplied, returns `default` instead of throwing a lookup error.
+
+Time: O(log n), where n is `(bytes-count b)`.
+
+```pavo
+(assert-eq (bytes-insert @[0 1] 0 42) [42 0 1])
+(assert-eq (bytes-insert @[0 1] 1 42) [0 42 1])
+(assert-eq (bytes-insert @[0 1] 2 42) [0 1 42])
+(assert-throw (bytes-insert @[0 1] 3 42) { :tag :err-lookup, :got 3})
+(assert-eq (bytes-insert @[0 1] 3 42 nil) nil)
+(assert-throw (bytes-insert @[] 0 256) { :tag :not-byte, :got 256})
+(assert-throw (bytes-insert @[] 0 256 nil) { :tag :not-byte, :got 256})
+```
+
+#### `(bytes-remove b index)` `(bytes-remove b index default)`
+
+Returns the bytes obtained by removing the byte at the index int `index` from the bytes `b`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(bytes-count b)`.
+
+```pavo
+(assert-eq (bytes-remove @[0 1] 0) @[1])
+(assert-eq (bytes-remove @[0 1] 1) @[0])
+(assert-throw (bytes-remove @[0 1] 3) { :tag :err-lookup, :got 3})
+(assert-eq (bytes-remove @[0 1] 3 nil) nil)
+```
+
+#### `(bytes-update b index new)` `(bytes-update b index new default)`
+
+Returns the bytes obtained by replacing the byte at the index int `index` in the bytes `b` with the byte `new`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+Throws `{ :tag :not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
+
+If `default` is supplied, returns `default` instead of throwing a lookup error.
+
+Time: O(log n), where n is `(bytes-count b)`.
+
+```pavo
+(assert-eq (bytes-update @[0 1] 0 42) @[42 1])
+(assert-eq (bytes-update @[0 1] 1 42) @[0 42])
+(assert-throw (bytes-update @[0 1] 2 42) { :tag :err-lookup, :got 2})
+(assert-eq (bytes-update @[0 1] 2 42 nil) nil)
+(assert-throw (bytes-update @[] 0 256) { :tag :not-byte, :got 256})
+(assert-throw (bytes-update @[] 0 256 nil) { :tag :not-byte, :got 256})
+```
+
+#### `(bytes-slice b start end)` `(bytes-slice b start end default)`
+
+Returns a subsequence of the the bytes `b`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
+
+Throws `{ :tag :err-lookup, :got end}` if `start` is greater than `end`.
+Throws `{ :tag :err-lookup, :got start}` if `start` is out of bounds.
+Throws `{ :tag :err-lookup, :got end}` if `end` is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(bytes-count b)`.
+
+```pavo
+(assert-eq (bytes-slice @[42 43] 1 1) [])
+(assert-eq (bytes-slice @[42 43] 0 1) [42])
+(assert-eq (bytes-slice @[42 43] 1 2) [43])
+(assert-eq (bytes-slice @[42 43] 0 2) [42 43])
+(assert-throw (bytes-slice @[] 0 1) { :tag :err-lookup, :got 1})
+(assert-throw (bytes-slice @[] 2 3) { :tag :err-lookup, :got 2})
+(assert-throw (bytes-slice @[0 1 2 3] 2 1) { :tag :err-lookup, :got 1})
+(assert-eq (bytes-slice @[] 0 1 nil) nil)
+```
+
+#### `(bytes-splice old index new)` `(bytes-splice old index new default)`
+
+Inserts the elements of the bytes `new` into the bytes `old`, starting at the index int `index`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds (of the `old` bytes).
+Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
+
+If `default` is supplied, returns `default` instead of throwing a lookup error.
+
+Time: O(log (n + m)), where n is `(bytes-count old)` and m is `(bytes-count new)`.
+
+```pavo
+(assert-eq (bytes-splice @[0 1] @[10 11] 0) @[10 11 0 1])
+(assert-eq (bytes-splice @[0 1] @[10 11] 1) @[0 10 11 1])
+(assert-eq (bytes-splice @[0 1] @[10 11] 2) @[0 1 10 11])
+(assert-throw (bytes-splice @[0 1] @[10 11] 3) { :tag :err-lookup, :got 3})
+(assert-eq (bytes-splice @[0 1] @[10 11] 3 nil) nil)
+```
+
+#### `(bytes-concat left right)`
+
+Returns a bytes that contains all elements of the bytes `left` followed by all elements of the bytes `right`.
+
+Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
+
+Time: O(log (n + m)), where n is `(bytes-count left)` and m is `(bytes-count right)`.
+
+```pavo
+(assert-eq (bytes-concat @[0 1] @[2 3]) @[0 1 2 3])
+(assert-eq (bytes-concat @[] @[0 1]) @[0 1])
+(assert-eq (bytes-concat @[0 1] @[]) @[0 1])
+```
+
+#### `(bytes-iter b fun)`
+
+Starting from the beginning of the bytes `b`, applies the function `fun` to the elements of `b` in sequence until either `fun` returns a truthy value or the end of the bytes is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
+
+```pavo
+(let :mut product 1 (do
+    (bytes-iter @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
+    (assert-eq product 24)
+))
+(let :mut product 1 (do
+    (bytes-iter @[1 2 3 4] (fn [elem] (if
+            (= elem 3) true
+            (set! product (int-mul product elem))
+        )))
+    (assert-eq product 2)
+))
+```
+
+#### `(bytes-iter-back b fun)`
+
+Starting from the back of the bytes `b`, applies the function `fun` to the elements of `b` in reverse order until either `fun` returns a truthy value or the end of the bytes is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
+
+```pavo
+(let :mut product 1 (do
+    (bytes-iter-back @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
+    (assert-eq product 24)
+))
+(let :mut product 1 (do
+    (bytes-iter-back @[1 2 3 4] (fn [elem] (if
+            (= elem 3) true
+            (set! product (int-mul product elem))
+        )))
+    (assert-eq product 4)
+))
+```
+
 ### Arrays
 
 #### `(arr-count arr)`
@@ -625,11 +810,11 @@ If `default` is supplied, returns `default` instead of throwing a lookup error.
 Time: O(log n), where n is `(arr-count arr)`.
 
 ```pavo
-(assert-eq (arr-insert [0 1] 42 0) [42 0 1])
-(assert-eq (arr-insert [0 1] 42 1) [0 42 1])
-(assert-eq (arr-insert [0 1] 42 2) [0 1 42])
-(assert-throw (arr-insert [0 1] 42 3) { :tag :err-lookup, :got 3})
-(assert-eq (arr-insert [0 1] 42 3 nil) nil)
+(assert-eq (arr-insert [0 1] 0 42) [42 0 1])
+(assert-eq (arr-insert [0 1] 1 42) [0 42 1])
+(assert-eq (arr-insert [0 1] 2 42) [0 1 42])
+(assert-throw (arr-insert [0 1] 3 42) { :tag :err-lookup, :got 3})
+(assert-eq (arr-insert [0 1] 3 42 nil) nil)
 ```
 
 #### `(arr-remove arr index)` `(arr-remove arr index default)`
@@ -763,6 +948,8 @@ Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
 ```
 
 TODO push/pop on both ends in amortized O(1) time?
+
+TODO everything for applications as well
 
 ### Sets
 

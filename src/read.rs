@@ -39,6 +39,7 @@ named!(rbracket(CompleteStr) -> (), do_parse!(tag!("]") >> ws0 >> (())));
 named!(lparen(CompleteStr) -> (), do_parse!(tag!("(") >> ws0 >> (())));
 named!(rparen(CompleteStr) -> (), do_parse!(tag!(")") >> ws0 >> (())));
 named!(at_lbrace(CompleteStr) -> (), do_parse!(tag!("@{") >> ws0 >> (())));
+named!(at_lbracket(CompleteStr) -> (), do_parse!(tag!("@[") >> ws0 >> (())));
 
 fn is_id_char(c: char) -> bool {
     return c.is_ascii_alphanumeric() || c == '!' || c == '*' || c == '+'
@@ -89,6 +90,35 @@ fn num(i: CompleteStr) -> IResult<CompleteStr, i64> {
     }
 }
 
+fn byte(i: CompleteStr) -> IResult<CompleteStr, u8> {
+    let start = i;
+    let (i, is_hex) = try_parse!(i, map!(opt!(tag!("0x")), |opt| opt.is_some()));
+    let (i, _) = if is_hex {
+        try_parse!(i, take_while1!(|c: char| c.is_ascii_hexdigit()))
+    } else {
+        try_parse!(i, take_while1!(|c: char| c.is_ascii_digit()))
+    };
+    let end = i;
+    let (i, _) = try_parse!(i, not!(take_while1!(is_id_char)));
+    let (i, _) = try_parse!(i, ws0);
+
+    let raw = if is_hex {
+        start[2..start.len() - end.len()].to_string()
+    } else {
+        start[..start.len() - end.len()].to_string()
+    };
+
+    match u8::from_str_radix(&raw, if is_hex { 16 } else { 10 }) {
+        Ok(n) => Ok((i, n)),
+        Err(_) => Err(Err::Error(Context::Code(i, ErrorKind::Custom(2)))),
+    }
+}
+
+named!(bytes(CompleteStr) -> Value, map!(
+    delimited!(at_lbracket, many0!(byte), rbracket),
+    |byte_vec| Value::bytes_from_vec(byte_vec)
+));
+
 named!(app(CompleteStr) -> Value, map!(
     delimited!(lparen, many0!(obj), rparen),
     |objs| Value::app_from_vec(objs)
@@ -118,6 +148,7 @@ named!(obj(CompleteStr) -> Value, terminated!(alt!(
     arr |
     map_ |
     set |
+    bytes |
     map!(num, |n| Value::int(n)) |
     map!(kw_str, |kw| Value::kw_str(kw.0)) |
     map!(id_str, |id| if id.0 == "nil" {

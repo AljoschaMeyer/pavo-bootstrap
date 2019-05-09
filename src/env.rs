@@ -70,6 +70,17 @@ impl Env {
         env_add(&mut m, "int-pow-wrap", builtins::int_pow_wrap, cx);
         env_add(&mut m, "int-signum", builtins::int_signum, cx);
 
+        env_add(&mut m, "bytes-count", builtins::bytes_count, cx);
+        env_add(&mut m, "bytes-get", builtins::bytes_get, cx);
+        env_add(&mut m, "bytes-insert", builtins::bytes_insert, cx);
+        env_add(&mut m, "bytes-remove", builtins::bytes_remove, cx);
+        env_add(&mut m, "bytes-update", builtins::bytes_update, cx);
+        env_add(&mut m, "bytes-slice", builtins::bytes_slice, cx);
+        env_add(&mut m, "bytes-splice", builtins::bytes_splice, cx);
+        env_add(&mut m, "bytes-concat", builtins::bytes_concat, cx);
+        env_add(&mut m, "bytes-iter", builtins::arr_iter, cx);
+        env_add(&mut m, "bytes-iter-back", builtins::arr_iter_back, cx);
+
         env_add(&mut m, "arr-count", builtins::arr_count, cx);
         env_add(&mut m, "arr-get", builtins::arr_get, cx);
         env_add(&mut m, "arr-insert", builtins::arr_insert, cx);
