@@ -694,6 +694,80 @@ pub fn bytes_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::nil())
 }
 
+pub fn bytes_push_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut b = bytes!(arg!(args, 0));
+    let new = byte!(arg!(args, 1));
+
+    if b.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    b.0.push_front(new);
+
+    Ok(Value::bytes(b))
+}
+
+pub fn bytes_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut b = bytes!(arg!(args, 0));
+
+    match b.0.pop_front() {
+        Some(val) => Ok(Value::int(val as i64)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn bytes_pop_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut b = bytes!(arg!(args, 0));
+
+    match b.0.pop_front() {
+        Some(_) => Ok(Value::bytes(b)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn bytes_push_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut b = bytes!(arg!(args, 0));
+    let new = byte!(arg!(args, 1));
+
+    if b.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    b.0.push_back(new);
+
+    Ok(Value::bytes(b))
+}
+
+pub fn bytes_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut b = bytes!(arg!(args, 0));
+
+    match b.0.pop_back() {
+        Some(val) => Ok(Value::int(val as i64)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn bytes_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut b = bytes!(arg!(args, 0));
+
+    match b.0.pop_back() {
+        Some(_) => Ok(Value::bytes(b)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
 /////////////////////////////////////////////////////////////////////////////
 
 pub fn arr_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
@@ -819,6 +893,80 @@ pub fn arr_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     }
 
     Ok(Value::nil())
+}
+
+pub fn arr_push_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut arr = arr!(arg!(args, 0));
+    let new = arg!(args, 1);
+
+    if arr.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    arr.0.push_front(new);
+
+    Ok(Value::arr(arr))
+}
+
+pub fn arr_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut arr = arr!(arg!(args, 0));
+
+    match arr.0.pop_front() {
+        Some(val) => Ok(val.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn arr_pop_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut arr = arr!(arg!(args, 0));
+
+    match arr.0.pop_front() {
+        Some(_) => Ok(Value::arr(arr)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn arr_push_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut arr = arr!(arg!(args, 0));
+    let new = arg!(args, 1);
+
+    if arr.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    arr.0.push_back(new);
+
+    Ok(Value::arr(arr))
+}
+
+pub fn arr_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut arr = arr!(arg!(args, 0));
+
+    match arr.0.pop_back() {
+        Some(val) => Ok(val.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn arr_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut arr = arr!(arg!(args, 0));
+
+    match arr.0.pop_back() {
+        Some(_) => Ok(Value::arr(arr)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
