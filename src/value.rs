@@ -54,6 +54,10 @@ impl Value {
         Value::Atomic(Atomic::Float(unsafe { NotNan::unchecked_new(n) }))
     }
 
+    pub fn char_(c: char) -> Value {
+        Value::Atomic(Atomic::Char(c))
+    }
+
     pub fn id(id: Id) -> Value {
         Value::Id(id)
     }

@@ -87,6 +87,11 @@ impl Env {
         env_add(&mut m, "bytes-back", builtins::bytes_back, cx);
         env_add(&mut m, "bytes-pop-back", builtins::bytes_pop_back, cx);
 
+        env_add_val(&mut m, "char-max", Value::char_(std::char::MAX), cx);
+        env_add(&mut m, "int=>char", builtins::int_to_char, cx);
+        env_add(&mut m, "char->int", builtins::char_to_int, cx);
+        env_add(&mut m, "char-count-utf8", builtins::char_count_utf8, cx);
+
         env_add(&mut m, "arr-count", builtins::arr_count, cx);
         env_add(&mut m, "arr-get", builtins::arr_get, cx);
         env_add(&mut m, "arr-insert", builtins::arr_insert, cx);

@@ -51,6 +51,13 @@ pub fn byte_error(got: &Value) -> Value {
         ])))
 }
 
+pub fn char_error(got: &Value) -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("not-unicode-scalar")),
+            (Value::kw_str("got"), got.clone()),
+        ])))
+}
+
 pub fn type_error_(got: &Value, expected: &Value) -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-type")),
@@ -146,6 +153,15 @@ macro_rules! bytes {
         match &$v {
             Value::Atomic(Atomic::Bytes(b)) => b.clone(),
             _ => return Err(type_error(&$v, "bytes")),
+        }
+    )
+}
+
+macro_rules! char {
+    ($v:expr) => (
+        match &$v {
+            Value::Atomic(Atomic::Char(c)) => *c,
+            _ => return Err(type_error(&$v, "char")),
         }
     )
 }
@@ -766,6 +782,31 @@ pub fn bytes_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
             None => Err(coll_empty_error())
         }
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn int_to_char(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let n = int!(arg!(args, 0));
+    match std::char::from_u32(n as u32) {
+        Some(c) => {
+            Ok(Value::char_(c))
+        }
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(char_error(&Value::int(n))),
+        }
+    }
+}
+
+pub fn char_to_int(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let c = char!(arg!(args, 0));
+    Ok(Value::int(c as i64))
+}
+
+pub fn char_count_utf8(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let c = char!(arg!(args, 0));
+    Ok(Value::int(c.len_utf8() as i64))
 }
 
 /////////////////////////////////////////////////////////////////////////////

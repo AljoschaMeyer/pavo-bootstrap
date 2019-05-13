@@ -864,6 +864,82 @@ Time: Amortized O(1) (amortized across `bytes-push-back`, `bytes-back` and `byte
 (assert-eq (bytes-pop-back @[] nil) nil)
 ```
 
+### Chars
+
+#### `char-max`
+
+The largest char (numerically the largest unicode scalar value).
+
+```pavo
+(assert-eq char-max '\u{10ffff}')
+```
+
+#### `(int=>char n)` `(int=>char n default)`
+
+Returns the unicode scalar value denoted by the int `n`.
+
+Throws `{ :tag :not-unicode-scalar, :got n}` if `n` is `n` is not a unicode scalar value.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+```pavo
+(assert-eq (int=>char 0x41) 'A')
+(assert-throw (int=>char 0x110000) { :tag :not-unicode-scalar, :got 0x110000})
+(assert-eq (int=>char 0x110000 nil) nil)
+```
+
+#### `(char->int c)`
+
+Returns the unicode scalar value of the char `c` as an int.
+
+```pavo
+(assert-eq (char->int 'A') 0x41)
+```
+
+#### `(char-count-utf8 c)`
+
+Returns the number of bytes in the utf-8 encoding of the char `c`.
+
+```pavo
+(assert-eq (char-count-utf8 'A') 1)
+(assert-eq (char-count-utf8 'ß') 2)
+(assert-eq (char-count-utf8 'ℝ') 3)
+(assert-eq (char-count-utf8 '💖') 4)
+```
+
+---
+
+utf8?
+
+- from bytes utf88
+- to bytes utf8
+- iterate bytes utf8
+
+### Strings
+
+- len (in chars)
+- crud chars
+- slice, splice, concat strings
+- iterate chars
+
+utf8?
+
+- utf8-len
+- from bytes (also utf16? lossy variants via replacement character?) ?
+- to bytes
+- iterate bytes
+- get byte by offset
+- fallible update by bytes(s)
+- (char-boundary? offset)
+- byte-to-char-index
+- byte-to-line-index
+- char-to-byte-index
+- line-to-byte-index
+
+
+
+### Floats
+
 ### Arrays
 
 #### `(arr-count arr)`
