@@ -90,7 +90,23 @@ impl Env {
         env_add_val(&mut m, "char-max", Value::char_(std::char::MAX), cx);
         env_add(&mut m, "int=>char", builtins::int_to_char, cx);
         env_add(&mut m, "char->int", builtins::char_to_int, cx);
-        env_add(&mut m, "char-count-utf8", builtins::char_count_utf8, cx);
+
+        env_add(&mut m, "str-count", builtins::str_count, cx);
+        env_add(&mut m, "str-get", builtins::str_get, cx);
+        env_add(&mut m, "str-insert", builtins::str_insert, cx);
+        env_add(&mut m, "str-remove", builtins::str_remove, cx);
+        env_add(&mut m, "str-update", builtins::str_update, cx);
+        env_add(&mut m, "str-slice", builtins::str_slice, cx);
+        env_add(&mut m, "str-splice", builtins::str_splice, cx);
+        env_add(&mut m, "str-concat", builtins::str_concat, cx);
+        env_add(&mut m, "str-iter", builtins::str_iter, cx);
+        env_add(&mut m, "str-iter-back", builtins::str_iter_back, cx);
+        env_add(&mut m, "str-push-front", builtins::str_push_front, cx);
+        env_add(&mut m, "str-front", builtins::str_front, cx);
+        env_add(&mut m, "str-pop-front", builtins::str_pop_front, cx);
+        env_add(&mut m, "str-push-back", builtins::str_push_back, cx);
+        env_add(&mut m, "str-back", builtins::str_back, cx);
+        env_add(&mut m, "str-pop-back", builtins::str_pop_back, cx);
 
         env_add(&mut m, "arr-count", builtins::arr_count, cx);
         env_add(&mut m, "arr-get", builtins::arr_get, cx);

@@ -166,6 +166,15 @@ macro_rules! char {
     )
 }
 
+macro_rules! string {
+    ($v:expr) => (
+        match &$v {
+            Value::Atomic(Atomic::String(s)) => s.clone(),
+            _ => return Err(type_error(&$v, "string")),
+        }
+    )
+}
+
 macro_rules! byte {
     ($v:expr) => (
         match int!($v) {
@@ -586,7 +595,7 @@ pub fn int_signum(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 /////////////////////////////////////////////////////////////////////////////
 
 pub fn bytes_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let b = bytes!(arg!(args, 1));
+    let b = bytes!(arg!(args, 0));
     Ok(Value::int(b.0.len() as i64))
 }
 
@@ -804,15 +813,211 @@ pub fn char_to_int(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::int(c as i64))
 }
 
-pub fn char_count_utf8(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let c = char!(arg!(args, 0));
-    Ok(Value::int(c.len_utf8() as i64))
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn str_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let s = string!(arg!(args, 0));
+    Ok(Value::int(s.0.len() as i64))
+}
+
+pub fn str_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let s = string!(arg!(args, 0));
+    let index = index!(&s, int!(arg!(args, 1)), arg_opt!(args, 2));
+
+    Ok(Value::char_(s.0[index]))
+}
+
+pub fn str_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let s = string!(arg!(args, 0));
+    let index = index_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let elem = char!(arg!(args, 2));
+
+    if s.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    let mut new = s.0.clone();
+    new.insert(index, elem.clone());
+    Ok(Value::string(Vector(new)))
+}
+
+pub fn str_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let s = string!(arg!(args, 0));
+    let index = index!(&s, int!(arg!(args, 1)), arg_opt!(args, 2));
+
+    let mut new = s.0.clone();
+    let _ = new.remove(index);
+    Ok(Value::string(Vector(new)))
+}
+
+pub fn str_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let s = string!(arg!(args, 0));
+    let index = index!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let elem = char!(arg!(args, 2));
+
+    Ok(Value::string(Vector(s.0.update(index, elem))))
+}
+
+pub fn str_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let s = string!(arg!(args, 0));
+    let start = index_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let end = index_incl!(&s, int!(arg!(args, 2)), arg_opt!(args, 3));
+
+    if start > end {
+        match arg_opt!(args, 3) {
+            Some(fallback) => return Ok(fallback.clone()),
+            None => return Err(index_error(end)),
+        }
+    }
+
+    let mut tmp = s.0.clone();
+    Ok(Value::string(Vector(tmp.slice(start..end))))
+}
+
+pub fn str_splice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let s = string!(arg!(args, 0));
+    let index = index_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let new = string!(arg!(args, 2));
+
+    let (mut left, right) = s.0.split_at(index);
+    left.append(new.0);
+    left.append(right);
+
+    if left.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::string(Vector(left)))
+}
+
+pub fn str_concat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let left = string!(arg!(args, 0));
+    let right = string!(arg!(args, 1));
+
+    let mut ret = left.0.clone();
+    ret.append(right.0);
+
+    if ret.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::string(Vector(ret)))
+}
+
+pub fn str_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let s = string!(arg!(args, 0));
+    let fun = fun!(arg!(args, 1));
+
+    for elem in s.0.iter() {
+        match fun.apply(&Value::arr_from_vec(vec![Value::char_(*elem)])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn str_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let s = string!(arg!(args, 0));
+    let fun = fun!(arg!(args, 1));
+
+    for elem in s.0.iter().rev() {
+        match fun.apply(&Value::arr_from_vec(vec![Value::char_(*elem)])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn str_push_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut s = string!(arg!(args, 0));
+    let new = char!(arg!(args, 1));
+
+    if s.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    s.0.push_front(new);
+
+    Ok(Value::string(s))
+}
+
+pub fn str_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut s = string!(arg!(args, 0));
+
+    match s.0.pop_front() {
+        Some(val) => Ok(Value::char_(val)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn str_pop_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut s = string!(arg!(args, 0));
+
+    match s.0.pop_front() {
+        Some(_) => Ok(Value::string(s)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn str_push_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut s = string!(arg!(args, 0));
+    let new = char!(arg!(args, 1));
+
+    if s.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    s.0.push_back(new);
+
+    Ok(Value::string(s))
+}
+
+pub fn str_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut s = string!(arg!(args, 0));
+
+    match s.0.pop_back() {
+        Some(val) => Ok(Value::char_(val)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn str_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut s = string!(arg!(args, 0));
+
+    match s.0.pop_back() {
+        Some(_) => Ok(Value::string(s)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
 
 pub fn arr_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let arr = arr!(arg!(args, 1));
+    let arr = arr!(arg!(args, 0));
     Ok(Value::int(arr.0.len() as i64))
 }
 
@@ -1013,7 +1218,7 @@ pub fn arr_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 /////////////////////////////////////////////////////////////////////////////
 
 pub fn set_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let set = set!(arg!(args, 1));
+    let set = set!(arg!(args, 0));
     Ok(Value::int(set.0.len() as i64))
 }
 
@@ -1149,7 +1354,7 @@ pub fn set_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 /////////////////////////////////////////////////////////////////////////////
 
 pub fn map_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let map = map!(arg!(args, 1));
+    let map = map!(arg!(args, 0));
     Ok(Value::int(map.0.len() as i64))
 }
 

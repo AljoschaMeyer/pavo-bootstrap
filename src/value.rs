@@ -17,7 +17,7 @@ use im_rc::{
 
 use crate::context::Context;
 use crate::env::Env;
-use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
+use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub enum Value {
@@ -80,6 +80,14 @@ impl Value {
 
     pub fn bytes_from_vec(vals: Vec<u8>) -> Value {
         Value::bytes(Vector(ImVector::from(vals)))
+    }
+
+    pub fn string(s: Vector<char>) -> Value {
+        Value::Atomic(Atomic::String(s))
+    }
+
+    pub fn string_from_vec(vals: Vec<char>) -> Value {
+        Value::string(Vector(ImVector::from(vals)))
     }
 
     pub fn arr(vals: Vector<Value>) -> Value {
@@ -193,7 +201,7 @@ pub enum Atomic {
     Int(i64),
     Float(NotNan),
     Char(char),
-    String(Rope),
+    String(Vector<char>),
     Bytes(Vector<u8>),
     Keyword(String),
 }

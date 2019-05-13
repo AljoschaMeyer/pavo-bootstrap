@@ -674,7 +674,7 @@ Time: O(log n), where n is `(bytes-count b)`.
 
 #### `(bytes-slice b start end)` `(bytes-slice b start end default)`
 
-Returns a subsequence of the the bytes `b`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
+Returns a subsequence of the bytes `b`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
 
 Throws `{ :tag :err-lookup, :got end}` if `start` is greater than `end`.
 Throws `{ :tag :err-lookup, :got start}` if `start` is out of bounds.
@@ -775,7 +775,7 @@ Returns the bytes obtained by inserting the byte `new` at the front of the bytes
 Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
 Throws `{ :tag :not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
 
-Time: Amortized O(1) (amortized across `bytes-push-front`, `bytes-front` and `bytes-pop-front` applications)
+Time: Amortized O(1) (amortized across `bytes-push-front` and `bytes-pop-front` applications)
 
 ```pavo
 (assert-eq (bytes-push-front @[] 42) @[42])
@@ -784,13 +784,13 @@ Time: Amortized O(1) (amortized across `bytes-push-front`, `bytes-front` and `by
 
 #### `(bytes-front b)` `(bytes-front b default)`
 
-Returns the first byte in bytes `b`.
+Returns the first byte in the bytes `b`.
 
 Throws `{ :tag :err-collection-empty }` if the bytes are empty.
 
 If `default` is supplied, returns `default` instead of throwing.
 
-Time: Amortized O(1) (amortized across `bytes-push-front`, `bytes-front` and `bytes-pop-front` applications)
+Time: O(1)
 
 ```pavo
 (assert-eq (bytes-front @[41 42]) 41)
@@ -801,13 +801,13 @@ Time: Amortized O(1) (amortized across `bytes-push-front`, `bytes-front` and `by
 
 #### `(bytes-pop-front b)` `(bytes-pop-front b default)`
 
-Returns all but the first bytes in bytes `b`.
+Returns all but the first bytes in the bytes `b`.
 
 Throws `{ :tag :err-collection-empty }` if the bytes are empty.
 
 If `default` is supplied, returns `default` instead of throwing.
 
-Time: Amortized O(1) (amortized across `bytes-push-front`, `bytes-front` and `bytes-pop-front` applications)
+Time: Amortized O(1) (amortized across `bytes-push-front` and `bytes-pop-front` applications)
 
 ```pavo
 (assert-eq (bytes-pop-front @[41 42]) @[42])
@@ -820,10 +820,10 @@ Time: Amortized O(1) (amortized across `bytes-push-front`, `bytes-front` and `by
 
 Returns the bytes obtained by inserting the byte `new` at the back of the bytes `b`.
 
-Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63 or more elements.
+Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
 Throws `{ :tag :not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
 
-Time: Amortized O(1) (amortized across `bytes-push-back`, `bytes-back` and `bytes-pop-back` applications)
+Time: Amortized O(1) (amortized across `bytes-push-back` and `bytes-pop-back` applications)
 
 ```pavo
 (assert-eq (bytes-push-back @[] 41) @[41])
@@ -832,13 +832,13 @@ Time: Amortized O(1) (amortized across `bytes-push-back`, `bytes-back` and `byte
 
 #### `(bytes-back b)` `(bytes-back b default)`
 
-Returns the last byte in bytes `b`.
+Returns the last byte in the bytes `b`.
 
 Throws `{ :tag :err-collection-empty }` if the bytes is empty.
 
 If `default` is supplied, returns `default` instead of throwing.
 
-Time: Amortized O(1) (amortized across `bytes-push-back`, `bytes-back` and `bytes-pop-back` applications)
+Time: O(1)
 
 ```pavo
 (assert-eq (bytes-back @[41 42]) 42)
@@ -849,13 +849,13 @@ Time: Amortized O(1) (amortized across `bytes-push-back`, `bytes-back` and `byte
 
 #### `(bytes-pop-back b)` `(bytes-pop-back b default)`
 
-Returns all but the last bytes in bytes `b`.
+Returns all but the last bytes in the bytes `b`.
 
 Throws `{ :tag :err-collection-empty }` if the bytes is empty.
 
 If `default` is supplied, returns `default` instead of throwing.
 
-Time: Amortized O(1) (amortized across `bytes-push-back`, `bytes-back` and `bytes-pop-back` applications)
+Time: Amortized O(1) (amortized across `bytes-push-back` and `bytes-pop-back` applications)
 
 ```pavo
 (assert-eq (bytes-pop-back @[41 42]) @[41])
@@ -896,47 +896,280 @@ Returns the unicode scalar value of the char `c` as an int.
 (assert-eq (char->int 'A') 0x41)
 ```
 
-#### `(char-count-utf8 c)`
-
-Returns the number of bytes in the utf-8 encoding of the char `c`.
-
-```pavo
-(assert-eq (char-count-utf8 'A') 1)
-(assert-eq (char-count-utf8 'ß') 2)
-(assert-eq (char-count-utf8 'ℝ') 3)
-(assert-eq (char-count-utf8 '💖') 4)
-```
-
----
-
-utf8?
-
-- from bytes utf88
-- to bytes utf8
-- iterate bytes utf8
-
 ### Strings
 
-- len (in chars)
-- crud chars
-- slice, splice, concat strings
-- iterate chars
+#### `(str-count s)`
 
-utf8?
+Returns the number of chars in the string `s`.
 
-- utf8-len
-- from bytes (also utf16? lossy variants via replacement character?) ?
-- to bytes
-- iterate bytes
-- get byte by offset
-- fallible update by bytes(s)
-- (char-boundary? offset)
-- byte-to-char-index
-- byte-to-line-index
-- char-to-byte-index
-- line-to-byte-index
+Time: O(1).
 
+```pavo
+(assert-eq (str-count "") 0)
+(assert-eq (str-count "a") 1)
+(assert-eq (str-count "⚗") 1)
+(assert-eq (str-count "abc") 3)
+```
 
+#### `(str-get s index)` `(str-get s index default)`
+
+Returns the char at the int `index` in the string `s`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(str-count s)`.
+
+```pavo
+(assert-eq (str-get "a" 0) 'a')
+(assert-eq (str-get "⚗b" 1) 'b')
+(assert-throw (str-get "" 0) { :tag :err-lookup, :got 0})
+(assert-eq (str-get "" 0 nil) nil)
+```
+
+#### `(str-insert s index c)` `(str-insert s index cdefault)`
+
+Inserts the char `c` into the string `s` at the index int `index`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+Throws `{ :tag :err-collection-full }` if the resulting string would contain 2^63 or more elements.
+
+If `default` is supplied, returns `default` instead of throwing a lookup error.
+
+Time: O(log n), where n is `(str-count s)`.
+
+```pavo
+(assert-eq (str-insert "ab" 0 'z') "zab")
+(assert-eq (str-insert "ab" 1 'z') "azb")
+(assert-eq (str-insert "ab" 2 'z') "abz")
+(assert-throw (str-insert "ab" 3 'z') { :tag :err-lookup, :got 3})
+(assert-eq (str-insert "ab" 3 'z' nil) nil)
+```
+
+#### `(str-remove s index)` `(str-remove s index default)`
+
+Returns the string obtained by removing the char at the index int `index` from the string `s`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(str-count s)`.
+
+```pavo
+(assert-eq (str-remove "ab" 0) "b")
+(assert-eq (str-remove "ab" 1) "a")
+(assert-throw (str-remove "ab" 3) { :tag :err-lookup, :got 3})
+(assert-eq (str-remove "ab" 3 nil) nil)
+```
+
+#### `(str-update s index c)` `(str-update s index c default)`
+
+Returns the string obtained by replacing the char at the index int `index` in the string `s` with the char `c`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing a lookup error.
+
+Time: O(log n), where n is `(str-count s)`.
+
+```pavo
+(assert-eq (str-update "ab" 0 'z') "zb")
+(assert-eq (str-update "ab" 1 'z') "az")
+(assert-throw (str-update "ab" 2 'z') { :tag :err-lookup, :got 2})
+(assert-eq (str-update "ab" 2 'z' nil) nil)
+```
+
+#### `(str-slice s start end)` `(str-slice s start end default)`
+
+Returns a substring of the string `b`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
+
+Throws `{ :tag :err-lookup, :got end}` if `start` is greater than `end`.
+Throws `{ :tag :err-lookup, :got start}` if `start` is out of bounds.
+Throws `{ :tag :err-lookup, :got end}` if `end` is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(str-count s)`.
+
+```pavo
+(assert-eq (str-slice "ab" 1 1) "")
+(assert-eq (str-slice "ab" 0 1) "a")
+(assert-eq (str-slice "ab" 1 2) "b")
+(assert-eq (str-slice "ab" 0 2) "ab")
+(assert-throw (str-slice "" 0 1) { :tag :err-lookup, :got 1})
+(assert-throw (str-slice "" 2 3) { :tag :err-lookup, :got 2})
+(assert-throw (str-slice "abcd" 2 1) { :tag :err-lookup, :got 1})
+(assert-eq (str-slice "" 0 1 nil) nil)
+```
+
+#### `(str-splice old index new)` `(str-splice old index new default)`
+
+Inserts the string `new` into the string `old`, starting at the index int `index`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds (of the `old` bytes).
+Throws `{ :tag :err-collection-full }` if the resulting string would contain 2^63 or more elements.
+
+If `default` is supplied, returns `default` instead of throwing a lookup error.
+
+Time: O(log (n + m)), where n is `(str-count old)` and m is `(str-count new)`.
+
+```pavo
+(assert-eq (str-splice "ab" "cd" 0) "cdab")
+(assert-eq (str-splice "ab" "cd" 1) "acdb")
+(assert-eq (str-splice "ab" "cd" 2) "abcd")
+(assert-throw (str-splice "ab" "cd" 3) { :tag :err-lookup, :got 3})
+(assert-eq (str-splice "ab" "cd" 3 nil) nil)
+```
+
+#### `(str-concat left right)`
+
+Returns a string that contains all chars of the string `left` followed by all chars of the string `right`.
+
+Throws `{ :tag :err-collection-full }` if the resulting string would contain 2^63 or more elements.
+
+Time: O(log (n + m)), where n is `(str-count left)` and m is `(str-count right)`.
+
+```pavo
+(assert-eq (str-concat "ab" "cd") "abcd")
+(assert-eq (str-concat "" "cd") "cd")
+(assert-eq (str-concat "ab" "") "ab")
+```
+
+#### `(str-iter s fun)`
+
+Starting from the beginning of the string `s`, applies the function `fun` to the chars of `s` in sequence until either `fun` returns a truthy value or the end of the string is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(str-count s)`.
+
+```pavo
+(let :mut out "z" (do
+    (str-iter "abcd" (fn [elem] (set! out (str-push-back out elem))))
+    (assert-eq out "zabcd")
+))
+(let :mut out "z" (do
+    (str-iter "abcd" (fn [elem] (if
+            (= elem 'c') true
+            (set! out (str-push-back out elem))
+        )))
+    (assert-eq out "zab")
+))
+```
+
+#### `(str-iter-back s fun)`
+
+Starting from the back of the string `s`, applies the function `fun` to the chars of `s` in reverse order until either `fun` returns a truthy value or the end of the string is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(str-count s)`.
+
+```pavo
+(let :mut out "z" (do
+    (str-iter-back "abcd" (fn [elem] (set! out (str-push-back out elem))))
+    (assert-eq out "zdcba")
+))
+(let :mut out "z" (do
+    (str-iter-back "abcd" (fn [elem] (if
+            (= elem 'c') true
+            (set! out (str-push-back out elem))
+        )))
+    (assert-eq out "zd")
+))
+```
+
+#### `(str-push-front s c)`
+
+Returns the string obtained by inserting the char `c` at the front of the string `s`.
+
+Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
+
+Time: Amortized O(1) (amortized across `str-push-front` and `str-pop-front` applications)
+
+```pavo
+(assert-eq (str-push-front "" 'a') "a")
+(assert-eq (str-push-front "b" 'a') "ab")
+```
+
+#### `(str-front s)` `(str-front s default)`
+
+Returns the first char in the string `s`.
+
+Throws `{ :tag :err-collection-empty }` if the string is empty.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(1)
+
+```pavo
+(assert-eq (str-front "ab") 'a')
+(assert-eq (str-front "a") 'a')
+(assert-throw (str-front "") { :tag :err-collection-empty})
+(assert-eq (str-front "" nil) nil)
+```
+
+#### `(str-pop-front s)` `(str-pop-front s default)`
+
+Returns a string consisting of all but the first char in the string `s`.
+
+Throws `{ :tag :err-collection-empty }` if the string is empty.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: Amortized O(1) (amortized across `str-push-front` and `str-pop-front` applications)
+
+```pavo
+(assert-eq (str-pop-front "ab") "a")
+(assert-eq (str-pop-front "a") "")
+(assert-throw (str-pop-front "") { :tag :err-collection-empty})
+(assert-eq (str-pop-front "" nil) nil)
+```
+
+#### `(str-push-back s c)`
+
+Returns the string obtained by inserting the char `c` at the back of the string `s`.
+
+Throws `{ :tag :err-collection-full }` if the resulting string would contain 2^63 or more elements.
+
+Time: Amortized O(1) (amortized across `str-push-back` and `str-pop-back` applications)
+
+```pavo
+(assert-eq (str-push-back "" 'a') "a")
+(assert-eq (str-push-back "b" 'a') "ba")
+```
+
+#### `(str-back s)` `(str-back s default)`
+
+Returns the last char in the string `s`.
+
+Throws `{ :tag :err-collection-empty }` if the string is empty.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(1)
+
+```pavo
+(assert-eq (str-back "ab") 'b')
+(assert-eq (str-back "a") 'a')
+(assert-throw (str-back "") { :tag :err-collection-empty})
+(assert-eq (str-back "" nil) nil)
+```
+
+#### `(str-pop-back s)` `(str-pop-back s default)`
+
+Returns the string consisting of all but the last char in the string `s`.
+
+Throws `{ :tag :err-collection-empty }` if the string is empty.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: Amortized O(1) (amortized across `str-push-back` and `str-pop-back` applications)
+
+```pavo
+(assert-eq (str-pop-back "ab") "a")
+(assert-eq (str-pop-back "a") "")
+(assert-throw (str-pop-back "") { :tag :err-collection-empty})
+(assert-eq (str-pop-back "" nil) nil)
+```
 
 ### Floats
 
@@ -1125,7 +1358,7 @@ Returns the array obtained by inserting the value `new` at the front of the arra
 
 Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63 or more elements.
 
-Time: Amortized O(1) (amortized across `arr-push-front`, `arr-front` and `arr-pop-front` applications)
+Time: Amortized O(1) (amortized across `arr-push-front` and `arr-pop-front` applications)
 
 ```pavo
 (assert-eq (arr-push-front [] true) [true])
@@ -1140,7 +1373,7 @@ Throws `{ :tag :err-collection-empty }` if the array is empty.
 
 If `default` is supplied, returns `default` instead of throwing.
 
-Time: Amortized O(1) (amortized across `arr-push-front`, `arr-front` and `arr-pop-front` applications)
+Time: O(1)
 
 ```pavo
 (assert-eq (arr-front [true false]) true)
@@ -1157,7 +1390,7 @@ Throws `{ :tag :err-collection-empty }` if the array is empty.
 
 If `default` is supplied, returns `default` instead of throwing.
 
-Time: Amortized O(1) (amortized across `arr-push-front`, `arr-front` and `arr-pop-front` applications)
+Time: Amortized O(1) (amortized across `arr-push-front` and `arr-pop-front` applications)
 
 ```pavo
 (assert-eq (arr-pop-front [true false]) [false])
@@ -1172,7 +1405,7 @@ Returns the array obtained by inserting the value `new` at the back of the array
 
 Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63 or more elements.
 
-Time: Amortized O(1) (amortized across `arr-push-back`, `arr-back` and `arr-pop-back` applications)
+Time: Amortized O(1) (amortized across `arr-push-back` and `arr-pop-back` applications)
 
 ```pavo
 (assert-eq (arr-push-back [] true) [true])
@@ -1187,7 +1420,7 @@ Throws `{ :tag :err-collection-empty }` if the array is empty.
 
 If `default` is supplied, returns `default` instead of throwing.
 
-Time: Amortized O(1) (amortized across `arr-push-back`, `arr-back` and `arr-pop-back` applications)
+Time: O(1)
 
 ```pavo
 (assert-eq (arr-back [true false]) false)
@@ -1204,7 +1437,7 @@ Throws `{ :tag :err-collection-empty }` if the array is empty.
 
 If `default` is supplied, returns `default` instead of throwing.
 
-Time: Amortized O(1) (amortized across `arr-push-back`, `arr-back` and `arr-pop-back` applications)
+Time: Amortized O(1) (amortized across `arr-push-back` and `arr-pop-back` applications)
 
 ```pavo
 (assert-eq (arr-pop-back [true false]) [true])

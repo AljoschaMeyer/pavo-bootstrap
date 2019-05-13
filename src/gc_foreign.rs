@@ -22,10 +22,6 @@ impl NotNan {
 
 impl Eq for NotNan {}
 
-/// A garbage-collectable `ropey::Rope`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
-pub struct Rope(#[unsafe_ignore_trace] pub ropey::Rope);
-
 /// A garbage-collectable `im_rc::Vector`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Vector<T: Clone>(pub im_rc::Vector<T>);
