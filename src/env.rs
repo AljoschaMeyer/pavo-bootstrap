@@ -125,6 +125,23 @@ impl Env {
         env_add(&mut m, "arr-back", builtins::arr_back, cx);
         env_add(&mut m, "arr-pop-back", builtins::arr_pop_back, cx);
 
+        env_add(&mut m, "app-count", builtins::app_count, cx);
+        env_add(&mut m, "app-get", builtins::app_get, cx);
+        env_add(&mut m, "app-insert", builtins::app_insert, cx);
+        env_add(&mut m, "app-remove", builtins::app_remove, cx);
+        env_add(&mut m, "app-update", builtins::app_update, cx);
+        env_add(&mut m, "app-slice", builtins::app_slice, cx);
+        env_add(&mut m, "app-splice", builtins::app_splice, cx);
+        env_add(&mut m, "app-concat", builtins::app_concat, cx);
+        env_add(&mut m, "app-iter", builtins::app_iter, cx);
+        env_add(&mut m, "app-iter-back", builtins::app_iter_back, cx);
+        env_add(&mut m, "app-push-front", builtins::app_push_front, cx);
+        env_add(&mut m, "app-front", builtins::app_front, cx);
+        env_add(&mut m, "app-pop-front", builtins::app_pop_front, cx);
+        env_add(&mut m, "app-push-back", builtins::app_push_back, cx);
+        env_add(&mut m, "app-back", builtins::app_back, cx);
+        env_add(&mut m, "app-pop-back", builtins::app_pop_back, cx);
+
         env_add(&mut m, "set-count", builtins::set_count, cx);
         env_add(&mut m, "set-contains?", builtins::set_contains, cx);
         env_add(&mut m, "set-min", builtins::set_min, cx);

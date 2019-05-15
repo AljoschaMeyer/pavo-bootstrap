@@ -193,6 +193,15 @@ macro_rules! arr {
     )
 }
 
+macro_rules! app {
+    ($v:expr) => (
+        match &$v {
+            Value::App(app) => app.clone(),
+            _ => return Err(type_error(&$v, "application")),
+        }
+    )
+}
+
 macro_rules! set {
     ($v:expr) => (
         match &$v {
@@ -1208,6 +1217,207 @@ pub fn arr_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match arr.0.pop_back() {
         Some(_) => Ok(Value::arr(arr)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn app_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let app = app!(arg!(args, 0));
+    Ok(Value::int(app.0.len() as i64))
+}
+
+pub fn app_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let app = app!(arg!(args, 0));
+    let index = index!(&app, int!(arg!(args, 1)), arg_opt!(args, 2));
+
+    Ok(app.0[index].clone())
+}
+
+pub fn app_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let app = app!(arg!(args, 0));
+    let index = index_incl!(&app, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let elem = arg!(args, 2);
+
+    if app.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    let mut new = app.0.clone();
+    new.insert(index, elem.clone());
+    Ok(Value::app(Vector(new)))
+}
+
+pub fn app_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let app = app!(arg!(args, 0));
+    let index = index!(&app, int!(arg!(args, 1)), arg_opt!(args, 2));
+
+    let mut new = app.0.clone();
+    let _ = new.remove(index);
+    Ok(Value::app(Vector(new)))
+}
+
+pub fn app_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let app = app!(arg!(args, 0));
+    let index = index!(&app, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let elem = arg!(args, 2);
+
+    Ok(Value::app(Vector(app.0.update(index, elem))))
+}
+
+pub fn app_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let app = app!(arg!(args, 0));
+    let start = index_incl!(&app, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let end = index_incl!(&app, int!(arg!(args, 2)), arg_opt!(args, 3));
+
+    if start > end {
+        match arg_opt!(args, 3) {
+            Some(fallback) => return Ok(fallback.clone()),
+            None => return Err(index_error(end)),
+        }
+    }
+
+    let mut tmp = app.0.clone();
+    Ok(Value::app(Vector(tmp.slice(start..end))))
+}
+
+pub fn app_splice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let app = app!(arg!(args, 0));
+    let index = index_incl!(&app, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let new = app!(arg!(args, 2));
+
+    let (mut left, right) = app.0.split_at(index);
+    left.append(new.0);
+    left.append(right);
+
+    if left.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::app(Vector(left)))
+}
+
+pub fn app_concat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let left = app!(arg!(args, 0));
+    let right = app!(arg!(args, 1));
+
+    let mut ret = left.0.clone();
+    ret.append(right.0);
+
+    if ret.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::app(Vector(ret)))
+}
+
+pub fn app_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let app = app!(arg!(args, 0));
+    let fun = fun!(arg!(args, 1));
+
+    for elem in app.0.iter() {
+        match fun.apply(&Value::app_from_vec(vec![elem.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn app_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let app = app!(arg!(args, 0));
+    let fun = fun!(arg!(args, 1));
+
+    for elem in app.0.iter().rev() {
+        match fun.apply(&Value::app_from_vec(vec![elem.clone()])) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn app_push_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut app = app!(arg!(args, 0));
+    let new = arg!(args, 1);
+
+    if app.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    app.0.push_front(new);
+
+    Ok(Value::app(app))
+}
+
+pub fn app_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut app = app!(arg!(args, 0));
+
+    match app.0.pop_front() {
+        Some(val) => Ok(val.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn app_pop_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut app = app!(arg!(args, 0));
+
+    match app.0.pop_front() {
+        Some(_) => Ok(Value::app(app)),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn app_push_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut app = app!(arg!(args, 0));
+    let new = arg!(args, 1);
+
+    if app.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    app.0.push_back(new);
+
+    Ok(Value::app(app))
+}
+
+pub fn app_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut app = app!(arg!(args, 0));
+
+    match app.0.pop_back() {
+        Some(val) => Ok(val.clone()),
+        None => match arg_opt!(args, 1) {
+            Some(fallback) => Ok(fallback.clone()),
+            None => Err(coll_empty_error())
+        }
+    }
+}
+
+pub fn app_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut app = app!(arg!(args, 0));
+
+    match app.0.pop_back() {
+        Some(_) => Ok(Value::app(app)),
         None => match arg_opt!(args, 1) {
             Some(fallback) => Ok(fallback.clone()),
             None => Err(coll_empty_error())

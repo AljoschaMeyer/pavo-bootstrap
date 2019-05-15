@@ -27,17 +27,6 @@ Whenever an argument is referred to as a "positive int", but an int less than ze
 TODO Specify errors that are thrown on incorrect number of args
 TODO specify in which order all errors apply.
 
-TODO: reformulate the following paragraphs on endianess, add conversions from/to bytes, and move the text to a sensible place.
-
-There are no functions whose behavior depends on the endianess of the executing machine, since this would be nondeterministic behavior with respect to the pavo semantics. Implementations are highly encouraged to supply the following functions to the entry of a pavo program:
-
-- `(int-from-be n)`: Converts the int `n` from big endian to the target's endianness.
-- `(int-from-le n)`: Converts the int `n` from little endian to the target's endianness.
-- `(int-to-be n)`: Converts the int `n` to big endian from the target's endianness.
-- `(int-to-le n)`: Converts the int `n` to little endian from the target's endianness.
-
-Additionally, they should provide the value `endianess`: Either `:be` or `le` depending on the target's endianess.
-
 ### Bool
 
 #### `(bool-not b)`
@@ -1446,7 +1435,278 @@ Time: Amortized O(1) (amortized across `arr-push-back` and `arr-pop-back` applic
 (assert-eq (arr-pop-back [] nil) nil)
 ```
 
-TODO everything for applications as well
+### Applications
+
+#### `(app-count app)`
+
+Returns the number of elements in the application `app`.
+
+Time: O(1).
+
+```pavo
+(assert-eq (app-count $()) 0)
+(assert-eq (app-count $(nil)) 1)
+(assert-eq (app-count $(0, 1, 2)) 3)
+```
+
+#### `(app-get app index)` `(app-get app index default)`
+
+Returns the element at the int `index` in the application `app`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(app-count app)`.
+
+```pavo
+(assert-eq (app-get $(true) 0) true)
+(assert-throw (app-get $() 0) { :tag :err-lookup, :got 0})
+(assert-eq (app-get $() 0 nil) nil)
+```
+
+#### `(app-insert app index new)` `(app-insert app index new default)`
+
+Inserts the value `new` into the application `app` at the index int `index`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+Throws `{ :tag :err-collection-full }` if the resulting application would contain 2^63 or more elements.
+
+If `default` is supplied, returns `default` instead of throwing a lookup error.
+
+Time: O(log n), where n is `(app-count app)`.
+
+```pavo
+(assert-eq (app-insert $(0 1) 0 42) $(42 0 1))
+(assert-eq (app-insert $(0 1) 1 42) $(0 42 1))
+(assert-eq (app-insert $(0 1) 2 42) $(0 1 42))
+(assert-throw (app-insert $(0 1) 3 42) { :tag :err-lookup, :got 3})
+(assert-eq (app-insert $(0 1) 3 42 nil) nil)
+```
+
+#### `(app-remove app index)` `(app-remove app index default)`
+
+Returns the application obtained by removing the element at the index int `index` from the application `app`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(app-count app)`.
+
+```pavo
+(assert-eq (app-remove $(0 1) 0) $(1))
+(assert-eq (app-remove $(0 1) 1) $(0))
+(assert-throw (app-remove $(0 1) 3) { :tag :err-lookup, :got 3})
+(assert-eq (app-remove $(0 1) 3 nil) nil)
+```
+
+#### `(app-update app index new)` `(app-update app index new default)`
+
+Returns the application obtained by replacing the element at the index int `index` in the application `app` with the value `new`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(app-count app)`.
+
+```pavo
+(assert-eq (app-update $(0 1) 0 42) $(42 1))
+(assert-eq (app-update $(0 1) 1 42) $(0 42))
+(assert-throw (app-update $(0 1) 2 42) { :tag :err-lookup, :got 2})
+(assert-eq (app-update $(0 1) 2 42 nil) nil)
+```
+
+#### `(app-slice app start end)` `(app-slice app start end default)`
+
+Returns an application containing a subsequence of the elements of the application `app`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
+
+Throws `{ :tag :err-lookup, :got end}` if `start` is greater than `end`.
+Throws `{ :tag :err-lookup, :got start}` if `start` is out of bounds.
+Throws `{ :tag :err-lookup, :got end}` if `end` is out of bounds.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(log n), where n is `(app-count app)`.
+
+```pavo
+(assert-eq (app-slice $(true false) 1 1) $())
+(assert-eq (app-slice $(true false) 0 1) $(true))
+(assert-eq (app-slice $(true false) 1 2) $(false))
+(assert-eq (app-slice $(true false) 0 2) $(true false))
+(assert-throw (app-slice $() 0 1) { :tag :err-lookup, :got 1})
+(assert-throw (app-slice $() 2 3) { :tag :err-lookup, :got 2})
+(assert-throw (app-slice $(0 1 2 3) 2 1) { :tag :err-lookup, :got 1})
+(assert-eq (app-slice $() 0 1 nil) nil)
+```
+
+#### `(app-splice old index new)` `(app-splice old index new default)`
+
+Inserts the elements of the application `new` into the application `old`, starting at the index int `index`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds (of the `old` application).
+Throws `{ :tag :err-collection-full }` if the resulting application would contain 2^63 or more elements.
+
+If `default` is supplied, returns `default` instead of throwing a lookup error.
+
+Time: O(log (n + m)), where n is `(app-count old)` and m is `(app-count new)`.
+
+```pavo
+(assert-eq (app-splice $(0 1) $(10 11) 0) $(10 11 0 1))
+(assert-eq (app-splice $(0 1) $(10 11) 1) $(0 10 11 1))
+(assert-eq (app-splice $(0 1) $(10 11) 2) $(0 1 10 11))
+(assert-throw (app-splice $(0 1) $(10 11) 3) { :tag :err-lookup, :got 3})
+(assert-eq (app-splice $(0 1) $(10 11) 3 nil) nil)
+```
+
+#### `(app-concat left right)`
+
+Returns an application that contains all elements of the application `left` followed by all elements of the application `right`.
+
+Throws `{ :tag :err-collection-full }` if the resulting application would contain 2^63 or more elements.
+
+Time: O(log (n + m)), where n is `(app-count left)` and m is `(app-count right)`.
+
+```pavo
+(assert-eq (app-concat $(0 1) $(2 3)) $(0 1 2 3))
+(assert-eq (app-concat $() $(0 1)) $(0 1))
+(assert-eq (app-concat $(0 1) $()) $(0 1))
+```
+
+#### `(app-iter app fun)`
+
+Starting from the beginning of the application `app`, applies the function `fun` to the elements of `app` in sequence until either `fun` returns a truthy value or the end of the application is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(app-count app)`.
+
+```pavo
+(let :mut product 1 (do
+    (app-iter $(1 2 3 4) (fn [elem] (set! product (int-mul product elem))))
+    (assert-eq product 24)
+))
+(let :mut product 1 (do
+    (app-iter $(1 2 3 4) (fn [elem] (if
+            (= elem 3) true
+            (set! product (int-mul product elem))
+        )))
+    (assert-eq product 2)
+))
+```
+
+#### `(app-iter-back app fun)`
+
+Starting from the back of the application `app`, applies the function `fun` to the elements of `app` in reverse order until either `fun` returns a truthy value or the end of the application is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(app-count app)`.
+
+```pavo
+(let :mut product 1 (do
+    (app-iter-back $(1 2 3 4) (fn [elem] (set! product (int-mul product elem))))
+    (assert-eq product 24)
+))
+(let :mut product 1 (do
+    (app-iter-back $(1 2 3 4) (fn [elem] (if
+            (= elem 3) true
+            (set! product (int-mul product elem))
+        )))
+    (assert-eq product 4)
+))
+```
+
+#### `(app-push-front app new)`
+
+Returns the application obtained by inserting the value `new` at the front of the application `app`.
+
+Throws `{ :tag :err-collection-full }` if the resulting application would contain 2^63 or more elements.
+
+Time: Amortized O(1) (amortized across `app-push-front` and `app-pop-front` applications)
+
+```pavo
+(assert-eq (app-push-front $() true) $(true))
+(assert-eq (app-push-front $(false) true) $(true false))
+```
+
+#### `(app-front app)` `(app-front app default)`
+
+Returns the first element in application `app`.
+
+Throws `{ :tag :err-collection-empty }` if the application is empty.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(1)
+
+```pavo
+(assert-eq (app-front $(true false)) true)
+(assert-eq (app-front $(true)) true)
+(assert-throw (app-front $()) { :tag :err-collection-empty})
+(assert-eq (app-front $() nil) nil)
+```
+
+#### `(app-pop-front app)` `(app-pop-front app default)`
+
+Returns all but the first elements in application `app`.
+
+Throws `{ :tag :err-collection-empty }` if the application is empty.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: Amortized O(1) (amortized across `app-push-front` and `app-pop-front` applications)
+
+```pavo
+(assert-eq (app-pop-front $(true false)) $(false))
+(assert-eq (app-pop-front $(true)) $())
+(assert-throw (app-pop-front $()) { :tag :err-collection-empty})
+(assert-eq (app-pop-front $() nil) nil)
+```
+
+#### `(app-push-back app new)`
+
+Returns the application obtained by inserting the value `new` at the back of the application `app`.
+
+Throws `{ :tag :err-collection-full }` if the resulting application would contain 2^63 or more elements.
+
+Time: Amortized O(1) (amortized across `app-push-back` and `app-pop-back` applications)
+
+```pavo
+(assert-eq (app-push-back $() true) $(true))
+(assert-eq (app-push-back $(false) true) $(false true))
+```
+
+#### `(app-back app)` `(app-back app default)`
+
+Returns the last element in application `app`.
+
+Throws `{ :tag :err-collection-empty }` if the application is empty.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(1)
+
+```pavo
+(assert-eq (app-back $(true false)) false)
+(assert-eq (app-back $(true)) true)
+(assert-throw (app-back $()) { :tag :err-collection-empty})
+(assert-eq (app-back $() nil) nil)
+```
+
+#### `(app-pop-back app)` `(app-pop-back app default)`
+
+Returns all but the last elements in application `app`.
+
+Throws `{ :tag :err-collection-empty }` if the application is empty.
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: Amortized O(1) (amortized across `app-push-back` and `app-pop-back` applications)
+
+```pavo
+(assert-eq (app-pop-back $(true false)) $(true))
+(assert-eq (app-pop-back $(true)) $())
+(assert-throw (app-pop-back $()) { :tag :err-collection-empty})
+(assert-eq (app-pop-back $() nil) nil)
+```
 
 ### Sets
 
