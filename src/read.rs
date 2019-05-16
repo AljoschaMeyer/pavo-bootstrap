@@ -8,8 +8,10 @@ use nom::{
     {do_parse, alt, many0, opt, preceded},
     {delimited, terminated},
     {named, not, map, try_parse},
+    none_of, many_m_n,
     IResult, Err, Context, ErrorKind,
     types::CompleteStr,
+    hex_digit,
 };
 
 use crate::value::Value;
@@ -114,6 +116,46 @@ fn byte(i: CompleteStr) -> IResult<CompleteStr, u8> {
     }
 }
 
+fn unicode(i: CompleteStr) -> IResult<CompleteStr, char> {
+    let start = i;
+    let (i, _) = try_parse!(i, many_m_n!(1, 6, hex_digit));
+    let end = i;
+
+    let raw = start[..start.len() - end.len()].to_string();
+    let numeric = u32::from_str_radix(&raw, 10).unwrap();
+
+    match std::char::from_u32(numeric) {
+        Some(c) => Ok((i, c)),
+        None => Err(Err::Error(Context::Code(i, ErrorKind::Custom(3)))),
+    }
+}
+
+named!(char__(CompleteStr) -> char, alt!(
+    value!('\\', tag!("\\\\")) |
+    value!('\'', tag!("\\'")) |
+    value!('\"', tag!("\\\"")) |
+    value!('\t', tag!("\\t")) |
+    value!('\n', tag!("\\n")) |
+    delimited!(
+        tag!("\\{"),
+        unicode,
+        tag!("}")
+    ) |
+    none_of!("")
+));
+
+named!(char_(CompleteStr) -> Value, delimited!(
+    tag!("'"),
+    map!(char__, Value::char_),
+    tag!("'")
+));
+
+named!(string(CompleteStr) -> Value, delimited!(
+    tag!("\""),
+    map!(many0!(char__), Value::string_from_vec),
+    tag!("\"")
+));
+
 named!(bytes(CompleteStr) -> Value, map!(
     delimited!(at_lbracket, many0!(byte), rbracket),
     |byte_vec| Value::bytes_from_vec(byte_vec)
@@ -149,6 +191,8 @@ named!(obj(CompleteStr) -> Value, terminated!(alt!(
     map_ |
     set |
     bytes |
+    char_ |
+    string |
     map!(num, |n| Value::int(n)) |
     map!(kw_str, |kw| Value::kw_str(kw.0)) |
     map!(id_str, |id| if id.0 == "nil" {

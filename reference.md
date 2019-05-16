@@ -860,7 +860,7 @@ Time: Amortized O(1) (amortized across `bytes-push-back` and `bytes-pop-back` ap
 The largest char (numerically the largest unicode scalar value).
 
 ```pavo
-(assert-eq char-max '\u{10ffff}')
+(assert-eq char-max '\{10ffff}')
 ```
 
 #### `(int=>char n)` `(int=>char n default)`
