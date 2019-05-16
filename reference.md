@@ -2302,6 +2302,12 @@ Equivalent to `(if x true false)`.
 (assert (truthy? truthy?))
 ```
 
+#### `(diverge)` `(diverge v)`
+
+Immediately and abnormally terminates the execution of the program. Semantically you can think of this as going into an infinite loop, but telling the outside about it to save resources and give feedback to the programmer. In the pavo semantics, passing a value `v` does nothing whatsoever, but the runtime should somehow pass this value to the outside world for additional context.
+
+Note that this is different from a program terminating through an uncaught throw and you should almost always throw instead of deliberately calling `diverge` (just as there are very few situations where you'd deliberately go into an effect-free infinite loop).
+
 ## Appendix: Precise Definition of `(write v)`
 
 This section defines the return value of `(write v)` for any expression `v`, defined through structural induction.

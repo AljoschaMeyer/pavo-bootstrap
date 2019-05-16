@@ -1761,7 +1761,7 @@ pub fn map_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 /////////////////////////////////////////////////////////////////////////////
 
-pub fn symbol(args: Value, cx: &mut Context) -> Result<Value, Value> {
+pub fn symbol(_args: Value, cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::symbol(cx))
 }
 
@@ -1798,4 +1798,8 @@ pub fn is_truthy(args: Value, _cx: &mut Context) -> Result<Value, Value> {
         Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(false)) => Value::bool_(false),
         _ => Value::bool_(true),
     })
+}
+
+pub fn diverge(_args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    panic!("Called diverge")
 }

@@ -183,6 +183,7 @@ impl Env {
 
         env_add(&mut m, "typeof", builtins::typeof_, cx);
         env_add(&mut m, "truthy?", builtins::is_truthy, cx);
+        env_add(&mut m, "diverge", builtins::diverge, cx);
 
         // TODO read, read-prefix, write, (expand, evaluate, etc.)
         // halt,
