@@ -46,14 +46,14 @@ pub fn type_error(got: &Value, expected: &str) -> Value {
 
 pub fn byte_error(got: &Value) -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
-            (Value::kw_str("tag"), Value::kw_str("not-byte")),
+            (Value::kw_str("tag"), Value::kw_str("err-not-byte")),
             (Value::kw_str("got"), got.clone()),
         ])))
 }
 
 pub fn char_error(got: &Value) -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
-            (Value::kw_str("tag"), Value::kw_str("not-unicode-scalar")),
+            (Value::kw_str("tag"), Value::kw_str("err-not-unicode-scalar")),
             (Value::kw_str("got"), got.clone()),
         ])))
 }
@@ -1757,6 +1757,12 @@ pub fn map_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     }
 
     Ok(Value::nil())
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn symbol(args: Value, cx: &mut Context) -> Result<Value, Value> {
+    Ok(Value::symbol(cx))
 }
 
 /////////////////////////////////////////////////////////////////////////////

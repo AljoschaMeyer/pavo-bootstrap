@@ -173,6 +173,8 @@ impl Env {
         env_add(&mut m, "map-iter", builtins::map_iter, cx);
         env_add(&mut m, "map-iter-back", builtins::map_iter_back, cx);
 
+        env_add(&mut m, "symbol", builtins::symbol, cx);
+
         env_add(&mut m, "=", builtins::pavo_eq, cx);
         env_add(&mut m, "<", builtins::pavo_lt, cx);
         env_add(&mut m, "<=", builtins::pavo_lte, cx);
@@ -181,6 +183,11 @@ impl Env {
 
         env_add(&mut m, "typeof", builtins::typeof_, cx);
         env_add(&mut m, "truthy?", builtins::is_truthy, cx);
+
+        // TODO read, read-prefix, write, (expand, evaluate, etc.)
+        // halt,
+        // symbol
+        // TODO cell? opaque?
 
         Env(OrdMap(m))
     }

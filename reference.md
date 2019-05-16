@@ -607,7 +607,7 @@ Time: O(log n), where n is `(bytes-count b)`.
 Inserts the byte `new` into the bytes `b` at the index int `index`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-Throws `{ :tag :not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
+Throws `{ :tag :err-not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
 Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
 
 If `default` is supplied, returns `default` instead of throwing a lookup error.
@@ -620,8 +620,8 @@ Time: O(log n), where n is `(bytes-count b)`.
 (assert-eq (bytes-insert @[0 1] 2 42) [0 1 42])
 (assert-throw (bytes-insert @[0 1] 3 42) { :tag :err-lookup, :got 3})
 (assert-eq (bytes-insert @[0 1] 3 42 nil) nil)
-(assert-throw (bytes-insert @[] 0 256) { :tag :not-byte, :got 256})
-(assert-throw (bytes-insert @[] 0 256 nil) { :tag :not-byte, :got 256})
+(assert-throw (bytes-insert @[] 0 256) { :tag :err-not-byte, :got 256})
+(assert-throw (bytes-insert @[] 0 256 nil) { :tag :err-not-byte, :got 256})
 ```
 
 #### `(bytes-remove b index)` `(bytes-remove b index default)`
@@ -646,7 +646,7 @@ Time: O(log n), where n is `(bytes-count b)`.
 Returns the bytes obtained by replacing the byte at the index int `index` in the bytes `b` with the byte `new`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-Throws `{ :tag :not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
+Throws `{ :tag :err-not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
 
 If `default` is supplied, returns `default` instead of throwing a lookup error.
 
@@ -657,8 +657,8 @@ Time: O(log n), where n is `(bytes-count b)`.
 (assert-eq (bytes-update @[0 1] 1 42) @[0 42])
 (assert-throw (bytes-update @[0 1] 2 42) { :tag :err-lookup, :got 2})
 (assert-eq (bytes-update @[0 1] 2 42 nil) nil)
-(assert-throw (bytes-update @[] 0 256) { :tag :not-byte, :got 256})
-(assert-throw (bytes-update @[] 0 256 nil) { :tag :not-byte, :got 256})
+(assert-throw (bytes-update @[] 0 256) { :tag :err-not-byte, :got 256})
+(assert-throw (bytes-update @[] 0 256 nil) { :tag :err-not-byte, :got 256})
 ```
 
 #### `(bytes-slice b start end)` `(bytes-slice b start end default)`
@@ -762,7 +762,7 @@ Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
 Returns the bytes obtained by inserting the byte `new` at the front of the bytes `b`.
 
 Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
-Throws `{ :tag :not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
+Throws `{ :tag :err-not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
 
 Time: Amortized O(1) (amortized across `bytes-push-front` and `bytes-pop-front` applications)
 
@@ -810,7 +810,7 @@ Time: Amortized O(1) (amortized across `bytes-push-front` and `bytes-pop-front` 
 Returns the bytes obtained by inserting the byte `new` at the back of the bytes `b`.
 
 Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
-Throws `{ :tag :not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
+Throws `{ :tag :err-not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
 
 Time: Amortized O(1) (amortized across `bytes-push-back` and `bytes-pop-back` applications)
 
@@ -867,13 +867,13 @@ The largest char (numerically the largest unicode scalar value).
 
 Returns the unicode scalar value denoted by the int `n`.
 
-Throws `{ :tag :not-unicode-scalar, :got n}` if `n` is `n` is not a unicode scalar value.
+Throws `{ :tag :err-not-unicode-scalar, :got n}` if `n` is `n` is not a unicode scalar value.
 
 If `default` is supplied, returns `default` instead of throwing.
 
 ```pavo
 (assert-eq (int=>char 0x41) 'A')
-(assert-throw (int=>char 0x110000) { :tag :not-unicode-scalar, :got 0x110000})
+(assert-throw (int=>char 0x110000) { :tag :err-not-unicode-scalar, :got 0x110000})
 (assert-eq (int=>char 0x110000 nil) nil)
 ```
 
@@ -2144,6 +2144,17 @@ Time: Iteration takes amortized O(n), where n is `(map-count map)`.
 ))
 ```
 
+### Symbols
+
+#### `(symbol)`
+
+Returns a fresh symbol that is only equal to itself.
+
+```pavo
+(assert (let x (symbol) (= x x)))
+(assert-not (= (symbol) (symbol)))
+```
+
 #### Equality and Ordering
 TODO introduction, explain equality and the total order over all values, talk about determinism
 
@@ -2207,6 +2218,52 @@ TODO
 #### `(>= x y)`
 TODO
 
+### Code as Data
+
+#### (read s)
+
+If the string `s` is a pavo expression, returns the value denoted by that expression.
+
+Throws `{ :tag :err-not-expression }` if the string is not a valid pavo expression.
+
+Time: O(n), where n is `(string-count <prefix>)`, where `<prefix>` is the longest prefix of `s` that is a pavo expression.
+
+```pavo
+(assert-eq (read "42") 42)
+(assert-eq (read "(a) ") $(a))
+(assert-throw (read "(a) b") { :tag :err-not-expression })
+```
+
+#### (read-prefix)
+
+If a prefix of the string `s` is a pavo expression, returns `{ :expression <expr>, :suffix <suffix>}` where `<expr>` is the value denoted by that expression and `<suffix>` is the remainder of the string.
+
+Throws `{ :tag :err-not-expression }` if no prefix of the string is a valid pavo expression.
+
+Time: O(n), where n is `(string-count <prefix>)`, where `<prefix>` is the longest prefix of `s` that is a pavo expression.
+
+```pavo
+(assert-eq (read-prefix "42") {:expression 42, :suffix ""})
+(assert-eq (read-prefix "(a) ") {:expression $(a), :suffix " "})
+(assert-throw (read-str "(a) b") {:expression $(a), :suffix " b"})
+```
+
+#### (write v)
+
+Returns a string `s` such that `(read s)` equals the value `v`. The precise definition is given at the end of this document.
+
+Throws `{ :tag :err-not-writable }` if no such string exists. This is the case if `v` is or contains a function or a symbol.
+
+Time: Linear in the length of the returned string. Yeah, that's not a proper definition...
+
+```pavo
+(assert-eq (write 42) "42")
+(assert-eq (write $(a )) "(a)")
+(assert-throw (write (symbol)) { :tag :err-not-writable })
+```
+
+TODO expand, evaluate, etc.
+
 ### Miscellaneous
 
 #### `(typeof x)`
@@ -2244,3 +2301,17 @@ Equivalent to `(if x true false)`.
 (assert (truthy? 0))
 (assert (truthy? truthy?))
 ```
+
+## Appendix: Precise Definition of `(write v)`
+
+This section defines the return value of `(write v)` for any expression `v`, defined through structural induction.
+
+### Base Cases
+
+- `(= v nil)`: `"nil"`
+- `(= v true)`: `"true"`
+- `(= v false)`: `"false"`
+- `(= (typeof v) :int)` and `(>= v 0)`: The decimal representation of the integer (without sign).
+- `(= (typeof v) :int)` and `(< v 0)`: The minus sign `-` followed by the decimal representation of the absolute value of the integer.
+
+TODO

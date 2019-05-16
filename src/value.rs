@@ -136,6 +136,10 @@ impl Value {
         })
     }
 
+    pub fn symbol(cx: &mut Context) -> Value {
+        Value::Id(Id::Symbol(cx.next_symbol_id()))
+    }
+
     pub fn apply(cx: &mut Context) -> Value {
         Value::Fun(Fun {
             fun: _Fun::Apply,
