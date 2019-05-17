@@ -2220,7 +2220,7 @@ TODO
 
 ### Code as Data
 
-#### (read s)
+<!-- #### (read s)
 
 If the string `s` is a pavo expression, returns the value denoted by that expression.
 
@@ -2260,9 +2260,9 @@ Time: Linear in the length of the returned string. Yeah, that's not a proper def
 (assert-eq (write 42) "42")
 (assert-eq (write $(a )) "(a)")
 (assert-throw (write (symbol)) { :tag :err-not-writable })
-```
+``` -->
 
-TODO expand, evaluate, etc.
+TODO expand, check, evaluate, etc.
 
 ### Miscellaneous
 
@@ -2304,20 +2304,46 @@ Equivalent to `(if x true false)`.
 
 #### `(diverge)` `(diverge v)`
 
-Immediately and abnormally terminates the execution of the program. Semantically you can think of this as going into an infinite loop, but telling the outside about it to save resources and give feedback to the programmer. In the pavo semantics, passing a value `v` does nothing whatsoever, but the runtime should somehow pass this value to the outside world for additional context.
+Immediately and abnormally terminates the execution of the program. Semantically you can think of this as going into an infinite loop, but telling the outside world about it to save resources and give feedback to the programmer. In the pavo semantics, passing a value `v` does nothing whatsoever, but the runtime should somehow pass this value to the outside world for additional context.
 
 Note that this is different from a program terminating through an uncaught throw and you should almost always throw instead of deliberately calling `diverge` (just as there are very few situations where you'd deliberately go into an effect-free infinite loop).
 
-## Appendix: Precise Definition of `(write v)`
+<!-- ## Appendix: Precise Definition of `(write v)`
 
-This section defines the return value of `(write v)` for any expression `v`, defined through structural induction.
+This section defines the return value of `(write v)` for any expression `v`, defined through structural induction (examples/tests are below).
 
 ### Base Cases
 
 - `(= v nil)`: `"nil"`
 - `(= v true)`: `"true"`
 - `(= v false)`: `"false"`
-- `(= (typeof v) :int)` and `(>= v 0)`: The decimal representation of the integer (without sign).
-- `(= (typeof v) :int)` and `(< v 0)`: The minus sign `-` followed by the decimal representation of the absolute value of the integer.
+- `(= (typeof v) :int)`:
+  - `(>= v 0)`: The decimal representation of the integer (without sign).
+  - `(< v 0)`: The minus sign `-` followed by the decimal representation of the absolute value of the integer.
+- `(= (typeof v) :char)`:
+  - `(= v '\\')`: `"'\\'"`
+  - `(= v '\'')`: `"'\''"`
+  - `(= v '\n')`: `"'\n'"`
+  - `(= v '\t')`: `"'\t'"`
+  - otherwise: `'` followed by the character followed by `'`
+- `(= (typeof v) :string)`: `"` followed by the characters as defined next followed by `"`.
+  - characters: for each each char `c` in the string:
+    - `(= c '\\')`: `\\`
+    - `(= c '\")`: `\"`
+    - `(= c '\n')`: `\n`
+    - `(= c '\t')`: `\t`
+    - otherwise: the character itself
+- `(= (typeof v) :bytes)`: `@[` followed by the bytes as defined next followed by `]`
+  - bytes: for each byte `b` the decimal representation, all but the last byte followed by a space
+- `(= (typeof v) :keyword)`: the keyword itself
+- `(= (typeof v) :identifier)`: the identifier itself
+- `(= (typeof v) :symbol)`: throw `{ :tag :err-not-writable }`
+- `(= (typeof v) :function)`: throw `{ :tag :err-not-writable }`
+
+### Induction Steps
 
 TODO
+
+TODO missing cases (floats in particular once they get added)
+
+TODO test cases -->

@@ -147,13 +147,13 @@ named!(char__(CompleteStr) -> char, alt!(
 named!(char_(CompleteStr) -> Value, delimited!(
     tag!("'"),
     map!(char__, Value::char_),
-    tag!("'")
+    do_parse!(tag!("'") >> ws0 >> (()))
 ));
 
 named!(string(CompleteStr) -> Value, delimited!(
     tag!("\""),
     map!(many0!(char__), Value::string_from_vec),
-    tag!("\"")
+    do_parse!(tag!("\"") >> ws0 >> (()))
 ));
 
 named!(bytes(CompleteStr) -> Value, map!(

@@ -1,4 +1,6 @@
-use im_rc::{OrdMap as ImOrdMap};
+use std::iter::FromIterator;
+
+use im_rc::{OrdMap as ImOrdMap, Vector as ImVector};
 
 use crate::context::Context;
 use crate::gc_foreign::{OrdMap, OrdSet, Vector};
@@ -93,6 +95,12 @@ pub fn wrap_error() -> Value {
 pub fn zero_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
         (Value::kw_str("tag"), Value::kw_str("err-zero")),
+        ])))
+}
+
+pub fn unwritable_error() -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+        (Value::kw_str("tag"), Value::kw_str("err-not-writable")),
         ])))
 }
 
@@ -1789,6 +1797,18 @@ pub fn pavo_gte(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 /////////////////////////////////////////////////////////////////////////////
 
+pub fn write(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let mut buf = String::new();
+
+    write_(&arg!(args, 0), &mut buf)?;
+
+    // TODO check that string is short enough (do so everywhere...) // yes, it's pointless, but for better or worse this is the reference implementation...
+
+    Ok(Value::string(Vector(ImVector::from_iter(buf.chars()))))
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
 pub fn typeof_(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(typeof__(&arg!(args, 0)))
 }
@@ -1802,4 +1822,60 @@ pub fn is_truthy(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn diverge(_args: Value, _cx: &mut Context) -> Result<Value, Value> {
     panic!("Called diverge")
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
+    match v {
+        Value::Atomic(Atomic::Nil) => Ok(out.push_str("nil")),
+        Value::Atomic(Atomic::Bool(true)) => Ok(out.push_str("true")),
+        Value::Atomic(Atomic::Bool(false)) => Ok(out.push_str("false")),
+        Value::Atomic(Atomic::Int(n)) => Ok(out.push_str(&n.to_string())),
+        Value::Atomic(Atomic::Float(n)) => unimplemented!(),
+        Value::Atomic(Atomic::Char('\\')) => Ok(out.push_str("'\\\\'")),
+        Value::Atomic(Atomic::Char('\'')) => Ok(out.push_str("'\\''")),
+        Value::Atomic(Atomic::Char('\t')) => Ok(out.push_str("'\\t'")),
+        Value::Atomic(Atomic::Char('\n')) => Ok(out.push_str("'\\n'")),
+        Value::Atomic(Atomic::Char(other)) => {
+            out.push('\'');
+            out.push(*other);
+            out.push('\'');
+            Ok(())
+        }
+        Value::Atomic(Atomic::String(chars)) => {
+            out.push('"');
+            for c in chars.0.iter() {
+                match c {
+                    '\\' => out.push_str("\\"),
+                    '\"' => out.push_str("\""),
+                    '\n' => out.push_str("\\"),
+                    '\t' => out.push_str("\\"),
+                    _ => out.push(*c),
+                }
+            }
+            out.push('"');
+            Ok(())
+        }
+        Value::Atomic(Atomic::Bytes(bytes)) => {
+            out.push_str("@[");
+            for (i, b) in bytes.0.iter().enumerate() {
+                out.push_str(&b.to_string());
+                if i + 1 < bytes.0.len() {
+                    out.push(' ');
+                }
+            }
+            out.push(']');
+            Ok(())
+        }
+        Value::Atomic(Atomic::Keyword(kw)) => {
+            out.push(':');
+            out.push_str(kw);
+            Ok(())
+        }
+        Value::Id(Id::User(id)) => Ok(out.push_str(id)),
+        Value::Id(Id::Symbol(..)) => Err(unwritable_error()),
+        Value::Fun(..) => Err(unwritable_error()),
+        _ => unimplemented!(),
+    }
 }

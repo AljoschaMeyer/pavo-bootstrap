@@ -61,91 +61,91 @@ pub fn do_eval(mut v: Value, mut env: Env, cx: &mut Context, tail: bool) -> Resu
                     }
 
                     Value::Id(id) => {
-                        match env.get(id) {
-                            Some(resolved) => {
-                                v = Value::app(Vector(params.0.update(0, resolved)));
+                        match special(&params).expect("static analysis should have caught malformed special forms") {
+                            Some(SpecialForm::Do(stmts)) => {
+                                let len = stmts.len();
+                                if len == 0 {
+                                    return Ok(Value::nil());
+                                }
+
+                                for (i, stmt) in stmts.iter().enumerate() {
+                                    if i + 1 < len {
+                                        let _ = do_eval((*stmt).clone(), env.clone(), cx, false)?;
+                                    }
+                                }
+                                v = stmts[len - 1].clone();
                             }
+                            Some(SpecialForm::Quote(quoted)) => return Ok((*quoted).clone()),
+                            Some(SpecialForm::Let(_, bound, val, cont)) => {
+                                env = env.update(bound.clone(), val.clone());
+                                v = (*cont).clone();
+                            }
+                            Some(SpecialForm::SetBang(id, val)) => {
+                                env.set(id, val.clone());
+                                return Ok(Value::nil());
+                            }
+                            Some(SpecialForm::If(cond, then, else_)) => {
+                                if do_eval((*cond).clone(), env.clone(), cx, false)?.truthy() {
+                                    v = (*then).clone();
+                                } else {
+                                    v = (*else_).clone();
+                                }
+                            }
+                            Some(SpecialForm::Throw(thrown)) => {
+                                return Err(do_eval((*thrown).clone(), env.clone(), cx, false)?);
+                            }
+                            Some(SpecialForm::Try(try_, _, bound, catch)) => {
+                                match do_eval((*try_).clone(), env.clone(), cx, false) {
+                                    Ok(yay) => return Ok(yay),
+                                    Err(thrown) => {
+                                        env = env.update(bound.clone(), thrown.clone());
+                                        v = (*catch).clone();
+                                    }
+                                }
+                            }
+                            Some(SpecialForm::Lambda(mutable, bound, body)) => {
+                                let mut funs_map = BTreeMap::new();
+                                funs_map.insert(
+                                    Id::user("ß"),
+                                    (bound.clone(), mutable, body.clone())
+                                );
 
+                                return Ok(Value::closure(Closure {
+                                    funs: Gc::new(funs_map),
+                                    entry: Id::user("ß"),
+                                    env: env.clone(),
+                                }, cx))
+                            }
+                            Some(SpecialForm::LetFn(funs, cont)) => {
+                                let mut funs_map = BTreeMap::new();
+                                let mut new_env = env.clone();
+                                for (name, mutable, bound, body) in funs.iter() {
+                                    funs_map.insert(
+                                        (*name).clone(),
+                                        ((*bound).clone(), *mutable, (*body).clone())
+                                    );
+                                    new_env = new_env.update((*name).clone(), Value::nil());
+                                }
+
+                                let funs_gc = Gc::new(funs_map);
+
+                                for (name, ..) in funs.iter() {
+                                    new_env.set(name.clone(), Value::closure(Closure {
+                                        funs: funs_gc.clone(),
+                                        entry: (*name).clone(),
+                                        env: new_env.clone(),
+                                    }, cx));
+                                }
+
+                                env = new_env;
+                                v = (*cont).clone();
+                            }
                             None => {
-                                match special(&params).expect("static analysis should have caught malformed special forms") {
-                                    Some(SpecialForm::Do(stmts)) => {
-                                        let len = stmts.len();
-                                        if len == 0 {
-                                            return Ok(Value::nil());
-                                        }
+                                match env.get(id) {
+                                    Some(resolved) => {
+                                        v = Value::app(Vector(params.0.update(0, resolved)));
+                                    }
 
-                                        for (i, stmt) in stmts.iter().enumerate() {
-                                            if i + 1 < len {
-                                                let _ = do_eval((*stmt).clone(), env.clone(), cx, false)?;
-                                            }
-                                        }
-                                        v = stmts[len - 1].clone();
-                                    }
-                                    Some(SpecialForm::Quote(quoted)) => return Ok((*quoted).clone()),
-                                    Some(SpecialForm::Let(_, bound, val, cont)) => {
-                                        env = env.update(bound.clone(), val.clone());
-                                        v = (*cont).clone();
-                                    }
-                                    Some(SpecialForm::SetBang(id, val)) => {
-                                        env.set(id, val.clone());
-                                        return Ok(Value::nil());
-                                    }
-                                    Some(SpecialForm::If(cond, then, else_)) => {
-                                        if do_eval((*cond).clone(), env.clone(), cx, false)?.truthy() {
-                                            v = (*then).clone();
-                                        } else {
-                                            v = (*else_).clone();
-                                        }
-                                    }
-                                    Some(SpecialForm::Throw(thrown)) => {
-                                        return Err(do_eval((*thrown).clone(), env.clone(), cx, false)?);
-                                    }
-                                    Some(SpecialForm::Try(try_, _, bound, catch)) => {
-                                        match do_eval((*try_).clone(), env.clone(), cx, false) {
-                                            Ok(yay) => return Ok(yay),
-                                            Err(thrown) => {
-                                                env = env.update(bound.clone(), thrown.clone());
-                                                v = (*catch).clone();
-                                            }
-                                        }
-                                    }
-                                    Some(SpecialForm::Lambda(mutable, bound, body)) => {
-                                        let mut funs_map = BTreeMap::new();
-                                        funs_map.insert(
-                                            Id::user("ß"),
-                                            (bound.clone(), mutable, body.clone())
-                                        );
-
-                                        return Ok(Value::closure(Closure {
-                                            funs: Gc::new(funs_map),
-                                            entry: Id::user("ß"),
-                                            env: env.clone(),
-                                        }, cx))
-                                    }
-                                    Some(SpecialForm::LetFn(funs, cont)) => {
-                                        let mut funs_map = BTreeMap::new();
-                                        let mut new_env = env.clone();
-                                        for (name, mutable, bound, body) in funs.iter() {
-                                            funs_map.insert(
-                                                (*name).clone(),
-                                                ((*bound).clone(), *mutable, (*body).clone())
-                                            );
-                                            new_env = new_env.update((*name).clone(), Value::nil());
-                                        }
-
-                                        let funs_gc = Gc::new(funs_map);
-
-                                        for (name, ..) in funs.iter() {
-                                            new_env.set(name.clone(), Value::closure(Closure {
-                                                funs: funs_gc.clone(),
-                                                entry: (*name).clone(),
-                                                env: new_env.clone(),
-                                            }, cx));
-                                        }
-
-                                        env = new_env;
-                                        v = (*cont).clone();
-                                    }
                                     None => panic!("static analysis should have caught free ids"),
                                 }
                             }
