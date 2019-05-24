@@ -76,10 +76,6 @@ pub fn do_eval(mut v: Value, mut env: Env, cx: &mut Context, tail: bool) -> Resu
                                 v = stmts[len - 1].clone();
                             }
                             Some(SpecialForm::Quote(quoted)) => return Ok((*quoted).clone()),
-                            Some(SpecialForm::Let(_, bound, val, cont)) => {
-                                env = env.update(bound.clone(), val.clone());
-                                v = (*cont).clone();
-                            }
                             Some(SpecialForm::SetBang(id, val)) => {
                                 env.set(id, val.clone());
                                 return Ok(Value::nil());
@@ -102,19 +98,6 @@ pub fn do_eval(mut v: Value, mut env: Env, cx: &mut Context, tail: bool) -> Resu
                                         v = (*catch).clone();
                                     }
                                 }
-                            }
-                            Some(SpecialForm::Lambda(mutable, bound, body)) => {
-                                let mut funs_map = BTreeMap::new();
-                                funs_map.insert(
-                                    Id::user("ß"),
-                                    (bound.clone(), mutable, body.clone())
-                                );
-
-                                return Ok(Value::closure(Closure {
-                                    funs: Gc::new(funs_map),
-                                    entry: Id::user("ß"),
-                                    env: env.clone(),
-                                }, cx))
                             }
                             Some(SpecialForm::LetFn(funs, cont)) => {
                                 let mut funs_map = BTreeMap::new();

@@ -11,12 +11,10 @@ use crate::value::{Value, Atomic, Id};
 pub enum SpecialForm<'a> {
     Quote(&'a Value),
     Do(Vec<&'a Value>),
-    Let(bool, &'a Id, &'a Value, &'a Value),
     SetBang(&'a Id, &'a Value),
     If(&'a Value, &'a Value, &'a Value),
     Throw(&'a Value),
     Try(&'a Value, bool, &'a Id, &'a Value),
-    Lambda(bool, &'a Id, &'a Value),
     LetFn(Vec<(&'a Id, bool, &'a Id, &'a Value)>, &'a Value),
 }
 
@@ -24,12 +22,10 @@ pub enum SpecialForm<'a> {
 pub enum FormType {
     Quote,
     Do,
-    Let,
     SetBang,
     If,
     Throw,
     Try,
-    Lambda,
     LetFn,
 }
 
@@ -65,21 +61,6 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
             }
 
             return Ok(Some(SpecialForm::Do(do_stmts)));
-        }
-
-        Some("sf-let") => {
-            if v.0.len() != 4 && v.0.len() != 5  {
-                return Err(SpecialFormSyntaxError::Arity(FormType::Let, v.0.len()));
-            }
-
-            let (mutable, id) = mut_id(&v.0, 1, FormType::Let)?;
-            if !mutable && v.0.len() == 5 {
-                return Err(SpecialFormSyntaxError::Arity(FormType::Let, v.0.len()));
-            }
-            let val = &v.0[if mutable { 3 } else { 2 }];
-            let cont = &v.0[if mutable { 4 } else { 3 }];
-
-            return Ok(Some(SpecialForm::Let(mutable, id, val, cont)));
         }
 
         Some("sf-set!") => {
@@ -124,20 +105,6 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
             let cont = &v.0[if mutable { 4 } else { 3 }];
 
             return Ok(Some(SpecialForm::Try(to_try, mutable, id, cont)));
-        }
-
-        Some("sf-lambda") => {
-            if v.0.len() != 3 && v.0.len() != 4  {
-                return Err(SpecialFormSyntaxError::Arity(FormType::Lambda, v.0.len()));
-            }
-
-            let (mutable, id) = mut_id(&v.0, 1, FormType::Let)?;
-            if !mutable && v.0.len() == 4 {
-                return Err(SpecialFormSyntaxError::Arity(FormType::Lambda, v.0.len()));
-            }
-            let cont = &v.0[if mutable { 3 } else { 2 }];
-
-            return Ok(Some(SpecialForm::Lambda(mutable, id, cont)));
         }
 
         Some("sf-letfn") => {

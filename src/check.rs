@@ -86,9 +86,6 @@ fn do_check(
                             Ok(())
                         }
                         Some(SpecialForm::Quote(_)) => Ok(()),
-                        Some(SpecialForm::Let(mutable, bound, _, cont)) => {
-                            do_check(cont, &bindings.update(bound.clone(), mutable))
-                        }
                         Some(SpecialForm::SetBang(id, _)) => {
                             match bindings.get(id) {
                                 Some(true) => Ok(()),
@@ -105,9 +102,6 @@ fn do_check(
                         Some(SpecialForm::Try(try_, mutable, bound, catch)) => {
                             let _ = do_check(try_, bindings)?;
                             do_check(catch, &bindings.update(bound.clone(), mutable))
-                        }
-                        Some(SpecialForm::Lambda(mutable, bound, body)) => {
-                            do_check(body, &bindings.update(bound.clone(), mutable))
                         }
                         Some(SpecialForm::LetFn(funs, cont)) => {
                             let mut inner_bindings = bindings.clone();

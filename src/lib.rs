@@ -139,40 +139,22 @@ mod tests {
     }
 
     #[test]
-    fn test_sf_let() {
-        assert_ok("(sf-let x true x)", Value::bool_(true));
-        assert_ok("(sf-let :mut x true x)", Value::bool_(true));
-        assert_ok("(sf-let x false (sf-let x true x))", Value::bool_(true));
-
-        assert_static_err("(sf-let x true y)", StaticError::Free(Id::user("y")));
-
-        assert_static_err("(sf-let)", StaticError::SpecialFormSyntax(
-            SpecialFormSyntaxError::Arity(FormType::Let, 1)
-        ));
-        assert_static_err("(sf-let x)", StaticError::SpecialFormSyntax(
-            SpecialFormSyntaxError::Arity(FormType::Let, 2)
-        ));
-        assert_static_err("(sf-let x true)", StaticError::SpecialFormSyntax(
-            SpecialFormSyntaxError::Arity(FormType::Let, 3)
-        ));
-        assert_static_err("(sf-let x true x x)", StaticError::SpecialFormSyntax(
-            SpecialFormSyntaxError::Arity(FormType::Let, 5)
-        ));
-        assert_static_err("(sf-let true false false)", StaticError::SpecialFormSyntax(
-            SpecialFormSyntaxError::Id(FormType::Let, Value::bool_(true))
-        ));
-    }
-
-    #[test]
     fn test_sf_set_bang() {
-        assert_ok("(sf-let :mut x true (sf-set! x false))", Value::nil());
-        assert_ok("(sf-let :mut x true (sf-do (sf-set! x false) x))", Value::bool_(false));
+        assert_ok("(sf-letfn (foo :mut x (sf-set! x false)) (foo true))", Value::nil());
+        assert_ok("(sf-letfn
+            (foo :mut x (sf-do
+                    (sf-set! x false)
+                    x
+                ))
+            (foo true)
+        )", Value::bool_(false));
 
         assert_static_err("(sf-set! true true)", StaticError::SpecialFormSyntax(
             SpecialFormSyntaxError::SetBangId(Value::bool_(true))
         ));
         assert_static_err("(sf-set! x true)", StaticError::Free(Id::user("x")));
-        assert_static_err("(sf-let x true (sf-set! x false))", StaticError::Immutable(Id::user("x")));
+
+        assert_static_err("(sf-letfn (foo x (sf-set! x false)) (foo true))", StaticError::Immutable(Id::user("x")));
 
         assert_static_err("(sf-set!)", StaticError::SpecialFormSyntax(
             SpecialFormSyntaxError::Arity(FormType::SetBang, 1)
@@ -238,26 +220,6 @@ mod tests {
         ));
         assert_static_err("(sf-try false true false)", StaticError::SpecialFormSyntax(
             SpecialFormSyntaxError::Id(FormType::Try, Value::bool_(true))
-        ));
-    }
-
-    #[test]
-    fn test_sf_lambda() {
-        assert_ok("((sf-lambda x (typeof (arr-get x 0))) nil)", Value::kw_str("nil"));
-        assert_ok("((sf-lambda x (typeof (arr-get x 0))) false)", Value::kw_str("bool"));
-        assert_ok("((sf-lambda :mut x (sf-do (sf-set! x nil) (typeof x))) false)", Value::kw_str("nil"));
-
-        assert_static_err("(sf-lambda)", StaticError::SpecialFormSyntax(
-            SpecialFormSyntaxError::Arity(FormType::Lambda, 1)
-        ));
-        assert_static_err("(sf-lambda x)", StaticError::SpecialFormSyntax(
-            SpecialFormSyntaxError::Arity(FormType::Lambda, 2)
-        ));
-        assert_static_err("(sf-lambda x x x)", StaticError::SpecialFormSyntax(
-            SpecialFormSyntaxError::Arity(FormType::Lambda, 4)
-        ));
-        assert_static_err("(sf-lambda :mut x x x)", StaticError::SpecialFormSyntax(
-            SpecialFormSyntaxError::Arity(FormType::Lambda, 5)
         ));
     }
 
