@@ -43,7 +43,7 @@ named!(rparen(CompleteStr) -> (), do_parse!(tag!(")") >> ws0 >> (())));
 named!(at_lbrace(CompleteStr) -> (), do_parse!(tag!("@{") >> ws0 >> (())));
 named!(at_lbracket(CompleteStr) -> (), do_parse!(tag!("@[") >> ws0 >> (())));
 
-fn is_id_char(c: char) -> bool {
+pub fn is_id_char(c: char) -> bool {
     return c.is_ascii_alphanumeric() || c == '!' || c == '*' || c == '+'
         || c == '-' || c == '_' || c == '?' || c == '~' || c == '<'
         || c == '>' || c == '=';
@@ -185,6 +185,16 @@ named!(set(CompleteStr) -> Value, map!(
     |objs| Value::set_from_vec(objs)
 ));
 
+named!(id(CompleteStr) -> Value, map!(id_str, |id| if id.0 == "nil" {
+    Value::nil()
+} else if id.0 == "true" {
+    Value::bool_(true)
+} else if id.0 == "false" {
+    Value::bool_(false)
+} else {
+    Value::id_str(id.0)
+}));
+
 named!(obj(CompleteStr) -> Value, terminated!(alt!(
     app |
     arr |
@@ -195,15 +205,7 @@ named!(obj(CompleteStr) -> Value, terminated!(alt!(
     string |
     map!(num, |n| Value::int(n)) |
     map!(kw_str, |kw| Value::kw_str(kw.0)) |
-    map!(id_str, |id| if id.0 == "nil" {
-        Value::nil()
-    } else if id.0 == "true" {
-        Value::bool_(true)
-    } else if id.0 == "false" {
-        Value::bool_(false)
-    } else {
-        Value::id_str(id.0)
-    })
+    id
 ), ws0));
 
 named!(read_(CompleteStr) -> Value, do_parse!(
@@ -215,6 +217,16 @@ named!(read_(CompleteStr) -> Value, do_parse!(
 
 pub fn read(i: CompleteStr) -> Result<Value, ParseError> {
     match read_(i) {
+        Ok((_, o)) => return Ok(o),
+        Err(Err::Incomplete(_)) => unreachable!(),
+        Err(Err::Error(cx)) | Err(Err::Failure(cx)) => {
+            return Err(ParseError(cx.into_error_kind()));
+        }
+    }
+}
+
+pub fn parse_id(i: CompleteStr) -> Result<Value, ParseError> {
+    match id(i) {
         Ok((_, o)) => return Ok(o),
         Err(Err::Incomplete(_)) => unreachable!(),
         Err(Err::Error(cx)) | Err(Err::Failure(cx)) => {

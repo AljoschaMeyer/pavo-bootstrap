@@ -5,6 +5,10 @@ use gc_derive::{Trace, Finalize};
 use im_rc;
 use num_traits::float::Float;
 use ordered_float;
+use ropey;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
+pub struct Rope(#[unsafe_ignore_trace] pub ropey::Rope);
 
 /// A garbage-collectable `ordered_float::NotNan<f64>`.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Trace, Finalize)]

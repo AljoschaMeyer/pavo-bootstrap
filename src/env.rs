@@ -101,12 +101,14 @@ impl Env {
         env_add(&mut m, "str-concat", builtins::str_concat, cx);
         env_add(&mut m, "str-iter", builtins::str_iter, cx);
         env_add(&mut m, "str-iter-back", builtins::str_iter_back, cx);
-        env_add(&mut m, "str-push-front", builtins::str_push_front, cx);
-        env_add(&mut m, "str-front", builtins::str_front, cx);
-        env_add(&mut m, "str-pop-front", builtins::str_pop_front, cx);
-        env_add(&mut m, "str-push-back", builtins::str_push_back, cx);
-        env_add(&mut m, "str-back", builtins::str_back, cx);
-        env_add(&mut m, "str-pop-back", builtins::str_pop_back, cx);
+
+        env_add(&mut m, "str=>id", builtins::str_to_id, cx);
+        env_add(&mut m, "str=>id?", builtins::is_str_to_id, cx);
+        env_add(&mut m, "id->str", builtins::id_to_str, cx);
+
+        env_add(&mut m, "str=>kw", builtins::str_to_kw, cx);
+        env_add(&mut m, "str=>kw?", builtins::is_str_to_kw, cx);
+        env_add(&mut m, "kw->str", builtins::kw_to_str, cx);
 
         env_add(&mut m, "arr-count", builtins::arr_count, cx);
         env_add(&mut m, "arr-get", builtins::arr_get, cx);
@@ -180,6 +182,9 @@ impl Env {
         env_add(&mut m, "<=", builtins::pavo_lte, cx);
         env_add(&mut m, ">", builtins::pavo_gt, cx);
         env_add(&mut m, ">=", builtins::pavo_gte, cx);
+
+        // TODO read, read_prefix
+        env_add(&mut m, "write", builtins::write, cx);
 
         env_add(&mut m, "typeof", builtins::typeof_, cx);
         env_add(&mut m, "truthy?", builtins::is_truthy, cx);

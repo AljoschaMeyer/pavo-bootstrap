@@ -5,6 +5,7 @@ use std::{
     collections::BTreeMap,
     fmt,
     num::FpCategory,
+    iter::FromIterator
 };
 
 use gc::Gc;
@@ -14,10 +15,11 @@ use im_rc::{
     OrdSet as ImOrdSet,
     OrdMap as ImOrdMap,
 };
+use ropey::Rope as Ropey;
 
 use crate::context::Context;
 use crate::env::Env;
-use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan};
+use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub enum Value {
@@ -82,12 +84,17 @@ impl Value {
         Value::bytes(Vector(ImVector::from(vals)))
     }
 
-    pub fn string(s: Vector<char>) -> Value {
+    pub fn string(s: Rope) -> Value {
         Value::Atomic(Atomic::String(s))
     }
 
     pub fn string_from_vec(vals: Vec<char>) -> Value {
-        Value::string(Vector(ImVector::from(vals)))
+        let s: String = vals.into_iter().collect();
+        Value::string(Rope(Ropey::from(s)))
+    }
+
+    pub fn string_from_str(s: &str) -> Value {
+        Value::string(Rope(Ropey::from_str(s)))
     }
 
     pub fn arr(vals: Vector<Value>) -> Value {
@@ -205,7 +212,7 @@ pub enum Atomic {
     Int(i64),
     Float(NotNan),
     Char(char),
-    String(Vector<char>),
+    String(Rope),
     Bytes(Vector<u8>),
     Keyword(String),
 }

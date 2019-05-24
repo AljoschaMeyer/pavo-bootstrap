@@ -1,10 +1,11 @@
-use std::iter::FromIterator;
-
-use im_rc::{OrdMap as ImOrdMap, Vector as ImVector};
+use im_rc::{OrdMap as ImOrdMap};
+use ropey::Rope as Ropey;
+use nom::types::CompleteStr;
 
 use crate::context::Context;
-use crate::gc_foreign::{OrdMap, OrdSet, Vector};
+use crate::gc_foreign::{OrdMap, OrdSet, Vector, Rope};
 use crate::value::{Value, Atomic, Id};
+use crate::read::{is_id_char, parse_id};
 
 pub fn typeof__(v: &Value) -> Value {
     match v {
@@ -56,6 +57,13 @@ pub fn byte_error(got: &Value) -> Value {
 pub fn char_error(got: &Value) -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-not-unicode-scalar")),
+            (Value::kw_str("got"), got.clone()),
+        ])))
+}
+
+pub fn kw_error(got: &Value) -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-kw")),
             (Value::kw_str("got"), got.clone()),
         ])))
 }
@@ -138,6 +146,32 @@ macro_rules! index_incl {
     )
 }
 
+macro_rules! index_char {
+    ($arr:expr, $n:expr, $fb:expr) => (
+        if $n < 0 || $n as usize >= $arr.0.len_chars() {
+            match $fb {
+                Some(fb) => return Ok(fb.clone()),
+                None => return Err(index_error($n as usize)),
+            }
+        } else {
+            $n as usize
+        }
+    )
+}
+
+macro_rules! index_char_incl {
+    ($arr:expr, $n:expr, $fb:expr) => (
+        if $n < 0 || $n as usize > $arr.0.len_chars() {
+            match $fb {
+                Some(fb) => return Ok(fb.clone()),
+                None => return Err(index_error($n as usize)),
+            }
+        } else {
+            $n as usize
+        }
+    )
+}
+
 macro_rules! bool_ {
     ($v:expr) => (
         match &$v {
@@ -197,6 +231,24 @@ macro_rules! arr {
         match &$v {
             Value::Arr(arr) => arr.clone(),
             _ => return Err(type_error(&$v, "array")),
+        }
+    )
+}
+
+macro_rules! id {
+    ($v:expr) => (
+        match &$v {
+            Value::Id(Id::User(id)) => id.clone(),
+            _ => return Err(type_error(&$v, "identifier")),
+        }
+    )
+}
+
+macro_rules! kw {
+    ($v:expr) => (
+        match &$v {
+            Value::Atomic(Atomic::Keyword(kw)) => kw.clone(),
+            _ => return Err(type_error(&$v, "keyword")),
         }
     )
 }
@@ -834,51 +886,55 @@ pub fn char_to_int(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn str_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    Ok(Value::int(s.0.len() as i64))
+    Ok(Value::int(s.0.len_chars() as i64))
 }
 
 pub fn str_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    let index = index!(&s, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let index = index_char!(&s, int!(arg!(args, 1)), arg_opt!(args, 2));
 
-    Ok(Value::char_(s.0[index]))
+    Ok(Value::char_(s.0.char(index)))
 }
 
 pub fn str_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    let index = index_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_char_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
     let elem = char!(arg!(args, 2));
 
-    if s.0.len() >= (i64::max as usize) {
+    if s.0.len_bytes() >= (i64::max as usize) {
         return Err(coll_full_error());
     }
 
     let mut new = s.0.clone();
-    new.insert(index, elem.clone());
-    Ok(Value::string(Vector(new)))
+    new.insert_char(index, elem.clone());
+    Ok(Value::string(Rope(new)))
 }
 
 pub fn str_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    let index = index!(&s, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let index = index_char!(&s, int!(arg!(args, 1)), arg_opt!(args, 2));
 
     let mut new = s.0.clone();
-    let _ = new.remove(index);
-    Ok(Value::string(Vector(new)))
+    let _ = new.remove(index..index + 1);
+    Ok(Value::string(Rope(new)))
 }
 
 pub fn str_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    let index = index!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_char!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
     let elem = char!(arg!(args, 2));
 
-    Ok(Value::string(Vector(s.0.update(index, elem))))
+    let mut new = s.0.clone();
+    new.remove(index..index + 1);
+    new.insert_char(index, elem);
+
+    Ok(Value::string(Rope(new)))
 }
 
 pub fn str_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    let start = index_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
-    let end = index_incl!(&s, int!(arg!(args, 2)), arg_opt!(args, 3));
+    let start = index_char_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let end = index_char_incl!(&s, int!(arg!(args, 2)), arg_opt!(args, 3));
 
     if start > end {
         match arg_opt!(args, 3) {
@@ -888,23 +944,25 @@ pub fn str_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     }
 
     let mut tmp = s.0.clone();
-    Ok(Value::string(Vector(tmp.slice(start..end))))
+    tmp.remove(end..);
+    tmp.remove(..start);
+    Ok(Value::string(Rope(tmp)))
 }
 
 pub fn str_splice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let s = string!(arg!(args, 0));
-    let index = index_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let mut s = string!(arg!(args, 0));
+    let index = index_char_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
     let new = string!(arg!(args, 2));
 
-    let (mut left, right) = s.0.split_at(index);
-    left.append(new.0);
-    left.append(right);
+    let right = s.0.split_off(index);
+    s.0.append(new.0.clone());
+    s.0.append(right);
 
-    if left.len() >= (i64::max as usize) {
+    if s.0.len_bytes() >= (i64::max as usize) {
         return Err(coll_full_error());
     }
 
-    Ok(Value::string(Vector(left)))
+    Ok(Value::string(s))
 }
 
 pub fn str_concat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
@@ -912,21 +970,21 @@ pub fn str_concat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let right = string!(arg!(args, 1));
 
     let mut ret = left.0.clone();
-    ret.append(right.0);
+    ret.append(right.0.clone());
 
-    if ret.len() >= (i64::max as usize) {
+    if ret.len_bytes() >= (i64::max as usize) {
         return Err(coll_full_error());
     }
 
-    Ok(Value::string(Vector(ret)))
+    Ok(Value::string(Rope(ret)))
 }
 
 pub fn str_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
-    for elem in s.0.iter() {
-        match fun.apply(&Value::arr_from_vec(vec![Value::char_(*elem)])) {
+    for elem in s.0.chars() {
+        match fun.apply(&Value::arr_from_vec(vec![Value::char_(elem)])) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -940,95 +998,104 @@ pub fn str_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 }
 
 pub fn str_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let s = string!(arg!(args, 0));
-    let fun = fun!(arg!(args, 1));
+    unimplemented!(); // TODO https://github.com/cessen/ropey/issues/18
+    // let s = string!(arg!(args, 0));
+    // let fun = fun!(arg!(args, 1));
+    //
+    // for elem in s.0.chars().rev() {
+    //     match fun.apply(&Value::arr_from_vec(vec![Value::char_(elem)])) {
+    //         Ok(yay) => {
+    //             if yay.truthy() {
+    //                 return Ok(Value::nil());
+    //             }
+    //         }
+    //         Err(thrown) => return Err(thrown),
+    //     }
+    // }
+    //
+    // Ok(Value::nil())
+}
 
-    for elem in s.0.iter().rev() {
-        match fun.apply(&Value::arr_from_vec(vec![Value::char_(*elem)])) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn str_to_id(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let a = arg!(args, 0);
+    let s = string!(a);
+
+    if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
+        match arg_opt!(args, 1) {
+            Some(fallback) => return Ok(fallback.clone()),
+            None => return Err(kw_error(&a)),
+        }
+    }
+
+    match parse_id(CompleteStr(&s.0.to_string())) {
+        Ok(v) => Ok(v),
+        Err(_) => {
+            match arg_opt!(args, 1) {
+                Some(fallback) => return Ok(fallback.clone()),
+                None => return Err(kw_error(&a)),
             }
-            Err(thrown) => return Err(thrown),
-        }
-    }
-
-    Ok(Value::nil())
-}
-
-pub fn str_push_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let mut s = string!(arg!(args, 0));
-    let new = char!(arg!(args, 1));
-
-    if s.0.len() >= (i64::max as usize) {
-        return Err(coll_full_error());
-    }
-
-    s.0.push_front(new);
-
-    Ok(Value::string(s))
-}
-
-pub fn str_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let mut s = string!(arg!(args, 0));
-
-    match s.0.pop_front() {
-        Some(val) => Ok(Value::char_(val)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
         }
     }
 }
 
-pub fn str_pop_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let mut s = string!(arg!(args, 0));
-
-    match s.0.pop_front() {
-        Some(_) => Ok(Value::string(s)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+pub fn is_str_to_id(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    match str_to_id(args, _cx) {
+        Ok(_) => Ok(Value::bool_(true)),
+        Err(_) => Ok(Value::bool_(false)),
     }
 }
 
-pub fn str_push_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let mut s = string!(arg!(args, 0));
-    let new = char!(arg!(args, 1));
-
-    if s.0.len() >= (i64::max as usize) {
-        return Err(coll_full_error());
-    }
-
-    s.0.push_back(new);
-
-    Ok(Value::string(s))
+pub fn id_to_str(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let id = id!(arg!(args, 0));
+    Ok(Value::string_from_str(&id))
 }
 
-pub fn str_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let mut s = string!(arg!(args, 0));
+/////////////////////////////////////////////////////////////////////////////
 
-    match s.0.pop_back() {
-        Some(val) => Ok(Value::char_(val)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
+pub fn str_to_kw(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let a = arg!(args, 0);
+    let s = string!(a);
+
+    if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
+        match arg_opt!(args, 1) {
+            Some(fallback) => return Ok(fallback.clone()),
+            None => return Err(kw_error(&a)),
         }
     }
+
+    for c in s.0.chars() {
+        if !is_id_char(c) {
+            match arg_opt!(args, 1) {
+                Some(fallback) => return Ok(fallback.clone()),
+                None => return Err(kw_error(&a)),
+            }
+        }
+    }
+
+    Ok(Value::kw(s.0.to_string()))
 }
 
-pub fn str_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
-    let mut s = string!(arg!(args, 0));
+pub fn is_str_to_kw(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let s = string!(arg!(args, 0));
 
-    match s.0.pop_back() {
-        Some(_) => Ok(Value::string(s)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
+    if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
+        return Ok(Value::bool_(false));
+    }
+
+    for c in s.0.chars() {
+        if !is_id_char(c) {
+            return Ok(Value::bool_(false));
         }
     }
+
+    return Ok(Value::bool_(true));
+}
+
+pub fn kw_to_str(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let kw = kw!(arg!(args, 0));
+    Ok(Value::string_from_str(&kw))
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1801,10 +1868,11 @@ pub fn write(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let mut buf = String::new();
 
     write_(&arg!(args, 0), &mut buf)?;
+    if buf.len() >= i64::max as usize {
+        return Err(coll_full_error());
+    }
 
-    // TODO check that string is short enough (do so everywhere...) // yes, it's pointless, but for better or worse this is the reference implementation...
-
-    Ok(Value::string(Vector(ImVector::from_iter(buf.chars()))))
+    Ok(Value::string(Rope(Ropey::from(&buf[..]))))
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1845,13 +1913,13 @@ fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
         }
         Value::Atomic(Atomic::String(chars)) => {
             out.push('"');
-            for c in chars.0.iter() {
+            for c in chars.0.chars() {
                 match c {
                     '\\' => out.push_str("\\"),
                     '\"' => out.push_str("\""),
                     '\n' => out.push_str("\\"),
                     '\t' => out.push_str("\\"),
-                    _ => out.push(*c),
+                    _ => out.push(c),
                 }
             }
             out.push('"');
@@ -1876,6 +1944,51 @@ fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
         Value::Id(Id::User(id)) => Ok(out.push_str(id)),
         Value::Id(Id::Symbol(..)) => Err(unwritable_error()),
         Value::Fun(..) => Err(unwritable_error()),
-        _ => unimplemented!(),
+        Value::Arr(arr) => {
+            out.push_str("[");
+            for (i, v) in arr.0.iter().enumerate() {
+                let _ = write_(v, out)?;
+                if i + 1 < arr.0.len() {
+                    out.push(' ');
+                }
+            }
+            out.push_str("]");
+            Ok(())
+        }
+        Value::App(app) => {
+            out.push_str("(");
+            for (i, v) in app.0.iter().enumerate() {
+                let _ = write_(v, out)?;
+                if i + 1 < app.0.len() {
+                    out.push(' ');
+                }
+            }
+            out.push_str(")");
+            Ok(())
+        }
+        Value::Set(s) => {
+            out.push_str("@{");
+            for (i, v) in s.0.iter().enumerate() {
+                let _ = write_(v, out)?;
+                if i + 1 < s.0.len() {
+                    out.push(' ');
+                }
+            }
+            out.push_str("}");
+            Ok(())
+        }
+        Value::Map(m) => {
+            out.push_str("[");
+            for (i, v) in m.0.iter().enumerate() {
+                let _ = write_(&v.0, out)?;
+                out.push(' ');
+                let _ = write_(&v.1, out)?;
+                if i + 1 < m.0.len() {
+                    out.push(' ');
+                }
+            }
+            out.push_str("]");
+            Ok(())
+        }
     }
 }

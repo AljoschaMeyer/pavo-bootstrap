@@ -1,3 +1,5 @@
+TODO limit string size by utf-8 byte length rather than char count?
+
 # The Pavo Language Reference
 
 ## Syntax
@@ -877,6 +879,15 @@ If `default` is supplied, returns `default` instead of throwing.
 (assert-eq (int=>char 0x110000 nil) nil)
 ```
 
+#### `(int=>char? n)`
+
+Returns whether the int `n` denotes a unicode scalar value.
+
+```pavo
+(assert (int=>char? 0x41))
+(assert-not (int=>char? 0x110000))
+```
+
 #### `(char->int c)`
 
 Returns the unicode scalar value of the char `c` as an int.
@@ -886,6 +897,8 @@ Returns the unicode scalar value of the char `c` as an int.
 ```
 
 ### Strings
+
+TODO utf-8 stuff
 
 #### `(str-count s)`
 
@@ -899,6 +912,19 @@ Time: O(1).
 (assert-eq (str-count "⚗") 1)
 (assert-eq (str-count "abc") 3)
 ```
+
+<!-- #### `(str-count-utf8 s)`
+
+Returns the number of bytes in the utf8 encoding of the string `s`.
+
+Time: O(1).
+
+```pavo
+(assert-eq (str-count-utf8 "") 0)
+(assert-eq (str-count-utf8 "a") 1)
+(assert-eq (str-count-utf8 "⚗") 3)
+(assert-eq (str-count-utf8 "abc") 3)
+``` -->
 
 #### `(str-get s index)` `(str-get s index default)`
 
@@ -1066,101 +1092,103 @@ Time: Iteration takes amortized O(n), where n is `(str-count s)`.
 ))
 ```
 
-#### `(str-push-front s c)`
-
-Returns the string obtained by inserting the char `c` at the front of the string `s`.
-
-Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
-
-Time: Amortized O(1) (amortized across `str-push-front` and `str-pop-front` applications)
-
-```pavo
-(assert-eq (str-push-front "" 'a') "a")
-(assert-eq (str-push-front "b" 'a') "ab")
-```
-
-#### `(str-front s)` `(str-front s default)`
-
-Returns the first char in the string `s`.
-
-Throws `{ :tag :err-collection-empty }` if the string is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
-
-Time: O(1)
-
-```pavo
-(assert-eq (str-front "ab") 'a')
-(assert-eq (str-front "a") 'a')
-(assert-throw (str-front "") { :tag :err-collection-empty})
-(assert-eq (str-front "" nil) nil)
-```
-
-#### `(str-pop-front s)` `(str-pop-front s default)`
-
-Returns a string consisting of all but the first char in the string `s`.
-
-Throws `{ :tag :err-collection-empty }` if the string is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
-
-Time: Amortized O(1) (amortized across `str-push-front` and `str-pop-front` applications)
-
-```pavo
-(assert-eq (str-pop-front "ab") "a")
-(assert-eq (str-pop-front "a") "")
-(assert-throw (str-pop-front "") { :tag :err-collection-empty})
-(assert-eq (str-pop-front "" nil) nil)
-```
-
-#### `(str-push-back s c)`
-
-Returns the string obtained by inserting the char `c` at the back of the string `s`.
-
-Throws `{ :tag :err-collection-full }` if the resulting string would contain 2^63 or more elements.
-
-Time: Amortized O(1) (amortized across `str-push-back` and `str-pop-back` applications)
-
-```pavo
-(assert-eq (str-push-back "" 'a') "a")
-(assert-eq (str-push-back "b" 'a') "ba")
-```
-
-#### `(str-back s)` `(str-back s default)`
-
-Returns the last char in the string `s`.
-
-Throws `{ :tag :err-collection-empty }` if the string is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
-
-Time: O(1)
-
-```pavo
-(assert-eq (str-back "ab") 'b')
-(assert-eq (str-back "a") 'a')
-(assert-throw (str-back "") { :tag :err-collection-empty})
-(assert-eq (str-back "" nil) nil)
-```
-
-#### `(str-pop-back s)` `(str-pop-back s default)`
-
-Returns the string consisting of all but the last char in the string `s`.
-
-Throws `{ :tag :err-collection-empty }` if the string is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
-
-Time: Amortized O(1) (amortized across `str-push-back` and `str-pop-back` applications)
-
-```pavo
-(assert-eq (str-pop-back "ab") "a")
-(assert-eq (str-pop-back "a") "")
-(assert-throw (str-pop-back "") { :tag :err-collection-empty})
-(assert-eq (str-pop-back "" nil) nil)
-```
-
 ### Floats
+
+TODO
+
+### Identifiers
+
+#### `(str=>id s)` `(str=>id s default)`
+
+Returns an identifier created from the string `s`.
+
+Throws `{ :tag :err-identifier, :got s}` if it would not be a valid identifier (empty, longer than 255 characters, or containing invalid characters).
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(n) where n is `(str-count s)`.
+
+```pavo
+(assert-eq (str=>id "foo") $foo)
+(assert-eq (str=>id "nil") $nil)
+(assert-eq (str=>id "42") $42)
+(assert-throw (str=>id "") { :tag :err-kw, :got ""})
+(assert-throw (str=>id "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-kw, :got ""})
+(assert-throw (str=>id ":a") { :tag :err-kw, :got ":a"})
+(assert-throw (str=>id "ß") { :tag :err-kw, :got "ß"})
+(assert-eq (str=>id "ß" nil) nil)
+```
+
+#### `(str=>id? s)`
+
+Returns whether the string `s` would be a valid identifier, i.e. it is neither empty nor longer than 255 characters, contains only valid identifier characters, and is not a different literal.
+
+```pavo
+(assert-eq (str=>id? "foo") true)
+(assert-eq (str=>id? "nil") false)
+(assert-eq (str=>id? "42") false)
+(assert-eq (str=>id? "-_") true)
+(assert-eq (str=>id? "-42") false)
+(assert-eq (str=>id? "") false)
+(assert-eq (str=>id? "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") false)
+(assert-eq (str=>id? "ß") false)
+(assert-eq (str=>id? ":a") false)
+```
+
+#### `(id->str id)`
+
+Returns the string that corresponds to the given identfier `id.
+
+```pavo
+(assert-eq (id->str $foo) "foo")
+```
+
+### Keywords
+
+#### `(str=>kw s)` `(str=>kw s default)`
+
+Returns the keyword `<:s>` created from the string `s`.
+
+Throws `{ :tag :err-kw, :got s}` if it would not be a valid keyword (empty, longer than 255 characters, or containing invalid characters).
+
+If `default` is supplied, returns `default` instead of throwing.
+
+Time: O(n) where n is `(str-count s)`.
+
+```pavo
+(assert-eq (str=>kw "foo") :foo)
+(assert-eq (str=>kw "nil") :nil)
+(assert-eq (str=>kw "42") :42)
+(assert-throw (str=>kw "") { :tag :err-kw, :got ""})
+(assert-throw (str=>kw "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-kw, :got ""})
+(assert-throw (str=>kw ":a") { :tag :err-kw, :got ":a"})
+(assert-throw (str=>kw "ß") { :tag :err-kw, :got "ß"})
+(assert-eq (str=>kw "ß" nil) nil)
+```
+
+#### `(str=>kw? s)`
+
+Returns whether the string `s` prefixed by a colon would be a valid keyword, i.e. it is neither empty nor longer than 255 characters and only contains valid identifier characters.
+
+```pavo
+(assert-eq (str=>kw? "foo") true)
+(assert-eq (str=>kw? "nil") true)
+(assert-eq (str=>kw? "42") true)
+(assert-eq (str=>kw? "-_") true)
+(assert-eq (str=>kw? "-42") true)
+(assert-eq (str=>kw? "") false)
+(assert-eq (str=>kw? "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") false)
+(assert-eq (str=>kw? "ß") false)
+(assert-eq (str=>kw? ":a") false)
+```
+
+#### `(kw->str kw)`
+
+Returns the string that corresponds to the given keyword `kw`, without the leading colon.
+
+```pavo
+(assert-eq (kw->str :foo) "foo")
+```
 
 ### Arrays
 
@@ -2220,7 +2248,7 @@ TODO
 
 ### Code as Data
 
-<!-- #### (read s)
+#### (read s)
 
 If the string `s` is a pavo expression, returns the value denoted by that expression.
 
@@ -2253,6 +2281,7 @@ Time: O(n), where n is `(string-count <prefix>)`, where `<prefix>` is the longes
 Returns a string `s` such that `(read s)` equals the value `v`. The precise definition is given at the end of this document.
 
 Throws `{ :tag :err-not-writable }` if no such string exists. This is the case if `v` is or contains a function or a symbol.
+Throws `{ :tag :err-collection-full }` if the resulting string would contain 2^63 or more elements.
 
 Time: Linear in the length of the returned string. Yeah, that's not a proper definition...
 
@@ -2260,7 +2289,7 @@ Time: Linear in the length of the returned string. Yeah, that's not a proper def
 (assert-eq (write 42) "42")
 (assert-eq (write $(a )) "(a)")
 (assert-throw (write (symbol)) { :tag :err-not-writable })
-``` -->
+```
 
 TODO expand, check, evaluate, etc.
 
@@ -2308,7 +2337,7 @@ Immediately and abnormally terminates the execution of the program. Semantically
 
 Note that this is different from a program terminating through an uncaught throw and you should almost always throw instead of deliberately calling `diverge` (just as there are very few situations where you'd deliberately go into an effect-free infinite loop).
 
-<!-- ## Appendix: Precise Definition of `(write v)`
+## Appendix: Precise Definition of `(write v)`
 
 This section defines the return value of `(write v)` for any expression `v`, defined through structural induction (examples/tests are below).
 
@@ -2342,8 +2371,66 @@ This section defines the return value of `(write v)` for any expression `v`, def
 
 ### Induction Steps
 
-TODO
+Collections serialize their components and separate them by a single space (there's no whitespace at the front or the back of the collection).
 
-TODO missing cases (floats in particular once they get added)
+### Examples
 
-TODO test cases -->
+```pavo
+(assert-eq (write nil) "nil")
+(assert-eq (write true) "true")
+(assert-eq (write false) "false")
+
+(assert-eq (write 0) "0")
+(assert-eq (write 1) "1")
+(assert-eq (write -1) "-1")
+(assert-eq (write -0) "0")
+
+(assert-eq (write 'a') "'a'")
+(assert-eq (write '"') "'"'")
+(assert-eq (write '🌃') "'🌃'")
+(assert-eq (write '\t') "'\\t'")
+(assert-eq (write '\n') "'\\n'")
+(assert-eq (write '\\') "'\\\\'")
+(assert-eq (write '\'') "'\\''")
+
+(assert-eq (write "a") "\"a\"")
+(assert-eq (write "'") "\"'\"")
+(assert-eq (write "🌃") "\"🌃\"")
+(assert-eq (write "") "\"\"")
+(assert-eq (write "ab") "\"ab\"")
+(assert-eq (write "\t") "\"\\t\"")
+(assert-eq (write "\n") "\"\\n\"")
+(assert-eq (write "\\") "\"\\\\\"")
+(assert-eq (write "\"") "\"\\"\"")
+
+(assert-eq (write @[ ]) "@[]")
+(assert-eq (write @[ 0x11 ]) "@[17]")
+(assert-eq (write @[1, 2]) "@[1 2]")
+
+(assert-eq (write :foo) ":foo")
+
+(assert-eq (write $foo) "foo")
+
+(assert-throw (write (symbol)) {:tag :err-not-writable})
+(assert-throw (write write) {:tag :err-not-writable})
+
+(assert-eq (write [ ]) "[]")
+(assert-eq (write [ 2]) "[2]")
+(assert-eq (write [ 2, 4 ]) "[2 4]")
+
+(assert-eq (write $()) "()")
+(assert-eq (write $(2)) "(2)")
+(assert-eq (write $(2, 4)) "(2 4)")
+
+(assert-eq (write @{}) "@{}")
+(assert-eq (write @{1}) "@{1}")
+(assert-eq (write @{1 1}) "@{1}")
+(assert-eq (write @{2 , 1  3}) "@{1 2 3}")
+
+(assert-eq (write {}) "{}")
+(assert-eq (write {1 nil}) "{1 nil}")
+(assert-eq (write {1 nil 1 nil}) "{1 nil}")
+(assert-eq (write {2 nil , 1 nil  3 nil}) "{1 nil 2 nil 3 nil}")
+```
+
+TODO floats... those are fun!
