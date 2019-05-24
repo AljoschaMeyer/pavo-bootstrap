@@ -68,6 +68,13 @@ pub fn kw_error(got: &Value) -> Value {
         ])))
 }
 
+pub fn id_error(got: &Value) -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-identifier")),
+            (Value::kw_str("got"), got.clone()),
+        ])))
+}
+
 pub fn type_error_(got: &Value, expected: &Value) -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-type")),
@@ -121,12 +128,9 @@ fn int_to_u64(n: i64) -> Result<u64, Value> {
 }
 
 macro_rules! index {
-    ($arr:expr, $n:expr, $fb:expr) => (
+    ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize >= $arr.0.len() {
-            match $fb {
-                Some(fb) => return Ok(fb.clone()),
-                None => return Err(index_error($n as usize)),
-            }
+            return Err(index_error($n as usize));
         } else {
             $n as usize
         }
@@ -134,12 +138,9 @@ macro_rules! index {
 }
 
 macro_rules! index_incl {
-    ($arr:expr, $n:expr, $fb:expr) => (
+    ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize > $arr.0.len() {
-            match $fb {
-                Some(fb) => return Ok(fb.clone()),
-                None => return Err(index_error($n as usize)),
-            }
+            return Err(index_error($n as usize));
         } else {
             $n as usize
         }
@@ -147,12 +148,9 @@ macro_rules! index_incl {
 }
 
 macro_rules! index_char {
-    ($arr:expr, $n:expr, $fb:expr) => (
+    ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize >= $arr.0.len_chars() {
-            match $fb {
-                Some(fb) => return Ok(fb.clone()),
-                None => return Err(index_error($n as usize)),
-            }
+            return Err(index_error($n as usize));
         } else {
             $n as usize
         }
@@ -160,12 +158,9 @@ macro_rules! index_char {
 }
 
 macro_rules! index_char_incl {
-    ($arr:expr, $n:expr, $fb:expr) => (
+    ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize > $arr.0.len_chars() {
-            match $fb {
-                Some(fb) => return Ok(fb.clone()),
-                None => return Err(index_error($n as usize)),
-            }
+            return Err(index_error($n as usize));
         } else {
             $n as usize
         }
@@ -400,10 +395,7 @@ pub fn int_add(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let m = int!(arg!(args, 1));
     match n.checked_add(m) {
         Some(yay) => Ok(Value::int(yay)),
-        None => match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(wrap_error())
-        }
+        None => Err(wrap_error()),
     }
 }
 
@@ -412,10 +404,7 @@ pub fn int_sub(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let m = int!(arg!(args, 1));
     match n.checked_sub(m) {
         Some(yay) => Ok(Value::int(yay)),
-        None => match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(wrap_error())
-        }
+        None => Err(wrap_error()),
     }
 }
 
@@ -424,10 +413,7 @@ pub fn int_mul(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let m = int!(arg!(args, 1));
     match n.checked_mul(m) {
         Some(yay) => Ok(Value::int(yay)),
-        None => match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(wrap_error())
-        }
+        None => Err(wrap_error()),
     }
 }
 
@@ -437,10 +423,7 @@ pub fn int_div(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match n.checked_div_euclid(m) {
         Some(yay) => Ok(Value::int(yay)),
-        None => match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(if m == 0 { zero_error() } else { wrap_error() })
-        }
+        None => Err(if m == 0 { zero_error() } else { wrap_error() }),
     }
 }
 
@@ -450,10 +433,7 @@ pub fn int_div_trunc(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match n.checked_div(m) {
         Some(yay) => Ok(Value::int(yay)),
-        None => match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(if m == 0 { zero_error() } else { wrap_error() })
-        }
+        None => Err(if m == 0 { zero_error() } else { wrap_error() }),
     }
 }
 
@@ -463,10 +443,7 @@ pub fn int_mod(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match n.checked_rem_euclid(m) {
         Some(yay) => Ok(Value::int(yay)),
-        None => match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(if m == 0 { zero_error() } else { wrap_error() })
-        }
+        None => Err(if m == 0 { zero_error() } else { wrap_error() }),
     }
 }
 
@@ -476,10 +453,7 @@ pub fn int_mod_trunc(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match n.checked_rem(m) {
         Some(yay) => Ok(Value::int(yay)),
-        None => match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(if m == 0 { zero_error() } else { wrap_error() })
-        }
+        None => Err(if m == 0 { zero_error() } else { wrap_error() }),
     }
 }
 
@@ -488,10 +462,7 @@ pub fn int_neg(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match n.checked_neg() {
         Some(yay) => Ok(Value::int(yay)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(wrap_error())
-        }
+        None => Err(wrap_error()),
     }
 }
 
@@ -522,10 +493,7 @@ pub fn int_abs(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match n.checked_abs() {
         Some(yay) => Ok(Value::int(yay)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(wrap_error())
-        }
+        None => Err(wrap_error()),
     }
 }
 
@@ -535,10 +503,7 @@ pub fn int_pow(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match n.checked_pow(m as u32) {
         Some(yay) => Ok(Value::int(yay)),
-        None => match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(wrap_error())
-        }
+        None => Err(wrap_error()),
     }
 }
 
@@ -589,10 +554,7 @@ pub fn int_div_wrap(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let m = int!(arg!(args, 1));
 
     if m == 0 {
-        match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(zero_error()),
-        }
+        Err(zero_error())
     } else {
         Ok(Value::int(n.wrapping_div_euclid(m)))
     }
@@ -603,10 +565,7 @@ pub fn int_div_trunc_wrap(args: Value, _cx: &mut Context) -> Result<Value, Value
     let m = int!(arg!(args, 1));
 
     if m == 0 {
-        match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(zero_error()),
-        }
+        Err(zero_error())
     } else {
         Ok(Value::int(n.wrapping_div(m)))
     }
@@ -617,10 +576,7 @@ pub fn int_mod_wrap(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let m = int!(arg!(args, 1));
 
     if m == 0 {
-        match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(zero_error()),
-        }
+        Err(zero_error())
     } else {
         Ok(Value::int(n.wrapping_rem_euclid(m)))
     }
@@ -631,10 +587,7 @@ pub fn int_mod_trunc_wrap(args: Value, _cx: &mut Context) -> Result<Value, Value
     let m = int!(arg!(args, 1));
 
     if m == 0 {
-        match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(zero_error()),
-        }
+        Err(zero_error())
     } else {
         Ok(Value::int(n.wrapping_rem(m)))
     }
@@ -670,14 +623,14 @@ pub fn bytes_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn bytes_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let b = bytes!(arg!(args, 0));
-    let index = index!(&b, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let index = index!(&b, int!(arg!(args, 1)));
 
     Ok(Value::int(b.0[index] as i64))
 }
 
 pub fn bytes_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let b = bytes!(arg!(args, 0));
-    let index = index_incl!(&b, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_incl!(&b, int!(arg!(args, 1)));
     let elem = byte!(arg!(args, 2));
 
     if b.0.len() >= (i64::max as usize) {
@@ -691,7 +644,7 @@ pub fn bytes_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn bytes_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let b = bytes!(arg!(args, 0));
-    let index = index!(&b, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let index = index!(&b, int!(arg!(args, 1)));
 
     let mut new = b.0.clone();
     let _ = new.remove(index);
@@ -700,7 +653,7 @@ pub fn bytes_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn bytes_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let b = bytes!(arg!(args, 0));
-    let index = index!(&b, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index!(&b, int!(arg!(args, 1)));
     let elem = byte!(arg!(args, 2));
 
     Ok(Value::bytes(Vector(b.0.update(index, elem))))
@@ -708,14 +661,11 @@ pub fn bytes_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn bytes_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let b = bytes!(arg!(args, 0));
-    let start = index_incl!(&b, int!(arg!(args, 1)), arg_opt!(args, 3));
-    let end = index_incl!(&b, int!(arg!(args, 2)), arg_opt!(args, 3));
+    let start = index_incl!(&b, int!(arg!(args, 1)));
+    let end = index_incl!(&b, int!(arg!(args, 2)));
 
     if start > end {
-        match arg_opt!(args, 3) {
-            Some(fallback) => return Ok(fallback.clone()),
-            None => return Err(index_error(end)),
-        }
+        return Err(index_error(end));
     }
 
     let mut tmp = b.0.clone();
@@ -724,7 +674,7 @@ pub fn bytes_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn bytes_splice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let b = bytes!(arg!(args, 0));
-    let index = index_incl!(&b, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_incl!(&b, int!(arg!(args, 1)));
     let new = bytes!(arg!(args, 2));
 
     let (mut left, right) = b.0.split_at(index);
@@ -806,10 +756,7 @@ pub fn bytes_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match b.0.pop_front() {
         Some(val) => Ok(Value::int(val as i64)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -818,10 +765,7 @@ pub fn bytes_pop_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match b.0.pop_front() {
         Some(_) => Ok(Value::bytes(b)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -843,10 +787,7 @@ pub fn bytes_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match b.0.pop_back() {
         Some(val) => Ok(Value::int(val as i64)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -855,10 +796,7 @@ pub fn bytes_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match b.0.pop_back() {
         Some(_) => Ok(Value::bytes(b)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -870,10 +808,7 @@ pub fn int_to_char(args: Value, _cx: &mut Context) -> Result<Value, Value> {
         Some(c) => {
             Ok(Value::char_(c))
         }
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(char_error(&Value::int(n))),
-        }
+        None => Err(char_error(&Value::int(n))),
     }
 }
 
@@ -891,14 +826,14 @@ pub fn str_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn str_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    let index = index_char!(&s, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let index = index_char!(&s, int!(arg!(args, 1)));
 
     Ok(Value::char_(s.0.char(index)))
 }
 
 pub fn str_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    let index = index_char_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_char_incl!(&s, int!(arg!(args, 1)));
     let elem = char!(arg!(args, 2));
 
     if s.0.len_bytes() >= (i64::max as usize) {
@@ -912,7 +847,7 @@ pub fn str_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn str_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    let index = index_char!(&s, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let index = index_char!(&s, int!(arg!(args, 1)));
 
     let mut new = s.0.clone();
     let _ = new.remove(index..index + 1);
@@ -921,7 +856,7 @@ pub fn str_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn str_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    let index = index_char!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_char!(&s, int!(arg!(args, 1)));
     let elem = char!(arg!(args, 2));
 
     let mut new = s.0.clone();
@@ -933,14 +868,11 @@ pub fn str_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn str_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
-    let start = index_char_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
-    let end = index_char_incl!(&s, int!(arg!(args, 2)), arg_opt!(args, 3));
+    let start = index_char_incl!(&s, int!(arg!(args, 1)));
+    let end = index_char_incl!(&s, int!(arg!(args, 2)));
 
     if start > end {
-        match arg_opt!(args, 3) {
-            Some(fallback) => return Ok(fallback.clone()),
-            None => return Err(index_error(end)),
-        }
+        return Err(index_error(end));
     }
 
     let mut tmp = s.0.clone();
@@ -951,7 +883,7 @@ pub fn str_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn str_splice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let mut s = string!(arg!(args, 0));
-    let index = index_char_incl!(&s, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_char_incl!(&s, int!(arg!(args, 1)));
     let new = string!(arg!(args, 2));
 
     let right = s.0.split_off(index);
@@ -1023,19 +955,13 @@ pub fn str_to_id(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(a);
 
     if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
-        match arg_opt!(args, 1) {
-            Some(fallback) => return Ok(fallback.clone()),
-            None => return Err(kw_error(&a)),
-        }
+        return Err(id_error(&a));
     }
 
     match parse_id(CompleteStr(&s.0.to_string())) {
         Ok(v) => Ok(v),
         Err(_) => {
-            match arg_opt!(args, 1) {
-                Some(fallback) => return Ok(fallback.clone()),
-                None => return Err(kw_error(&a)),
-            }
+            return Err(id_error(&a));
         }
     }
 }
@@ -1059,18 +985,12 @@ pub fn str_to_kw(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let s = string!(a);
 
     if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
-        match arg_opt!(args, 1) {
-            Some(fallback) => return Ok(fallback.clone()),
-            None => return Err(kw_error(&a)),
-        }
+        return Err(kw_error(&a));
     }
 
     for c in s.0.chars() {
         if !is_id_char(c) {
-            match arg_opt!(args, 1) {
-                Some(fallback) => return Ok(fallback.clone()),
-                None => return Err(kw_error(&a)),
-            }
+            return Err(kw_error(&a));
         }
     }
 
@@ -1107,14 +1027,14 @@ pub fn arr_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn arr_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let arr = arr!(arg!(args, 0));
-    let index = index!(&arr, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let index = index!(&arr, int!(arg!(args, 1)));
 
     Ok(arr.0[index].clone())
 }
 
 pub fn arr_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let arr = arr!(arg!(args, 0));
-    let index = index_incl!(&arr, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_incl!(&arr, int!(arg!(args, 1)));
     let elem = arg!(args, 2);
 
     if arr.0.len() >= (i64::max as usize) {
@@ -1128,7 +1048,7 @@ pub fn arr_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn arr_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let arr = arr!(arg!(args, 0));
-    let index = index!(&arr, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let index = index!(&arr, int!(arg!(args, 1)));
 
     let mut new = arr.0.clone();
     let _ = new.remove(index);
@@ -1137,7 +1057,7 @@ pub fn arr_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn arr_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let arr = arr!(arg!(args, 0));
-    let index = index!(&arr, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index!(&arr, int!(arg!(args, 1)));
     let elem = arg!(args, 2);
 
     Ok(Value::arr(Vector(arr.0.update(index, elem))))
@@ -1145,14 +1065,11 @@ pub fn arr_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn arr_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let arr = arr!(arg!(args, 0));
-    let start = index_incl!(&arr, int!(arg!(args, 1)), arg_opt!(args, 3));
-    let end = index_incl!(&arr, int!(arg!(args, 2)), arg_opt!(args, 3));
+    let start = index_incl!(&arr, int!(arg!(args, 1)));
+    let end = index_incl!(&arr, int!(arg!(args, 2)));
 
     if start > end {
-        match arg_opt!(args, 3) {
-            Some(fallback) => return Ok(fallback.clone()),
-            None => return Err(index_error(end)),
-        }
+        return Err(index_error(end));
     }
 
     let mut tmp = arr.0.clone();
@@ -1161,7 +1078,7 @@ pub fn arr_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn arr_splice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let arr = arr!(arg!(args, 0));
-    let index = index_incl!(&arr, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_incl!(&arr, int!(arg!(args, 1)));
     let new = arr!(arg!(args, 2));
 
     let (mut left, right) = arr.0.split_at(index);
@@ -1243,10 +1160,7 @@ pub fn arr_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match arr.0.pop_front() {
         Some(val) => Ok(val.clone()),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1255,10 +1169,7 @@ pub fn arr_pop_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match arr.0.pop_front() {
         Some(_) => Ok(Value::arr(arr)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1280,10 +1191,7 @@ pub fn arr_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match arr.0.pop_back() {
         Some(val) => Ok(val.clone()),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1292,10 +1200,7 @@ pub fn arr_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match arr.0.pop_back() {
         Some(_) => Ok(Value::arr(arr)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1308,14 +1213,14 @@ pub fn app_count(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn app_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let app = app!(arg!(args, 0));
-    let index = index!(&app, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let index = index!(&app, int!(arg!(args, 1)));
 
     Ok(app.0[index].clone())
 }
 
 pub fn app_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let app = app!(arg!(args, 0));
-    let index = index_incl!(&app, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_incl!(&app, int!(arg!(args, 1)));
     let elem = arg!(args, 2);
 
     if app.0.len() >= (i64::max as usize) {
@@ -1329,7 +1234,7 @@ pub fn app_insert(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn app_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let app = app!(arg!(args, 0));
-    let index = index!(&app, int!(arg!(args, 1)), arg_opt!(args, 2));
+    let index = index!(&app, int!(arg!(args, 1)));
 
     let mut new = app.0.clone();
     let _ = new.remove(index);
@@ -1338,7 +1243,7 @@ pub fn app_remove(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn app_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let app = app!(arg!(args, 0));
-    let index = index!(&app, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index!(&app, int!(arg!(args, 1)));
     let elem = arg!(args, 2);
 
     Ok(Value::app(Vector(app.0.update(index, elem))))
@@ -1346,14 +1251,11 @@ pub fn app_update(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn app_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let app = app!(arg!(args, 0));
-    let start = index_incl!(&app, int!(arg!(args, 1)), arg_opt!(args, 3));
-    let end = index_incl!(&app, int!(arg!(args, 2)), arg_opt!(args, 3));
+    let start = index_incl!(&app, int!(arg!(args, 1)));
+    let end = index_incl!(&app, int!(arg!(args, 2)));
 
     if start > end {
-        match arg_opt!(args, 3) {
-            Some(fallback) => return Ok(fallback.clone()),
-            None => return Err(index_error(end)),
-        }
+        return Err(index_error(end));
     }
 
     let mut tmp = app.0.clone();
@@ -1362,7 +1264,7 @@ pub fn app_slice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
 pub fn app_splice(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let app = app!(arg!(args, 0));
-    let index = index_incl!(&app, int!(arg!(args, 1)), arg_opt!(args, 3));
+    let index = index_incl!(&app, int!(arg!(args, 1)));
     let new = app!(arg!(args, 2));
 
     let (mut left, right) = app.0.split_at(index);
@@ -1444,10 +1346,7 @@ pub fn app_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match app.0.pop_front() {
         Some(val) => Ok(val.clone()),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1456,10 +1355,7 @@ pub fn app_pop_front(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match app.0.pop_front() {
         Some(_) => Ok(Value::app(app)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1481,10 +1377,7 @@ pub fn app_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match app.0.pop_back() {
         Some(val) => Ok(val.clone()),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1493,10 +1386,7 @@ pub fn app_pop_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match app.0.pop_back() {
         Some(_) => Ok(Value::app(app)),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1519,10 +1409,7 @@ pub fn set_min(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match set.0.get_min() {
         Some(min) => Ok(min.clone()),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1531,10 +1418,7 @@ pub fn set_max(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match set.0.get_max() {
         Some(min) => Ok(min.clone()),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1649,10 +1533,7 @@ pub fn map_get(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match map.0.get(&key) {
         Some(val) => Ok(val.clone()),
-        None => match arg_opt!(args, 2) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(lookup_error(key))
-        }
+        None => Err(lookup_error(key)),
     }
 }
 
@@ -1668,10 +1549,7 @@ pub fn map_min(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match map.0.get_min() {
         Some(min) => Ok(min.1.clone()),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1680,10 +1558,7 @@ pub fn map_min_key(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match map.0.get_min() {
         Some(min) => Ok(min.0.clone()),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1692,10 +1567,7 @@ pub fn map_min_entry(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match map.0.get_min() {
         Some(min) => Ok(Value::arr_from_vec(vec![min.0.clone(), min.1.clone()])),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1704,10 +1576,7 @@ pub fn map_max(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match map.0.get_max() {
         Some(max) => Ok(max.1.clone()),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1716,10 +1585,7 @@ pub fn map_max_key(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match map.0.get_max() {
         Some(max) => Ok(max.0.clone()),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 
@@ -1728,10 +1594,7 @@ pub fn map_max_entry(args: Value, _cx: &mut Context) -> Result<Value, Value> {
 
     match map.0.get_max() {
         Some(max) => Ok(Value::arr_from_vec(vec![max.0.clone(), max.1.clone()])),
-        None => match arg_opt!(args, 1) {
-            Some(fallback) => Ok(fallback.clone()),
-            None => Err(coll_empty_error())
-        }
+        None => Err(coll_empty_error()),
     }
 }
 

@@ -245,42 +245,47 @@ Reverses the binary representation of the int `n`.
 (assert-eq (int-reverse-bits 0x1234567890123456) 0x6a2c48091e6a2c48)
 ```
 
-#### `(int-add n m)` `(int-add n m default)`
+#### `(int-add n m)`
 
-Adds the int `n` to the int `m`. If `default` is not supplied, throws `{ :tag :err-wrap-int }` in case of an overflow. If `default` is supplied, returns `default` in case of an overflow.
+Adds the int `n` to the int `m`.
+
+Throws `{ :tag :err-wrap-int }` in case of an overflow.
 
 ```pavo
 (assert-eq (int-add 1 2) 3)
 (assert-eq (int-add 1 -2) -1)
 (assert-throw (int-add int-max 1) { :tag :err-wrap-int })
-(assert-eq (int-add int-max 1 nil) nil)
 ```
 
-#### `(int-sub n m)` `(int-sub n m default)`
+#### `(int-sub n m)`
 
-Subtracts the int `m` from the int `n`. If `default` is not supplied, throws `{ :tag :err-wrap-int }` in case of an overflow. If `default` is supplied, returns `default` in case of an overflow.
+Subtracts the int `m` from the int `n`.
+
+Throws `{ :tag :err-wrap-int }` in case of an overflow.
 
 ```pavo
 (assert-eq (int-sub 1 2) -1)
 (assert-eq (int-sub 1 -2) 3)
 (assert-throw (int-sub int-min 1) { :tag :err-wrap-int })
-(assert-eq (int-sub int-min 1 nil) nil)
 ```
 
-#### `(int-mul n m)` `(int-mul n m default)`
+#### `(int-mul n m)`
 
-Multiplies the int `n` with the int `m`. If `default` is not supplied, throws `{ :tag :err-wrap-int }` in case of an overflow. If `default` is supplied, returns `default` in case of an overflow.
+Multiplies the int `n` with the int `m`.
+
+Throws `{ :tag :err-wrap-int }` in case of an overflow.
 
 ```pavo
 (assert-eq (int-mul 2 3) 6)
 (assert-eq (int-mul 2 -3) -6)
 (assert-throw (int-mul int-max 2) { :tag :err-wrap-int })
-(assert-eq (int-mul int-min 2 nil) nil)
 ```
 
-#### `(int-div n m)` `(int-div n m default)`
+#### `(int-div n m)`
 
-Divides the int `n` by the int `m`. If `default` is not supplied, throws `{ :tag :err-wrap-int }` in case of an overflow. If `default` is supplied, returns `default` in case of an overflow. If `default` is not supplied, throws `{ :tag :err-zero }` if `m` is `0`. If `default` is supplied, returns `default` if `m` is `0`.
+Divides the int `n` by the int `m`.
+
+Throws `{ :tag :err-wrap-int }` in case of an overflow. Throws `{ :tag :err-zero }` if `m` is `0`.
 
 This computes the quotient of [euclidean division](https://en.wikipedia.org/wiki/Euclidean_division).
 
@@ -288,14 +293,14 @@ This computes the quotient of [euclidean division](https://en.wikipedia.org/wiki
 (assert-eq (int-div 8 3) 2)
 (assert-eq (int-div -8 3) -3)
 (assert-throw (int-div int-min -1) { :tag :err-wrap-int })
-(assert-eq (int-div int-min -1 nil) nil)
 (assert-throw (int-div 1 0) { :tag :err-zero })
-(assert-eq (int-div 1 0 nil) nil)
 ```
 
-#### `(int-div-trunc n m)` `(int-div-trunc n m default)`
+#### `(int-div-trunc n m)`
 
-Divides the int `n` by the int `m`. If `default` is not supplied, throws `{ :tag :err-wrap-int }` in case of an overflow. If `default` is supplied, returns `default` in case of an overflow. If `default` is not supplied, throws `{ :tag :err-zero }` if `m` is `0`. If `default` is supplied, returns `default` if `m` is `0`.
+Divides the int `n` by the int `m`.
+
+Throws `{ :tag :err-wrap-int }` in case of an overflow. Throws `{ :tag :err-zero }` if `m` is `0`.
 
 This computes the quotient of [truncating division](https://en.wikipedia.org/w/index.php?title=Truncated_division).
 
@@ -303,14 +308,14 @@ This computes the quotient of [truncating division](https://en.wikipedia.org/w/i
 (assert-eq (int-div-trunc 8 3) 2)
 (assert-eq (int-div-trunc -8 3) -2)
 (assert-throw (int-div-trunc int-min -1) { :tag :err-wrap-int })
-(assert-eq (int-div-trunc int-min -1 nil) nil)
 (assert-throw (int-div-trunc 1 0) { :tag :err-zero })
-(assert-eq (int-div-trunc 1 0 nil) nil)
 ```
 
-#### `(int-mod n m)` `(int-mod n m default)`
+#### `(int-mod n m)`
 
-Computes the int `n` modulo the int `m`. If `default` is not supplied, throws `{ :tag :err-wrap-int }` in case of an overflow. If `default` is supplied, returns `default` in case of an overflow. If `default` is not supplied, throws `{ :tag :err-zero }` if `m` is `0`. If `default` is supplied, returns `default` if `m` is `0`.
+Computes the int `n` modulo the int `m`.
+
+Throws `{ :tag :err-wrap-int }` in case of an overflow. Throws `{ :tag :err-zero }` if `m` is `0`.
 
 This computes the remainder of [euclidean division](https://en.wikipedia.org/wiki/Euclidean_division).
 
@@ -318,14 +323,14 @@ This computes the remainder of [euclidean division](https://en.wikipedia.org/wik
 (assert-eq (int-mod 8 3) 2)
 (assert-eq (int-mod -8 3) 1)
 (assert-throw (int-mod int-min -1) { :tag :err-wrap-int })
-(assert-eq (int-mod int-min -1 nil) nil)
 (assert-throw (int-mod 1 0) { :tag :err-zero })
-(assert-eq (int-mod 1 0 nil) nil)
 ```
 
-#### `(int-mod-trunc n m)` `(int-mod-trunc n m default)`
+#### `(int-mod-trunc n m)`
 
-Computes the int `n` modulo the int `m`. If `default` is not supplied, throws `{ :tag :err-wrap-int }` in case of an overflow. If `default` is supplied, returns `default` in case of an overflow. If `default` is not supplied, throws `{ :tag :err-zero }` if `m` is `0`. If `default` is supplied, returns `default` if `m` is `0`.
+Computes the int `n` modulo the int `m`.
+
+Throws `{ :tag :err-wrap-int }` in case of an overflow. Throws `{ :tag :err-zero }` if `m` is `0`.
 
 This computes the remainder of [truncating division](https://en.wikipedia.org/w/index.php?title=Truncated_division).
 
@@ -333,21 +338,18 @@ This computes the remainder of [truncating division](https://en.wikipedia.org/w/
 (assert-eq (int-mod-trunc 8 3) 2)
 (assert-eq (int-mod-trunc -8 3) -2)
 (assert-throw (int-mod-trunc int-min -1) { :tag :err-wrap-int })
-(assert-eq (int-mod-trunc int-min -1 nil) nil)
 (assert-throw (int-mod-trunc 1 0) { :tag :err-zero })
-(assert-eq (int-mod-trunc 1 0 nil) nil)
 ```
 
-#### `(int-neg n)` `(int-neg n default)`
+#### `(int-neg n)`
 
-Negates the int `n`. If `default` is not supplied, throws `{ :tag :err-wrap-int }` in case of an overflow. If `default` is supplied, returns `default` in case of an overflow.
+Negates the int `n`.Throws `{ :tag :err-wrap-int }` in case of an overflow.
 
 ```pavo
 (assert-eq (int-neg 42) -42)
 (assert-eq (int-neg -42) 42)
 (assert-eq (int-neg 0) 0)
 (assert-throw (int-neg int-min) { :tag :err-wrap-int })
-(assert-eq (int-neg int-min nil) nil)
 ```
 
 #### `(int-shl n m)`
@@ -368,21 +370,24 @@ Performs a [logical right shift](https://en.wikipedia.org/wiki/Logical_shift) of
 (assert-eq (int-shr 42 64) 0)
 ```
 
-#### `(int-abs n)` `(int-abs n default)`
+#### `(int-abs n)`
 
-Returns the absolute value of the int `n`. If `default` is not supplied, throws `{ :tag :err-wrap-int }` in case of an overflow. If `default` is supplied, returns `default` in case of an overflow.
+Returns the absolute value of the int `n`.
+
+Throws `{ :tag :err-wrap-int }` in case of an overflow.
 
 ```pavo
 (assert-eq (int-abs 42) 42)
 (assert-eq (int-abs -42) 42)
 (assert-eq (int-abs 0) 0)
 (assert-throw (int-abs int-min) { :tag :err-wrap-int })
-(assert-eq (int-abs int-min nil) nil)
 ```
 
-#### `(int-pow n m)` `(int-pow n m default)`
+#### `(int-pow n m)`
 
-Computes the int `n` to the power of the positive int `m`. If `default` is not supplied, throws `{ :tag :err-wrap-int }` in case of an overflow. If `default` is supplied, returns `default` in case of an overflow.
+Computes the int `n` to the power of the positive int `m`.
+
+Throws `{ :tag :err-wrap-int }` in case of an overflow.
 
 ```pavo
 (assert-eq (int-pow 2 3) 8)
@@ -391,7 +396,6 @@ Computes the int `n` to the power of the positive int `m`. If `default` is not s
 (assert-eq (int-pow 1 999) 1)
 (assert-eq (int-pow -1 999) -1)
 (assert-throw (int-pow 99 99) { :tag :err-wrap-int })
-(assert-eq (int-pow 99 99 nil) nil)
 ```
 
 #### `(int-add-sat n m)`
@@ -427,7 +431,7 @@ Multiplies the int `n` with the int `m`, saturating at the numeric bounds instea
 (assert-eq (int-mul-sat int-min 2) int-min)
 ```
 
-#### `(int-pow-sat n m)` `(int-pow n m default)`
+#### `(int-pow-sat n m)`
 
 Computes the int `n` to the power of the positive int `m`, saturating at the numeric bounds instead of overflowing.
 
@@ -473,9 +477,11 @@ Muliplies the int `n` with the int `m`, wrapping around the numeric bounds inste
 (assert-eq (int-mul-wrap int-min -2) 0)
 ```
 
-#### `(int-div-wrap n m)` `(int-div-wrap n m default)`
+#### `(int-div-wrap n m)`
 
-Divides the int `n` by the int `m`, wrapping around the numeric bounds instead of overflowing. If `default` is not supplied, throws `{ :tag :err-zero }` if `m` is `0`. If `default` is supplied, returns `default` if `m` is `0`.
+Divides the int `n` by the int `m`, wrapping around the numeric bounds instead of overflowing.
+
+Throws `{ :tag :err-zero }` if `m` is `0`.
 
 This computes the quotient of [euclidean division](https://en.wikipedia.org/wiki/Euclidean_division).
 
@@ -484,12 +490,13 @@ This computes the quotient of [euclidean division](https://en.wikipedia.org/wiki
 (assert-eq (int-div-wrap -8 3) -3)
 (assert-eq (int-div-wrap int-min -1) int-min)
 (assert-throw (int-div-wrap 1 0) { :tag :err-zero })
-(assert-eq (int-div-wrap 1 0 nil) nil)
 ```
 
-#### `(int-div-trunc-wrap n m)` `(int-div-trunc-wrap n m default)`
+#### `(int-div-trunc-wrap n m)`
 
-Divides the int `n` by the int `m`, wrapping around the numeric bounds instead of overflowing. If `default` is not supplied, throws `{ :tag :err-zero }` if `m` is `0`. If `default` is supplied, returns `default` if `m` is `0`.
+Divides the int `n` by the int `m`, wrapping around the numeric bounds instead of overflowing.
+
+Throws `{ :tag :err-zero }` if `m` is `0`.
 
 This computes the quotient of [truncating division](https://en.wikipedia.org/w/index.php?title=Truncated_division).
 
@@ -498,12 +505,13 @@ This computes the quotient of [truncating division](https://en.wikipedia.org/w/i
 (assert-eq (int-div-trunc-wrap -8 3) -2)
 (assert-eq (int-div-trunc-wrap int-min -1) int-min)
 (assert-throw (int-div-trunc-wrap 1 0) { :tag :err-zero })
-(assert-eq (int-div-trunc-wrap 1 0 nil) nil)
 ```
 
-#### `(int-mod-wrap n m)` `(int-mod-wrap n m default)`
+#### `(int-mod-wrap n m)`
 
-Computes the int `n` modulo the int `m`, wrapping around the numeric bounds instead of overflowing. If `default` is not supplied, throws `{ :tag :err-zero }` if `m` is `0`. If `default` is supplied, returns `default` if `m` is `0`.
+Computes the int `n` modulo the int `m`, wrapping around the numeric bounds instead of overflowing.
+
+Throws `{ :tag :err-zero }` if `m` is `0`.
 
 This computes the remainder of [euclidean division](https://en.wikipedia.org/wiki/Euclidean_division).
 
@@ -512,12 +520,13 @@ This computes the remainder of [euclidean division](https://en.wikipedia.org/wik
 (assert-eq (int-mod-wrap -8 3) 1)
 (assert-eq (int-mod-wrap int-min -1) 0)
 (assert-throw (int-mod-wrap 1 0) { :tag :err-zero })
-(assert-eq (int-mod-wrap 1 0 nil) nil)
 ```
 
-#### `(int-mod-trunc-wrap n m)` `(int-mod-trunc-wrap n m default)`
+#### `(int-mod-trunc-wrap n m)`
 
-Computes the int `n` modulo the int `m`, wrapping around the numeric bounds instead of overflowing. If `default` is not supplied, throws `{ :tag :err-zero }` if `m` is `0`. If `default` is supplied, returns `default` if `m` is `0`.
+Computes the int `n` modulo the int `m`, wrapping around the numeric bounds instead of overflowing.
+
+Throws `{ :tag :err-zero }` if `m` is `0`.
 
 This computes the remainder of [truncating division](https://en.wikipedia.org/w/index.php?title=Truncated_division).
 
@@ -526,7 +535,6 @@ This computes the remainder of [truncating division](https://en.wikipedia.org/w/
 (assert-eq (int-mod-trunc-wrap -8 3) -2)
 (assert-eq (int-mod-trunc-wrap int-min -1) 0)
 (assert-throw (int-mod-trunc-wrap 1 0) { :tag :err-zero })
-(assert-eq (int-mod-trunc-wrap 1 0 nil) nil)
 ```
 
 #### `(int-neg-wrap n)`
@@ -540,7 +548,7 @@ Negates the int `n`, wrapping around the numeric bounds instead of overflowing.
 (assert-eq (int-neg int-min) int-min)
 ```
 
-#### `(int-abs-wrap n)` `(int-abs-wrap n default)`
+#### `(int-abs-wrap n)`
 
 Returns the absolute value of the int `n`, wrapping around the numeric bounds instead of overflowing.
 
@@ -551,7 +559,7 @@ Returns the absolute value of the int `n`, wrapping around the numeric bounds in
 (assert-eq (int-abs-wrap int-min) int-min)
 ```
 
-#### `(int-pow-wrap n m)` `(int-pow-wrap n m default)`
+#### `(int-pow-wrap n m)`
 
 Computes the int `n` to the power of the positive int `m`, wrapping around the numeric bounds instead of overflowing.
 
@@ -588,31 +596,26 @@ Time: O(1).
 (assert-eq (bytes-count @[0, 1, 2]) 3)
 ```
 
-#### `(bytes-get b index)` `(bytes-get b index default)`
+#### `(bytes-get b index)`
 
 Returns the byte at the int `index` in the bytes `b`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(bytes-count b)`.
 
 ```pavo
 (assert-eq (bytes-get @[42] 0) 42)
 (assert-throw (bytes-get [] 0) { :tag :err-lookup, :got 0})
-(assert-eq (bytes-get [] 0 nil) nil)
 ```
 
-#### `(bytes-insert b index new)` `(bytes-insert b index new default)`
+#### `(bytes-insert b index new)`
 
 Inserts the byte `new` into the bytes `b` at the index int `index`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
 Throws `{ :tag :err-not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
 Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
-
-If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log n), where n is `(bytes-count b)`.
 
@@ -621,18 +624,15 @@ Time: O(log n), where n is `(bytes-count b)`.
 (assert-eq (bytes-insert @[0 1] 1 42) [0 42 1])
 (assert-eq (bytes-insert @[0 1] 2 42) [0 1 42])
 (assert-throw (bytes-insert @[0 1] 3 42) { :tag :err-lookup, :got 3})
-(assert-eq (bytes-insert @[0 1] 3 42 nil) nil)
 (assert-throw (bytes-insert @[] 0 256) { :tag :err-not-byte, :got 256})
 (assert-throw (bytes-insert @[] 0 256 nil) { :tag :err-not-byte, :got 256})
 ```
 
-#### `(bytes-remove b index)` `(bytes-remove b index default)`
+#### `(bytes-remove b index)`
 
 Returns the bytes obtained by removing the byte at the index int `index` from the bytes `b`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(bytes-count b)`.
 
@@ -640,17 +640,14 @@ Time: O(log n), where n is `(bytes-count b)`.
 (assert-eq (bytes-remove @[0 1] 0) @[1])
 (assert-eq (bytes-remove @[0 1] 1) @[0])
 (assert-throw (bytes-remove @[0 1] 3) { :tag :err-lookup, :got 3})
-(assert-eq (bytes-remove @[0 1] 3 nil) nil)
 ```
 
-#### `(bytes-update b index new)` `(bytes-update b index new default)`
+#### `(bytes-update b index new)`
 
 Returns the bytes obtained by replacing the byte at the index int `index` in the bytes `b` with the byte `new`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
 Throws `{ :tag :err-not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
-
-If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log n), where n is `(bytes-count b)`.
 
@@ -658,20 +655,17 @@ Time: O(log n), where n is `(bytes-count b)`.
 (assert-eq (bytes-update @[0 1] 0 42) @[42 1])
 (assert-eq (bytes-update @[0 1] 1 42) @[0 42])
 (assert-throw (bytes-update @[0 1] 2 42) { :tag :err-lookup, :got 2})
-(assert-eq (bytes-update @[0 1] 2 42 nil) nil)
 (assert-throw (bytes-update @[] 0 256) { :tag :err-not-byte, :got 256})
 (assert-throw (bytes-update @[] 0 256 nil) { :tag :err-not-byte, :got 256})
 ```
 
-#### `(bytes-slice b start end)` `(bytes-slice b start end default)`
+#### `(bytes-slice b start end)`
 
 Returns a subsequence of the bytes `b`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
 
 Throws `{ :tag :err-lookup, :got end}` if `start` is greater than `end`.
 Throws `{ :tag :err-lookup, :got start}` if `start` is out of bounds.
 Throws `{ :tag :err-lookup, :got end}` if `end` is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(bytes-count b)`.
 
@@ -683,17 +677,14 @@ Time: O(log n), where n is `(bytes-count b)`.
 (assert-throw (bytes-slice @[] 0 1) { :tag :err-lookup, :got 1})
 (assert-throw (bytes-slice @[] 2 3) { :tag :err-lookup, :got 2})
 (assert-throw (bytes-slice @[0 1 2 3] 2 1) { :tag :err-lookup, :got 1})
-(assert-eq (bytes-slice @[] 0 1 nil) nil)
 ```
 
-#### `(bytes-splice old index new)` `(bytes-splice old index new default)`
+#### `(bytes-splice old index new)`
 
 Inserts the elements of the bytes `new` into the bytes `old`, starting at the index int `index`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds (of the `old` bytes).
 Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
-
-If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log (n + m)), where n is `(bytes-count old)` and m is `(bytes-count new)`.
 
@@ -702,7 +693,6 @@ Time: O(log (n + m)), where n is `(bytes-count old)` and m is `(bytes-count new)
 (assert-eq (bytes-splice @[0 1] @[10 11] 1) @[0 10 11 1])
 (assert-eq (bytes-splice @[0 1] @[10 11] 2) @[0 1 10 11])
 (assert-throw (bytes-splice @[0 1] @[10 11] 3) { :tag :err-lookup, :got 3})
-(assert-eq (bytes-splice @[0 1] @[10 11] 3 nil) nil)
 ```
 
 #### `(bytes-concat left right)`
@@ -773,13 +763,11 @@ Time: Amortized O(1) (amortized across `bytes-push-front` and `bytes-pop-front` 
 (assert-eq (bytes-push-front @[43] 42) @[42 43])
 ```
 
-#### `(bytes-front b)` `(bytes-front b default)`
+#### `(bytes-front b)`
 
 Returns the first byte in the bytes `b`.
 
 Throws `{ :tag :err-collection-empty }` if the bytes are empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(1)
 
@@ -787,16 +775,13 @@ Time: O(1)
 (assert-eq (bytes-front @[41 42]) 41)
 (assert-eq (bytes-front @[41]) 41)
 (assert-throw (bytes-front @[]) { :tag :err-collection-empty})
-(assert-eq (bytes-front @[] nil) nil)
 ```
 
-#### `(bytes-pop-front b)` `(bytes-pop-front b default)`
+#### `(bytes-pop-front b)`
 
 Returns all but the first bytes in the bytes `b`.
 
 Throws `{ :tag :err-collection-empty }` if the bytes are empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: Amortized O(1) (amortized across `bytes-push-front` and `bytes-pop-front` applications)
 
@@ -804,7 +789,6 @@ Time: Amortized O(1) (amortized across `bytes-push-front` and `bytes-pop-front` 
 (assert-eq (bytes-pop-front @[41 42]) @[42])
 (assert-eq (bytes-pop-front @[41]) @[])
 (assert-throw (bytes-pop-front @[]) { :tag :err-collection-empty})
-(assert-eq (bytes-pop-front @[] nil) nil)
 ```
 
 #### `(bytes-push-back b new)`
@@ -821,13 +805,11 @@ Time: Amortized O(1) (amortized across `bytes-push-back` and `bytes-pop-back` ap
 (assert-eq (bytes-push-back @[42] 41) @[42 41])
 ```
 
-#### `(bytes-back b)` `(bytes-back b default)`
+#### `(bytes-back b)`
 
 Returns the last byte in the bytes `b`.
 
 Throws `{ :tag :err-collection-empty }` if the bytes is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(1)
 
@@ -835,16 +817,13 @@ Time: O(1)
 (assert-eq (bytes-back @[41 42]) 42)
 (assert-eq (bytes-back @[41]) 41)
 (assert-throw (bytes-back @[]) { :tag :err-collection-empty})
-(assert-eq (bytes-back @[] nil) nil)
 ```
 
-#### `(bytes-pop-back b)` `(bytes-pop-back b default)`
+#### `(bytes-pop-back b)`
 
 Returns all but the last bytes in the bytes `b`.
 
 Throws `{ :tag :err-collection-empty }` if the bytes is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: Amortized O(1) (amortized across `bytes-push-back` and `bytes-pop-back` applications)
 
@@ -852,7 +831,6 @@ Time: Amortized O(1) (amortized across `bytes-push-back` and `bytes-pop-back` ap
 (assert-eq (bytes-pop-back @[41 42]) @[41])
 (assert-eq (bytes-pop-back @[41]) @[])
 (assert-throw (bytes-pop-back @[]) { :tag :err-collection-empty})
-(assert-eq (bytes-pop-back @[] nil) nil)
 ```
 
 ### Chars
@@ -865,18 +843,15 @@ The largest char (numerically the largest unicode scalar value).
 (assert-eq char-max '\{10ffff}')
 ```
 
-#### `(int=>char n)` `(int=>char n default)`
+#### `(int=>char n)`
 
 Returns the unicode scalar value denoted by the int `n`.
 
 Throws `{ :tag :err-not-unicode-scalar, :got n}` if `n` is `n` is not a unicode scalar value.
 
-If `default` is supplied, returns `default` instead of throwing.
-
 ```pavo
 (assert-eq (int=>char 0x41) 'A')
 (assert-throw (int=>char 0x110000) { :tag :err-not-unicode-scalar, :got 0x110000})
-(assert-eq (int=>char 0x110000 nil) nil)
 ```
 
 #### `(int=>char? n)`
@@ -926,13 +901,11 @@ Time: O(1).
 (assert-eq (str-count-utf8 "abc") 3)
 ``` -->
 
-#### `(str-get s index)` `(str-get s index default)`
+#### `(str-get s index)`
 
 Returns the char at the int `index` in the string `s`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(str-count s)`.
 
@@ -940,17 +913,14 @@ Time: O(log n), where n is `(str-count s)`.
 (assert-eq (str-get "a" 0) 'a')
 (assert-eq (str-get "⚗b" 1) 'b')
 (assert-throw (str-get "" 0) { :tag :err-lookup, :got 0})
-(assert-eq (str-get "" 0 nil) nil)
 ```
 
-#### `(str-insert s index c)` `(str-insert s index cdefault)`
+#### `(str-insert s index c)`
 
 Inserts the char `c` into the string `s` at the index int `index`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
 Throws `{ :tag :err-collection-full }` if the resulting string would contain 2^63 or more elements.
-
-If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log n), where n is `(str-count s)`.
 
@@ -959,16 +929,13 @@ Time: O(log n), where n is `(str-count s)`.
 (assert-eq (str-insert "ab" 1 'z') "azb")
 (assert-eq (str-insert "ab" 2 'z') "abz")
 (assert-throw (str-insert "ab" 3 'z') { :tag :err-lookup, :got 3})
-(assert-eq (str-insert "ab" 3 'z' nil) nil)
 ```
 
-#### `(str-remove s index)` `(str-remove s index default)`
+#### `(str-remove s index)`
 
 Returns the string obtained by removing the char at the index int `index` from the string `s`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(str-count s)`.
 
@@ -976,16 +943,13 @@ Time: O(log n), where n is `(str-count s)`.
 (assert-eq (str-remove "ab" 0) "b")
 (assert-eq (str-remove "ab" 1) "a")
 (assert-throw (str-remove "ab" 3) { :tag :err-lookup, :got 3})
-(assert-eq (str-remove "ab" 3 nil) nil)
 ```
 
-#### `(str-update s index c)` `(str-update s index c default)`
+#### `(str-update s index c)`
 
 Returns the string obtained by replacing the char at the index int `index` in the string `s` with the char `c`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log n), where n is `(str-count s)`.
 
@@ -993,18 +957,15 @@ Time: O(log n), where n is `(str-count s)`.
 (assert-eq (str-update "ab" 0 'z') "zb")
 (assert-eq (str-update "ab" 1 'z') "az")
 (assert-throw (str-update "ab" 2 'z') { :tag :err-lookup, :got 2})
-(assert-eq (str-update "ab" 2 'z' nil) nil)
 ```
 
-#### `(str-slice s start end)` `(str-slice s start end default)`
+#### `(str-slice s start end)`
 
 Returns a substring of the string `b`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
 
 Throws `{ :tag :err-lookup, :got end}` if `start` is greater than `end`.
 Throws `{ :tag :err-lookup, :got start}` if `start` is out of bounds.
 Throws `{ :tag :err-lookup, :got end}` if `end` is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(str-count s)`.
 
@@ -1016,17 +977,14 @@ Time: O(log n), where n is `(str-count s)`.
 (assert-throw (str-slice "" 0 1) { :tag :err-lookup, :got 1})
 (assert-throw (str-slice "" 2 3) { :tag :err-lookup, :got 2})
 (assert-throw (str-slice "abcd" 2 1) { :tag :err-lookup, :got 1})
-(assert-eq (str-slice "" 0 1 nil) nil)
 ```
 
-#### `(str-splice old index new)` `(str-splice old index new default)`
+#### `(str-splice old index new)`
 
 Inserts the string `new` into the string `old`, starting at the index int `index`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds (of the `old` bytes).
 Throws `{ :tag :err-collection-full }` if the resulting string would contain 2^63 or more elements.
-
-If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log (n + m)), where n is `(str-count old)` and m is `(str-count new)`.
 
@@ -1035,7 +993,6 @@ Time: O(log (n + m)), where n is `(str-count old)` and m is `(str-count new)`.
 (assert-eq (str-splice "ab" "cd" 1) "acdb")
 (assert-eq (str-splice "ab" "cd" 2) "abcd")
 (assert-throw (str-splice "ab" "cd" 3) { :tag :err-lookup, :got 3})
-(assert-eq (str-splice "ab" "cd" 3 nil) nil)
 ```
 
 #### `(str-concat left right)`
@@ -1098,13 +1055,11 @@ TODO
 
 ### Identifiers
 
-#### `(str=>id s)` `(str=>id s default)`
+#### `(str=>id s)`
 
 Returns an identifier created from the string `s`.
 
 Throws `{ :tag :err-identifier, :got s}` if it would not be a valid identifier (empty, longer than 255 characters, or containing invalid characters).
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(n) where n is `(str-count s)`.
 
@@ -1112,11 +1067,10 @@ Time: O(n) where n is `(str-count s)`.
 (assert-eq (str=>id "foo") $foo)
 (assert-eq (str=>id "nil") $nil)
 (assert-eq (str=>id "42") $42)
-(assert-throw (str=>id "") { :tag :err-kw, :got ""})
-(assert-throw (str=>id "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-kw, :got ""})
-(assert-throw (str=>id ":a") { :tag :err-kw, :got ":a"})
-(assert-throw (str=>id "ß") { :tag :err-kw, :got "ß"})
-(assert-eq (str=>id "ß" nil) nil)
+(assert-throw (str=>id "") { :tag :err-identifier, :got ""})
+(assert-throw (str=>id "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-identifier, :got ""})
+(assert-throw (str=>id ":a") { :tag :err-identifier, :got ":a"})
+(assert-throw (str=>id "ß") { :tag :err-identifier, :got "ß"})
 ```
 
 #### `(str=>id? s)`
@@ -1145,13 +1099,11 @@ Returns the string that corresponds to the given identfier `id.
 
 ### Keywords
 
-#### `(str=>kw s)` `(str=>kw s default)`
+#### `(str=>kw s)`
 
 Returns the keyword `<:s>` created from the string `s`.
 
 Throws `{ :tag :err-kw, :got s}` if it would not be a valid keyword (empty, longer than 255 characters, or containing invalid characters).
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(n) where n is `(str-count s)`.
 
@@ -1163,7 +1115,6 @@ Time: O(n) where n is `(str-count s)`.
 (assert-throw (str=>kw "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-kw, :got ""})
 (assert-throw (str=>kw ":a") { :tag :err-kw, :got ":a"})
 (assert-throw (str=>kw "ß") { :tag :err-kw, :got "ß"})
-(assert-eq (str=>kw "ß" nil) nil)
 ```
 
 #### `(str=>kw? s)`
@@ -1204,30 +1155,25 @@ Time: O(1).
 (assert-eq (arr-count [0, 1, 2]) 3)
 ```
 
-#### `(arr-get arr index)` `(arr-get arr index default)`
+#### `(arr-get arr index)`
 
 Returns the element at the int `index` in the array `arr`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(arr-count arr)`.
 
 ```pavo
 (assert-eq (arr-get [true] 0) true)
 (assert-throw (arr-get [] 0) { :tag :err-lookup, :got 0})
-(assert-eq (arr-get [] 0 nil) nil)
 ```
 
-#### `(arr-insert arr index new)` `(arr-insert arr index new default)`
+#### `(arr-insert arr index new)`
 
 Inserts the value `new` into the array `arr` at the index int `index`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
 Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63 or more elements.
-
-If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log n), where n is `(arr-count arr)`.
 
@@ -1236,16 +1182,13 @@ Time: O(log n), where n is `(arr-count arr)`.
 (assert-eq (arr-insert [0 1] 1 42) [0 42 1])
 (assert-eq (arr-insert [0 1] 2 42) [0 1 42])
 (assert-throw (arr-insert [0 1] 3 42) { :tag :err-lookup, :got 3})
-(assert-eq (arr-insert [0 1] 3 42 nil) nil)
 ```
 
-#### `(arr-remove arr index)` `(arr-remove arr index default)`
+#### `(arr-remove arr index)`
 
 Returns the array obtained by removing the element at the index int `index` from the array `arr`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(arr-count arr)`.
 
@@ -1253,16 +1196,13 @@ Time: O(log n), where n is `(arr-count arr)`.
 (assert-eq (arr-remove [0 1] 0) [1])
 (assert-eq (arr-remove [0 1] 1) [0])
 (assert-throw (arr-remove [0 1] 3) { :tag :err-lookup, :got 3})
-(assert-eq (arr-remove [0 1] 3 nil) nil)
 ```
 
-#### `(arr-update arr index new)` `(arr-update arr index new default)`
+#### `(arr-update arr index new)`
 
 Returns the array obtained by replacing the element at the index int `index` in the array `arr` with the value `new`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(arr-count arr)`.
 
@@ -1270,18 +1210,15 @@ Time: O(log n), where n is `(arr-count arr)`.
 (assert-eq (arr-update [0 1] 0 42) [42 1])
 (assert-eq (arr-update [0 1] 1 42) [0 42])
 (assert-throw (arr-update [0 1] 2 42) { :tag :err-lookup, :got 2})
-(assert-eq (arr-update [0 1] 2 42 nil) nil)
 ```
 
-#### `(arr-slice arr start end)` `(arr-slice arr start end default)`
+#### `(arr-slice arr start end)`
 
 Returns an array containing a subsequence of the elements of the array `arr`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
 
 Throws `{ :tag :err-lookup, :got end}` if `start` is greater than `end`.
 Throws `{ :tag :err-lookup, :got start}` if `start` is out of bounds.
 Throws `{ :tag :err-lookup, :got end}` if `end` is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(arr-count arr)`.
 
@@ -1293,17 +1230,14 @@ Time: O(log n), where n is `(arr-count arr)`.
 (assert-throw (arr-slice [] 0 1) { :tag :err-lookup, :got 1})
 (assert-throw (arr-slice [] 2 3) { :tag :err-lookup, :got 2})
 (assert-throw (arr-slice [0 1 2 3] 2 1) { :tag :err-lookup, :got 1})
-(assert-eq (arr-slice [] 0 1 nil) nil)
 ```
 
-#### `(arr-splice old index new)` `(arr-splice old index new default)`
+#### `(arr-splice old index new)`
 
 Inserts the elements of the array `new` into the array `old`, starting at the index int `index`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds (of the `old` array).
 Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63 or more elements.
-
-If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log (n + m)), where n is `(arr-count old)` and m is `(arr-count new)`.
 
@@ -1312,7 +1246,6 @@ Time: O(log (n + m)), where n is `(arr-count old)` and m is `(arr-count new)`.
 (assert-eq (arr-splice [0 1] [10 11] 1) [0 10 11 1])
 (assert-eq (arr-splice [0 1] [10 11] 2) [0 1 10 11])
 (assert-throw (arr-splice [0 1] [10 11] 3) { :tag :err-lookup, :got 3})
-(assert-eq (arr-splice [0 1] [10 11] 3 nil) nil)
 ```
 
 #### `(arr-concat left right)`
@@ -1382,13 +1315,11 @@ Time: Amortized O(1) (amortized across `arr-push-front` and `arr-pop-front` appl
 (assert-eq (arr-push-front [false] true) [true false])
 ```
 
-#### `(arr-front arr)` `(arr-front arr default)`
+#### `(arr-front arr)`
 
 Returns the first element in array `arr`.
 
 Throws `{ :tag :err-collection-empty }` if the array is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(1)
 
@@ -1396,16 +1327,13 @@ Time: O(1)
 (assert-eq (arr-front [true false]) true)
 (assert-eq (arr-front [true]) true)
 (assert-throw (arr-front []) { :tag :err-collection-empty})
-(assert-eq (arr-front [] nil) nil)
 ```
 
-#### `(arr-pop-front arr)` `(arr-pop-front arr default)`
+#### `(arr-pop-front arr)`
 
 Returns all but the first elements in array `arr`.
 
 Throws `{ :tag :err-collection-empty }` if the array is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: Amortized O(1) (amortized across `arr-push-front` and `arr-pop-front` applications)
 
@@ -1413,7 +1341,6 @@ Time: Amortized O(1) (amortized across `arr-push-front` and `arr-pop-front` appl
 (assert-eq (arr-pop-front [true false]) [false])
 (assert-eq (arr-pop-front [true]) [])
 (assert-throw (arr-pop-front []) { :tag :err-collection-empty})
-(assert-eq (arr-pop-front [] nil) nil)
 ```
 
 #### `(arr-push-back arr new)`
@@ -1429,13 +1356,11 @@ Time: Amortized O(1) (amortized across `arr-push-back` and `arr-pop-back` applic
 (assert-eq (arr-push-back [false] true) [false true])
 ```
 
-#### `(arr-back arr)` `(arr-back arr default)`
+#### `(arr-back arr)`
 
 Returns the last element in array `arr`.
 
 Throws `{ :tag :err-collection-empty }` if the array is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(1)
 
@@ -1443,16 +1368,13 @@ Time: O(1)
 (assert-eq (arr-back [true false]) false)
 (assert-eq (arr-back [true]) true)
 (assert-throw (arr-back []) { :tag :err-collection-empty})
-(assert-eq (arr-back [] nil) nil)
 ```
 
-#### `(arr-pop-back arr)` `(arr-pop-back arr default)`
+#### `(arr-pop-back arr)`
 
 Returns all but the last elements in array `arr`.
 
 Throws `{ :tag :err-collection-empty }` if the array is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: Amortized O(1) (amortized across `arr-push-back` and `arr-pop-back` applications)
 
@@ -1460,7 +1382,6 @@ Time: Amortized O(1) (amortized across `arr-push-back` and `arr-pop-back` applic
 (assert-eq (arr-pop-back [true false]) [true])
 (assert-eq (arr-pop-back [true]) [])
 (assert-throw (arr-pop-back []) { :tag :err-collection-empty})
-(assert-eq (arr-pop-back [] nil) nil)
 ```
 
 ### Applications
@@ -1477,30 +1398,25 @@ Time: O(1).
 (assert-eq (app-count $(0, 1, 2)) 3)
 ```
 
-#### `(app-get app index)` `(app-get app index default)`
+#### `(app-get app index)`
 
 Returns the element at the int `index` in the application `app`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(app-count app)`.
 
 ```pavo
 (assert-eq (app-get $(true) 0) true)
 (assert-throw (app-get $() 0) { :tag :err-lookup, :got 0})
-(assert-eq (app-get $() 0 nil) nil)
 ```
 
-#### `(app-insert app index new)` `(app-insert app index new default)`
+#### `(app-insert app index new)`
 
 Inserts the value `new` into the application `app` at the index int `index`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
 Throws `{ :tag :err-collection-full }` if the resulting application would contain 2^63 or more elements.
-
-If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log n), where n is `(app-count app)`.
 
@@ -1509,16 +1425,13 @@ Time: O(log n), where n is `(app-count app)`.
 (assert-eq (app-insert $(0 1) 1 42) $(0 42 1))
 (assert-eq (app-insert $(0 1) 2 42) $(0 1 42))
 (assert-throw (app-insert $(0 1) 3 42) { :tag :err-lookup, :got 3})
-(assert-eq (app-insert $(0 1) 3 42 nil) nil)
 ```
 
-#### `(app-remove app index)` `(app-remove app index default)`
+#### `(app-remove app index)`
 
 Returns the application obtained by removing the element at the index int `index` from the application `app`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(app-count app)`.
 
@@ -1526,16 +1439,13 @@ Time: O(log n), where n is `(app-count app)`.
 (assert-eq (app-remove $(0 1) 0) $(1))
 (assert-eq (app-remove $(0 1) 1) $(0))
 (assert-throw (app-remove $(0 1) 3) { :tag :err-lookup, :got 3})
-(assert-eq (app-remove $(0 1) 3 nil) nil)
 ```
 
-#### `(app-update app index new)` `(app-update app index new default)`
+#### `(app-update app index new)`
 
 Returns the application obtained by replacing the element at the index int `index` in the application `app` with the value `new`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(app-count app)`.
 
@@ -1543,18 +1453,15 @@ Time: O(log n), where n is `(app-count app)`.
 (assert-eq (app-update $(0 1) 0 42) $(42 1))
 (assert-eq (app-update $(0 1) 1 42) $(0 42))
 (assert-throw (app-update $(0 1) 2 42) { :tag :err-lookup, :got 2})
-(assert-eq (app-update $(0 1) 2 42 nil) nil)
 ```
 
-#### `(app-slice app start end)` `(app-slice app start end default)`
+#### `(app-slice app start end)`
 
 Returns an application containing a subsequence of the elements of the application `app`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
 
 Throws `{ :tag :err-lookup, :got end}` if `start` is greater than `end`.
 Throws `{ :tag :err-lookup, :got start}` if `start` is out of bounds.
 Throws `{ :tag :err-lookup, :got end}` if `end` is out of bounds.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(app-count app)`.
 
@@ -1566,17 +1473,14 @@ Time: O(log n), where n is `(app-count app)`.
 (assert-throw (app-slice $() 0 1) { :tag :err-lookup, :got 1})
 (assert-throw (app-slice $() 2 3) { :tag :err-lookup, :got 2})
 (assert-throw (app-slice $(0 1 2 3) 2 1) { :tag :err-lookup, :got 1})
-(assert-eq (app-slice $() 0 1 nil) nil)
 ```
 
-#### `(app-splice old index new)` `(app-splice old index new default)`
+#### `(app-splice old index new)`
 
 Inserts the elements of the application `new` into the application `old`, starting at the index int `index`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds (of the `old` application).
 Throws `{ :tag :err-collection-full }` if the resulting application would contain 2^63 or more elements.
-
-If `default` is supplied, returns `default` instead of throwing a lookup error.
 
 Time: O(log (n + m)), where n is `(app-count old)` and m is `(app-count new)`.
 
@@ -1585,7 +1489,6 @@ Time: O(log (n + m)), where n is `(app-count old)` and m is `(app-count new)`.
 (assert-eq (app-splice $(0 1) $(10 11) 1) $(0 10 11 1))
 (assert-eq (app-splice $(0 1) $(10 11) 2) $(0 1 10 11))
 (assert-throw (app-splice $(0 1) $(10 11) 3) { :tag :err-lookup, :got 3})
-(assert-eq (app-splice $(0 1) $(10 11) 3 nil) nil)
 ```
 
 #### `(app-concat left right)`
@@ -1655,13 +1558,11 @@ Time: Amortized O(1) (amortized across `app-push-front` and `app-pop-front` appl
 (assert-eq (app-push-front $(false) true) $(true false))
 ```
 
-#### `(app-front app)` `(app-front app default)`
+#### `(app-front app)`
 
 Returns the first element in application `app`.
 
 Throws `{ :tag :err-collection-empty }` if the application is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(1)
 
@@ -1669,16 +1570,13 @@ Time: O(1)
 (assert-eq (app-front $(true false)) true)
 (assert-eq (app-front $(true)) true)
 (assert-throw (app-front $()) { :tag :err-collection-empty})
-(assert-eq (app-front $() nil) nil)
 ```
 
-#### `(app-pop-front app)` `(app-pop-front app default)`
+#### `(app-pop-front app)`
 
 Returns all but the first elements in application `app`.
 
 Throws `{ :tag :err-collection-empty }` if the application is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: Amortized O(1) (amortized across `app-push-front` and `app-pop-front` applications)
 
@@ -1686,7 +1584,6 @@ Time: Amortized O(1) (amortized across `app-push-front` and `app-pop-front` appl
 (assert-eq (app-pop-front $(true false)) $(false))
 (assert-eq (app-pop-front $(true)) $())
 (assert-throw (app-pop-front $()) { :tag :err-collection-empty})
-(assert-eq (app-pop-front $() nil) nil)
 ```
 
 #### `(app-push-back app new)`
@@ -1702,13 +1599,11 @@ Time: Amortized O(1) (amortized across `app-push-back` and `app-pop-back` applic
 (assert-eq (app-push-back $(false) true) $(false true))
 ```
 
-#### `(app-back app)` `(app-back app default)`
+#### `(app-back app)`
 
 Returns the last element in application `app`.
 
 Throws `{ :tag :err-collection-empty }` if the application is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(1)
 
@@ -1716,16 +1611,13 @@ Time: O(1)
 (assert-eq (app-back $(true false)) false)
 (assert-eq (app-back $(true)) true)
 (assert-throw (app-back $()) { :tag :err-collection-empty})
-(assert-eq (app-back $() nil) nil)
 ```
 
-#### `(app-pop-back app)` `(app-pop-back app default)`
+#### `(app-pop-back app)`
 
 Returns all but the last elements in application `app`.
 
 Throws `{ :tag :err-collection-empty }` if the application is empty.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: Amortized O(1) (amortized across `app-push-back` and `app-pop-back` applications)
 
@@ -1733,7 +1625,6 @@ Time: Amortized O(1) (amortized across `app-push-back` and `app-pop-back` applic
 (assert-eq (app-pop-back $(true false)) $(true))
 (assert-eq (app-pop-back $(true)) $())
 (assert-throw (app-pop-back $()) { :tag :err-collection-empty})
-(assert-eq (app-pop-back $() nil) nil)
 ```
 
 ### Sets
@@ -1762,36 +1653,30 @@ Time: O(log n), where n is `(set-count set)`.
 (assert-eq (set-contains? @{} nil) false)
 ```
 
-#### `(set-min set)` `(set-min set default)`
+#### `(set-min set)`
 
 Returns the minimal element in the set `set`.
 
 Throws `{ :tag :err-collection-empty }` if `set` is the empty set.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(set-count set)`.
 
 ```pavo
 (assert-eq (set-min @{ 4 3 }) 3)
 (assert-throw (set-min @{}) { :tag :err-collection-empty })
-(assert-eq (set-min @{} nil) nil)
 ```
 
-#### `(set-max set)` `(set-max set default)`
+#### `(set-max set)`
 
 Returns the maximal element in the set `set`.
 
 Throws `{ :tag :err-collection-empty }` if `set` is the empty set.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(set-count set)`.
 
 ```pavo
 (assert-eq (set-max @{ 4 3 }) 4)
 (assert-throw (set-max @{}) { :tag :err-collection-empty })
-(assert-eq (set-max @{} nil) nil)
 ```
 
 #### `(set-insert set new)`
@@ -1926,20 +1811,17 @@ Time: O(1).
 (assert-eq (map-count {0 42, 1 41, 2 40}) 3)
 ```
 
-#### `(map-get map key)` `(map-get map key default)`
+#### `(map-get map key)`
 
 Returns the value associated with the key `key` in the map `map`.
 
 Throws `{ :tag :err-lookup, :got key}` if the map contains no entry with this key.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
 (assert-eq (map-get {0 42} 0) 42)
 (assert-throw (map-get {} 0) { :tag :err-lookup, :got 0})
-(assert-eq (map-get {} 0 nil) nil)
 ```
 
 #### `(map-contains? map key)`
@@ -1954,100 +1836,82 @@ Time: O(log n), where n is `(map-count map)`.
 (assert-eq (map-contains? {} nil) false)
 ```
 
-#### `(map-min map)` `(map-min map default)`
+#### `(map-min map)`
 
 Returns the value of the entry with the minimal key in the map `map`.
 
 Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
 (assert-eq (map-min @{0 42, 1 41}) 42)
 (assert-throw (map-min {}) { :tag :err-collection-empty })
-(assert-eq (map-min {} nil) nil)
 ```
 
-#### `(map-min-key map)` `(map-min-key map default)`
+#### `(map-min-key map)`
 
 Returns the minimal key in the map `map`.
 
 Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
 (assert-eq (map-min-key @{0 42, 1 41}) 0)
 (assert-throw (map-min-key {}) { :tag :err-collection-empty })
-(assert-eq (map-min-key {} nil) nil)
 ```
 
-#### `(map-min-entry map)` `(map-min-entry map default)`
+#### `(map-min-entry map)`
 
 Returns the entry with the minimal key in the map `map`, as an array `[key value]`.
 
 Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
 (assert-eq (map-min-entry @{0 42, 1 41}) [0 42])
 (assert-throw (map-min-entry {}) { :tag :err-collection-empty })
-(assert-eq (map-min-entry {} nil) nil)
 ```
 
-#### `(map-max map)` `(map-max map default)`
+#### `(map-max map)`
 
 Returns the value of the entry with the maximal key in the map `map`.
 
 Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
 (assert-eq (map-max @{0 42, 1 41}) 41)
 (assert-throw (map-max {}) { :tag :err-collection-empty })
-(assert-eq (map-max {} nil) nil)
 ```
 
-#### `(map-max-key map)` `(map-max-key map default)`
+#### `(map-max-key map)`
 
 Returns the maximal key in the map `map`.
 
 Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
 (assert-eq (map-max-key @{0 42, 1 41}) 1)
 (assert-throw (map-max-key {}) { :tag :err-collection-empty })
-(assert-eq (map-max-key {} nil) nil)
 ```
 
-#### `(map-max-entry map)` `(map-max-entry map default)`
+#### `(map-max-entry map)`
 
 Returns the entry with the maximal key in the map `map`, as an array `[key value]`.
 
 Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
-
-If `default` is supplied, returns `default` instead of throwing.
 
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
 (assert-eq (map-max-entry @{0 42, 1 41}) [1 41])
 (assert-throw (map-max-entry {}) { :tag :err-collection-empty })
-(assert-eq (map-max-entry {} nil) nil)
 ```
 
 #### `(map-insert map key value)`
@@ -2248,7 +2112,7 @@ TODO
 
 ### Code as Data
 
-#### (read s)
+#### `(read s)`
 
 If the string `s` is a pavo expression, returns the value denoted by that expression.
 
@@ -2262,7 +2126,7 @@ Time: O(n), where n is `(string-count <prefix>)`, where `<prefix>` is the longes
 (assert-throw (read "(a) b") { :tag :err-not-expression })
 ```
 
-#### (read-prefix)
+#### `(read-prefix)`
 
 If a prefix of the string `s` is a pavo expression, returns `{ :expression <expr>, :suffix <suffix>}` where `<expr>` is the value denoted by that expression and `<suffix>` is the remainder of the string.
 
@@ -2276,7 +2140,7 @@ Time: O(n), where n is `(string-count <prefix>)`, where `<prefix>` is the longes
 (assert-throw (read-str "(a) b") {:expression $(a), :suffix " b"})
 ```
 
-#### (write v)
+#### `(write v)`
 
 Returns a string `s` such that `(read s)` equals the value `v`. The precise definition is given at the end of this document.
 
