@@ -702,12 +702,12 @@ pub fn bytes_concat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::bytes(Vector(ret)))
 }
 
-pub fn bytes_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn bytes_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let b = bytes!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for elem in b.0.iter() {
-        match fun.apply(&Value::arr_from_vec(vec![Value::int(*elem as i64)])) {
+        match fun.apply(&Value::arr_from_vec(vec![Value::int(*elem as i64)]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -720,12 +720,12 @@ pub fn bytes_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::nil())
 }
 
-pub fn bytes_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn bytes_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let b = bytes!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for elem in b.0.iter().rev() {
-        match fun.apply(&Value::arr_from_vec(vec![Value::int(*elem as i64)])) {
+        match fun.apply(&Value::arr_from_vec(vec![Value::int(*elem as i64)]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -911,12 +911,12 @@ pub fn str_concat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::string(Rope(ret)))
 }
 
-pub fn str_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn str_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let s = string!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for elem in s.0.chars() {
-        match fun.apply(&Value::arr_from_vec(vec![Value::char_(elem)])) {
+        match fun.apply(&Value::arr_from_vec(vec![Value::char_(elem)]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -929,13 +929,13 @@ pub fn str_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::nil())
 }
 
-pub fn str_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn str_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     unimplemented!(); // TODO https://github.com/cessen/ropey/issues/18
     // let s = string!(arg!(args, 0));
     // let fun = fun!(arg!(args, 1));
     //
     // for elem in s.0.chars().rev() {
-    //     match fun.apply(&Value::arr_from_vec(vec![Value::char_(elem)])) {
+    //     match fun.apply(&Value::arr_from_vec(vec![Value::char_(elem)]), cx) {
     //         Ok(yay) => {
     //             if yay.truthy() {
     //                 return Ok(Value::nil());
@@ -1106,12 +1106,12 @@ pub fn arr_concat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::arr(Vector(ret)))
 }
 
-pub fn arr_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn arr_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let arr = arr!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for elem in arr.0.iter() {
-        match fun.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+        match fun.apply(&Value::arr_from_vec(vec![elem.clone()]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1124,12 +1124,12 @@ pub fn arr_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::nil())
 }
 
-pub fn arr_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn arr_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let arr = arr!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for elem in arr.0.iter().rev() {
-        match fun.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+        match fun.apply(&Value::arr_from_vec(vec![elem.clone()]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1292,12 +1292,12 @@ pub fn app_concat(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::app(Vector(ret)))
 }
 
-pub fn app_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn app_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let app = app!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for elem in app.0.iter() {
-        match fun.apply(&Value::app_from_vec(vec![elem.clone()])) {
+        match fun.apply(&Value::app_from_vec(vec![elem.clone()]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1310,12 +1310,12 @@ pub fn app_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::nil())
 }
 
-pub fn app_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn app_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let app = app!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for elem in app.0.iter().rev() {
-        match fun.apply(&Value::app_from_vec(vec![elem.clone()])) {
+        match fun.apply(&Value::app_from_vec(vec![elem.clone()]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1484,12 +1484,12 @@ pub fn set_symmetric_difference(args: Value, _cx: &mut Context) -> Result<Value,
     Ok(Value::set(OrdSet(ret)))
 }
 
-pub fn set_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn set_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let set = set!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for elem in set.0.iter() {
-        match fun.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+        match fun.apply(&Value::arr_from_vec(vec![elem.clone()]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1502,12 +1502,12 @@ pub fn set_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::nil())
 }
 
-pub fn set_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn set_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let set = set!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for elem in set.0.iter().rev() {
-        match fun.apply(&Value::arr_from_vec(vec![elem.clone()])) {
+        match fun.apply(&Value::arr_from_vec(vec![elem.clone()]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1661,12 +1661,12 @@ pub fn map_symmetric_difference(args: Value, _cx: &mut Context) -> Result<Value,
     Ok(Value::map(OrdMap(ret)))
 }
 
-pub fn map_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn map_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let map = map!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for entry in map.0.iter() {
-        match fun.apply(&Value::arr_from_vec(vec![entry.0.clone(), entry.1.clone()])) {
+        match fun.apply(&Value::arr_from_vec(vec![entry.0.clone(), entry.1.clone()]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1679,12 +1679,12 @@ pub fn map_iter(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::nil())
 }
 
-pub fn map_iter_back(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+pub fn map_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let map = map!(arg!(args, 0));
     let fun = fun!(arg!(args, 1));
 
     for entry in map.0.iter().rev() {
-        match fun.apply(&Value::arr_from_vec(vec![entry.0.clone(), entry.1.clone()])) {
+        match fun.apply(&Value::arr_from_vec(vec![entry.0.clone(), entry.1.clone()]), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());

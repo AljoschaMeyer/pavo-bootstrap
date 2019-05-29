@@ -5,6 +5,7 @@
 pub struct Context {
     symbol_id: u64,
     fun_id: u64,
+    level: usize,
 }
 
 impl Context {
@@ -12,6 +13,7 @@ impl Context {
         Context {
             symbol_id: 0,
             fun_id: 0,
+            level: 0, // no semantic effect, only for debugging information
         }
     }
 
@@ -29,5 +31,13 @@ impl Context {
         let old = self.fun_id;
         self.fun_id = self.fun_id.checked_add(1).expect("function id counter overflow");
         return old;
+    }
+
+    pub fn inc_level(&mut self) {
+        self.level += 1;
+    }
+
+    pub fn dec_level(&mut self) {
+        self.level -= 1;
     }
 }

@@ -2,6 +2,7 @@
 #![feature(euclidean_division)]
 
 use nom::types::CompleteStr;
+use im_rc::OrdMap as ImOrdMap;
 
 mod builtins;
 mod check;
@@ -19,7 +20,9 @@ use check::{check, StaticError};
 use context::Context;
 use env::Env;
 use eval::eval;
-use value::Value;
+use expand::{expand, ExpandError};
+use gc_foreign::OrdMap;
+use value::{Id, Value};
 use read::{read, ParseError};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -38,6 +41,44 @@ impl From<StaticError> for Error {
     fn from(err: StaticError) -> Self {
         Error::Static(err)
     }
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum E {
+    Expand(ExpandError),
+    Static(StaticError),
+    Eval(Value),
+}
+
+impl From<StaticError> for E {
+    fn from(err: StaticError) -> Self {
+        E::Static(err)
+    }
+}
+
+impl From<ExpandError> for E {
+    fn from(err: ExpandError) -> Self {
+        E::Expand(err)
+    }
+}
+
+impl From<Value> for E {
+    fn from(err: Value) -> Self {
+        E::Eval(err)
+    }
+}
+
+pub fn expand_check_eval(
+    v: &Value,
+    m_env: Env,
+    macros: &ImOrdMap<Id, Value>,
+    env: Env,
+    cx: &mut Context,
+) -> Result<Value, E> {
+    let expanded = expand::expand(v, m_env, macros, cx)?;
+    let _ = check(&expanded, &env)?;
+    let yay = eval(expanded, env, cx)?;
+    Ok(yay)
 }
 
 pub fn execute(src: &str) -> Result<Result<Value, Value>, Error> {

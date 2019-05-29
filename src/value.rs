@@ -17,6 +17,7 @@ use im_rc::{
 };
 use ropey::Rope as Ropey;
 
+use crate::builtins::type_error;
 use crate::context::Context;
 use crate::env::Env;
 use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
@@ -196,6 +197,20 @@ impl Value {
         }
     }
 
+    pub fn as_arr(&self) -> Option<&Vector<Value>> {
+        match self {
+            Value::Arr(arr) => Some(arr),
+            _ => None,
+        }
+    }
+
+    pub fn as_map(&self) -> Option<&OrdMap<Value, Value>> {
+        match self {
+            Value::Map(map) => Some(map),
+            _ => None,
+        }
+    }
+
     pub fn truthy(&self) -> bool {
         match self {
             Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(false)) => false,
@@ -237,7 +252,7 @@ pub struct Fun {
 }
 
 impl Fun {
-    pub fn apply(&self, args: &Value) -> Result<Value, Value> {
+    pub fn apply(&self, args: &Value, cx: &mut Context) -> Result<Value, Value> {
         unimplemented!()
     }
 }
