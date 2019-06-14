@@ -1,4 +1,4 @@
-use im_rc::{OrdMap as ImOrdMap};
+use im_rc::{OrdMap as ImOrdMap, Vector as ImVector};
 use ropey::Rope as Ropey;
 use nom::types::CompleteStr;
 
@@ -25,6 +25,14 @@ pub fn typeof__(v: &Value) -> Value {
         Value::Map(..) => Value::kw_str("map"),
         Value::Set(..) => Value::kw_str("set"),
     }
+}
+
+pub fn num_args_error(expected: usize, got: usize) -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-num-args")),
+            (Value::kw_str("expected"), Value::int(expected as i64)),
+            (Value::kw_str("got"), Value::int(got as i64)),
+        ])))
 }
 
 pub fn coll_full_error() -> Value {
@@ -707,7 +715,7 @@ pub fn bytes_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for elem in b.0.iter() {
-        match fun.apply(&Value::arr_from_vec(vec![Value::int(*elem as i64)]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![Value::int(*elem as i64)])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -725,7 +733,7 @@ pub fn bytes_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for elem in b.0.iter().rev() {
-        match fun.apply(&Value::arr_from_vec(vec![Value::int(*elem as i64)]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![Value::int(*elem as i64)])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -916,7 +924,7 @@ pub fn str_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for elem in s.0.chars() {
-        match fun.apply(&Value::arr_from_vec(vec![Value::char_(elem)]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![Value::char_(elem)])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1111,7 +1119,7 @@ pub fn arr_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for elem in arr.0.iter() {
-        match fun.apply(&Value::arr_from_vec(vec![elem.clone()]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1129,7 +1137,7 @@ pub fn arr_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for elem in arr.0.iter().rev() {
-        match fun.apply(&Value::arr_from_vec(vec![elem.clone()]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1297,7 +1305,7 @@ pub fn app_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for elem in app.0.iter() {
-        match fun.apply(&Value::app_from_vec(vec![elem.clone()]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1315,7 +1323,7 @@ pub fn app_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for elem in app.0.iter().rev() {
-        match fun.apply(&Value::app_from_vec(vec![elem.clone()]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1489,7 +1497,7 @@ pub fn set_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for elem in set.0.iter() {
-        match fun.apply(&Value::arr_from_vec(vec![elem.clone()]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1507,7 +1515,7 @@ pub fn set_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for elem in set.0.iter().rev() {
-        match fun.apply(&Value::arr_from_vec(vec![elem.clone()]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1666,7 +1674,7 @@ pub fn map_iter(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for entry in map.0.iter() {
-        match fun.apply(&Value::arr_from_vec(vec![entry.0.clone(), entry.1.clone()]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![entry.0.clone(), entry.1.clone()])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());
@@ -1684,7 +1692,7 @@ pub fn map_iter_back(args: Value, cx: &mut Context) -> Result<Value, Value> {
     let fun = fun!(arg!(args, 1));
 
     for entry in map.0.iter().rev() {
-        match fun.apply(&Value::arr_from_vec(vec![entry.0.clone(), entry.1.clone()]), cx) {
+        match fun.compute(Vector(ImVector::from(vec![entry.0.clone(), entry.1.clone()])), cx) {
             Ok(yay) => {
                 if yay.truthy() {
                     return Ok(Value::nil());

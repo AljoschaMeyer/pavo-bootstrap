@@ -15,7 +15,13 @@ pub enum SpecialForm<'a> {
     If(&'a Value, &'a Value, &'a Value),
     Throw(&'a Value),
     Try(&'a Value, bool, &'a Id, &'a Value),
-    LetFn(Vec<(&'a Id, bool, &'a Id, &'a Value)>, &'a Value),
+    LetFn(Vec<(&'a Id, Args<'a>, &'a Value)>, &'a Value),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+pub enum Args<'a> {
+    All(bool, &'a Id),
+    Destructured(Vec<(bool, &'a Id)>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
@@ -125,13 +131,33 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
                             Some(name) => name,
                             None => return Err(SpecialFormSyntaxError::FnName(fun_def.0[0].clone())),
                         };
-                        let (mutable, id) = mut_id(&fun_def.0, 1, FormType::LetFn)?;
-                        if !mutable && fun_def.0.len() == 4 {
-                            return Err(SpecialFormSyntaxError::Arity(FormType::LetFn, fun_def.0.len()));
-                        }
-                        let cont = &fun_def.0[if mutable { 3 } else { 2 }];
 
-                        funs.push((name, mutable, id, cont));
+                        match fun_def.0[1].as_arr() {
+                            Some(args_arr) => {
+                                let mut args = vec![];
+
+                                let mut i = 0;
+                                while i < args_arr.0.len() {
+                                    let (mutable, id) = mut_id(&fun_def.0, i, FormType::LetFn)?;
+                                    args.push((mutable, id));
+                                    i += if mutable { 2 } else { 1 };
+                                }
+
+                                let cont = &fun_def.0[2];
+
+                                funs.push((name, Args::Destructured(args), cont));
+                            }
+
+                            None => {
+                                let (mutable, id) = mut_id(&fun_def.0, 1, FormType::LetFn)?;
+                                if !mutable && fun_def.0.len() == 4 {
+                                    return Err(SpecialFormSyntaxError::Arity(FormType::LetFn, fun_def.0.len()));
+                                }
+                                let cont = &fun_def.0[if mutable { 3 } else { 2 }];
+
+                                funs.push((name, Args::All(mutable, id), cont));
+                            }
+                        }
                     }
                     None => return Err(SpecialFormSyntaxError::LetFnNoParens(exp.clone())),
                 }

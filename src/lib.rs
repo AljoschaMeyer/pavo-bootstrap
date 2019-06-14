@@ -6,6 +6,7 @@ use im_rc::OrdMap as ImOrdMap;
 
 mod builtins;
 mod check;
+mod compile;
 mod context;
 mod env;
 mod eval;
@@ -14,7 +15,7 @@ mod gc_foreign;
 mod special_forms;
 mod value;
 mod read;
-mod toplevel;
+mod vm;
 
 use check::{check, StaticError};
 use context::Context;

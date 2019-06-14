@@ -5,10 +5,12 @@
 //! - All special forms are well-formed.
 //! - The `set!` special form only mutates mutable bindings.
 
+use std::collections::HashMap;
+
 use im_rc::OrdMap;
 
 use crate::env::Env;
-use crate::special_forms::{SpecialForm, SpecialFormSyntaxError, special};
+use crate::special_forms::{SpecialForm, Args, SpecialFormSyntaxError, special};
 use crate::value::{Value, Id};
 
 /// All the things the syntax checker disallows.
@@ -31,6 +33,14 @@ pub fn check(v: &Value, env: &Env) -> Result<(), StaticError> {
     let mut bindings = OrdMap::new();
     for id in (env.0).0.keys() {
         bindings.insert(id.clone(), false);
+    }
+    do_check(v, &bindings)
+}
+
+pub fn check_toplevel(v: &Value, env: &HashMap<String, Value>) -> Result<(), StaticError> {
+    let mut bindings = OrdMap::new();
+    for id in env.keys() {
+        bindings.insert(Id::user(id), false);
     }
     do_check(v, &bindings)
 }
@@ -109,8 +119,19 @@ fn do_check(
                                 inner_bindings = inner_bindings.update((*name).clone(), false);
                             }
 
-                            for (_, mutable, bound, body) in funs.iter() {
-                                let _ = do_check(body, &inner_bindings.update((*bound).clone(), *mutable))?;
+                            for (_, args, body) in funs.iter() {
+                                match args {
+                                    Args::All(mutable, bound) => {
+                                        let _ = do_check(body, &inner_bindings.update((*bound).clone(), *mutable))?;
+                                    }
+                                    Args::Destructured(the_args) => {
+                                        let mut fn_bindings = inner_bindings.clone();
+                                        for (mutable, bound) in the_args {
+                                            fn_bindings = fn_bindings.update((*bound).clone(), *mutable);
+                                        }
+                                        let _ = do_check(body, &fn_bindings)?;
+                                    }
+                                }
                             }
 
                             do_check(cont, &inner_bindings)

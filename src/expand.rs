@@ -1,9 +1,9 @@
-use im_rc::OrdMap as ImOrdMap;
+use im_rc::{OrdMap as ImOrdMap, Vector as ImVector};
 
 use crate::context::Context;
 use crate::env::Env;
-use crate::gc_foreign::OrdMap;
-use crate::value::{Value, Id, Fun, _Fun, Builtin, Closure};
+use crate::gc_foreign::{OrdMap, Vector};
+use crate::value::{Value, Id, Fun, _Fun, Builtin};
 use crate::{expand_check_eval, E};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -77,9 +77,12 @@ pub fn expand(v: &Value, env: Env, macros: &ImOrdMap<Id, Value>, cx: &mut Contex
                         match macro_ {
                             Value::Fun(macro_fun) => {
                                 cx.inc_level();
-                                let result = macro_fun.apply(&Value::arr_from_vec(
-                                    vals.0.iter().map(Clone::clone).skip(1).collect()
-                                ), cx);
+                                let result = macro_fun.compute(
+                                    Vector(ImVector::from(
+                                        vals.0.iter().map(Clone::clone).skip(1).collect::<Vec<Value>>()
+                                    )),
+                                    cx
+                                );
                                 cx.dec_level();
 
                                 match result {

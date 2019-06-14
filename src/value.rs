@@ -21,6 +21,7 @@ use crate::builtins::type_error;
 use crate::context::Context;
 use crate::env::Env;
 use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
+use crate::vm::Closure;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub enum Value {
@@ -211,10 +212,24 @@ impl Value {
         }
     }
 
+    pub fn as_fun(&self) -> Option<&Fun> {
+        match self {
+            Value::Fun(fun) => Some(fun),
+            _ => None,
+        }
+    }
+
     pub fn truthy(&self) -> bool {
         match self {
             Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(false)) => false,
             _ => true,
+        }
+    }
+
+    pub fn compute(&self, args: Vector<Value>, ctx: &mut Context) -> Result<Value, Value> {
+        match self {
+            Value::Fun(fun) => fun.compute(args, ctx),
+            _ => Err(type_error(self, "function")),
         }
     }
 }
@@ -232,7 +247,7 @@ pub enum Atomic {
     Keyword(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize, Hash)]
 pub enum Id {
     User(String),
     Symbol(u64),
@@ -252,8 +267,11 @@ pub struct Fun {
 }
 
 impl Fun {
-    pub fn apply(&self, args: &Value, cx: &mut Context) -> Result<Value, Value> {
-        unimplemented!()
+    pub fn compute(&self, args: Vector<Value>, ctx: &mut Context) -> Result<Value, Value> {
+        match self.fun {
+            _ => unimplemented!(),
+            // TODO special logic for app_apply lives here
+        }
     }
 }
 
@@ -282,20 +300,6 @@ pub enum _Fun {
     Closure(Closure),
     Builtin(Builtin),
     Apply, // the builtin function `apply` requires special interpretation logic
-}
-
-/// Runtime representation of a value produced by a lambda special form.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
-pub struct Closure {
-    pub funs: Gc<BTreeMap<Id, (Id /* arg */, bool /*arg mutable*/, Value /*body*/)>>,
-    pub entry: Id,
-    pub env: Env,
-}
-
-impl fmt::Debug for Closure {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Closure entry: {:?}, funs: {:?}", self.entry, self.funs)
-    }
 }
 
 /// A function that is provided by pavo (as opposed to a programmer-defined closure).
