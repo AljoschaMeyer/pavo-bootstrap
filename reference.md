@@ -749,90 +749,6 @@ Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
 ))
 ```
 
-#### `(bytes-push-front b new)`
-
-Returns the bytes obtained by inserting the byte `new` at the front of the bytes `b`.
-
-Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
-Throws `{ :tag :err-not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
-
-Time: Amortized O(1) (amortized across `bytes-push-front` and `bytes-pop-front` applications)
-
-```pavo
-(assert-eq (bytes-push-front @[] 42) @[42])
-(assert-eq (bytes-push-front @[43] 42) @[42 43])
-```
-
-#### `(bytes-front b)`
-
-Returns the first byte in the bytes `b`.
-
-Throws `{ :tag :err-collection-empty }` if the bytes are empty.
-
-Time: O(1)
-
-```pavo
-(assert-eq (bytes-front @[41 42]) 41)
-(assert-eq (bytes-front @[41]) 41)
-(assert-throw (bytes-front @[]) { :tag :err-collection-empty})
-```
-
-#### `(bytes-pop-front b)`
-
-Returns all but the first bytes in the bytes `b`.
-
-Throws `{ :tag :err-collection-empty }` if the bytes are empty.
-
-Time: Amortized O(1) (amortized across `bytes-push-front` and `bytes-pop-front` applications)
-
-```pavo
-(assert-eq (bytes-pop-front @[41 42]) @[42])
-(assert-eq (bytes-pop-front @[41]) @[])
-(assert-throw (bytes-pop-front @[]) { :tag :err-collection-empty})
-```
-
-#### `(bytes-push-back b new)`
-
-Returns the bytes obtained by inserting the byte `new` at the back of the bytes `b`.
-
-Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63 or more elements.
-Throws `{ :tag :err-not-byte, :got new}` if `new` is not a byte (an int between 0 and 255 inclusive).
-
-Time: Amortized O(1) (amortized across `bytes-push-back` and `bytes-pop-back` applications)
-
-```pavo
-(assert-eq (bytes-push-back @[] 41) @[41])
-(assert-eq (bytes-push-back @[42] 41) @[42 41])
-```
-
-#### `(bytes-back b)`
-
-Returns the last byte in the bytes `b`.
-
-Throws `{ :tag :err-collection-empty }` if the bytes is empty.
-
-Time: O(1)
-
-```pavo
-(assert-eq (bytes-back @[41 42]) 42)
-(assert-eq (bytes-back @[41]) 41)
-(assert-throw (bytes-back @[]) { :tag :err-collection-empty})
-```
-
-#### `(bytes-pop-back b)`
-
-Returns all but the last bytes in the bytes `b`.
-
-Throws `{ :tag :err-collection-empty }` if the bytes is empty.
-
-Time: Amortized O(1) (amortized across `bytes-push-back` and `bytes-pop-back` applications)
-
-```pavo
-(assert-eq (bytes-pop-back @[41 42]) @[41])
-(assert-eq (bytes-pop-back @[41]) @[])
-(assert-throw (bytes-pop-back @[]) { :tag :err-collection-empty})
-```
-
 ### Chars
 
 #### `char-max`
@@ -1017,15 +933,15 @@ Time: Iteration takes amortized O(n), where n is `(str-count s)`.
 
 ```pavo
 (let :mut out "z" (do
-    (str-iter "abcd" (fn [elem] (set! out (str-push-back out elem))))
-    (assert-eq out "zabcd")
+    (str-iter "abcd" (fn [elem] (set! out (str-insert out 0 elem))))
+    (assert-eq out "dcbaz")
 ))
 (let :mut out "z" (do
     (str-iter "abcd" (fn [elem] (if
             (= elem 'c') true
-            (set! out (str-push-back out elem))
+            (set! out (str-insert out 0 elem))
         )))
-    (assert-eq out "zab")
+    (assert-eq out "baz")
 ))
 ```
 
@@ -1037,15 +953,15 @@ Time: Iteration takes amortized O(n), where n is `(str-count s)`.
 
 ```pavo
 (let :mut out "z" (do
-    (str-iter-back "abcd" (fn [elem] (set! out (str-push-back out elem))))
-    (assert-eq out "zdcba")
+    (str-iter-back "abcd" (fn [elem] (set! out (str-insert out 0 elem))))
+    (assert-eq out "abcdz")
 ))
 (let :mut out "z" (do
     (str-iter-back "abcd" (fn [elem] (if
             (= elem 'c') true
-            (set! out (str-push-back out elem))
+            (set! out (str-insert out 0 elem))
         )))
-    (assert-eq out "zd")
+    (assert-eq out "dz")
 ))
 ```
 
@@ -1302,88 +1218,6 @@ Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
 ))
 ```
 
-#### `(arr-push-front arr new)`
-
-Returns the array obtained by inserting the value `new` at the front of the array `arr`.
-
-Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63 or more elements.
-
-Time: Amortized O(1) (amortized across `arr-push-front` and `arr-pop-front` applications)
-
-```pavo
-(assert-eq (arr-push-front [] true) [true])
-(assert-eq (arr-push-front [false] true) [true false])
-```
-
-#### `(arr-front arr)`
-
-Returns the first element in array `arr`.
-
-Throws `{ :tag :err-collection-empty }` if the array is empty.
-
-Time: O(1)
-
-```pavo
-(assert-eq (arr-front [true false]) true)
-(assert-eq (arr-front [true]) true)
-(assert-throw (arr-front []) { :tag :err-collection-empty})
-```
-
-#### `(arr-pop-front arr)`
-
-Returns all but the first elements in array `arr`.
-
-Throws `{ :tag :err-collection-empty }` if the array is empty.
-
-Time: Amortized O(1) (amortized across `arr-push-front` and `arr-pop-front` applications)
-
-```pavo
-(assert-eq (arr-pop-front [true false]) [false])
-(assert-eq (arr-pop-front [true]) [])
-(assert-throw (arr-pop-front []) { :tag :err-collection-empty})
-```
-
-#### `(arr-push-back arr new)`
-
-Returns the array obtained by inserting the value `new` at the back of the array `arr`.
-
-Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63 or more elements.
-
-Time: Amortized O(1) (amortized across `arr-push-back` and `arr-pop-back` applications)
-
-```pavo
-(assert-eq (arr-push-back [] true) [true])
-(assert-eq (arr-push-back [false] true) [false true])
-```
-
-#### `(arr-back arr)`
-
-Returns the last element in array `arr`.
-
-Throws `{ :tag :err-collection-empty }` if the array is empty.
-
-Time: O(1)
-
-```pavo
-(assert-eq (arr-back [true false]) false)
-(assert-eq (arr-back [true]) true)
-(assert-throw (arr-back []) { :tag :err-collection-empty})
-```
-
-#### `(arr-pop-back arr)`
-
-Returns all but the last elements in array `arr`.
-
-Throws `{ :tag :err-collection-empty }` if the array is empty.
-
-Time: Amortized O(1) (amortized across `arr-push-back` and `arr-pop-back` applications)
-
-```pavo
-(assert-eq (arr-pop-back [true false]) [true])
-(assert-eq (arr-pop-back [true]) [])
-(assert-throw (arr-pop-back []) { :tag :err-collection-empty})
-```
-
 ### Applications
 
 #### `(app-count app)`
@@ -1543,88 +1377,6 @@ Time: Iteration takes amortized O(n), where n is `(app-count app)`.
         )))
     (assert-eq product 4)
 ))
-```
-
-#### `(app-push-front app new)`
-
-Returns the application obtained by inserting the value `new` at the front of the application `app`.
-
-Throws `{ :tag :err-collection-full }` if the resulting application would contain 2^63 or more elements.
-
-Time: Amortized O(1) (amortized across `app-push-front` and `app-pop-front` applications)
-
-```pavo
-(assert-eq (app-push-front $() true) $(true))
-(assert-eq (app-push-front $(false) true) $(true false))
-```
-
-#### `(app-front app)`
-
-Returns the first element in application `app`.
-
-Throws `{ :tag :err-collection-empty }` if the application is empty.
-
-Time: O(1)
-
-```pavo
-(assert-eq (app-front $(true false)) true)
-(assert-eq (app-front $(true)) true)
-(assert-throw (app-front $()) { :tag :err-collection-empty})
-```
-
-#### `(app-pop-front app)`
-
-Returns all but the first elements in application `app`.
-
-Throws `{ :tag :err-collection-empty }` if the application is empty.
-
-Time: Amortized O(1) (amortized across `app-push-front` and `app-pop-front` applications)
-
-```pavo
-(assert-eq (app-pop-front $(true false)) $(false))
-(assert-eq (app-pop-front $(true)) $())
-(assert-throw (app-pop-front $()) { :tag :err-collection-empty})
-```
-
-#### `(app-push-back app new)`
-
-Returns the application obtained by inserting the value `new` at the back of the application `app`.
-
-Throws `{ :tag :err-collection-full }` if the resulting application would contain 2^63 or more elements.
-
-Time: Amortized O(1) (amortized across `app-push-back` and `app-pop-back` applications)
-
-```pavo
-(assert-eq (app-push-back $() true) $(true))
-(assert-eq (app-push-back $(false) true) $(false true))
-```
-
-#### `(app-back app)`
-
-Returns the last element in application `app`.
-
-Throws `{ :tag :err-collection-empty }` if the application is empty.
-
-Time: O(1)
-
-```pavo
-(assert-eq (app-back $(true false)) false)
-(assert-eq (app-back $(true)) true)
-(assert-throw (app-back $()) { :tag :err-collection-empty})
-```
-
-#### `(app-pop-back app)`
-
-Returns all but the last elements in application `app`.
-
-Throws `{ :tag :err-collection-empty }` if the application is empty.
-
-Time: Amortized O(1) (amortized across `app-push-back` and `app-pop-back` applications)
-
-```pavo
-(assert-eq (app-pop-back $(true false)) $(true))
-(assert-eq (app-pop-back $(true)) $())
-(assert-throw (app-pop-back $()) { :tag :err-collection-empty})
 ```
 
 ### Sets

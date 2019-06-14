@@ -80,12 +80,6 @@ impl Env {
         env_add(&mut m, "bytes-concat", builtins::bytes_concat, cx);
         env_add(&mut m, "bytes-iter", builtins::bytes_iter, cx);
         env_add(&mut m, "bytes-iter-back", builtins::bytes_iter_back, cx);
-        env_add(&mut m, "bytes-push-front", builtins::bytes_push_front, cx);
-        env_add(&mut m, "bytes-front", builtins::bytes_front, cx);
-        env_add(&mut m, "bytes-pop-front", builtins::bytes_pop_front, cx);
-        env_add(&mut m, "bytes-push-back", builtins::bytes_push_back, cx);
-        env_add(&mut m, "bytes-back", builtins::bytes_back, cx);
-        env_add(&mut m, "bytes-pop-back", builtins::bytes_pop_back, cx);
 
         env_add_val(&mut m, "char-max", Value::char_(std::char::MAX), cx);
         env_add(&mut m, "int=>char", builtins::int_to_char, cx);
@@ -120,12 +114,6 @@ impl Env {
         env_add(&mut m, "arr-concat", builtins::arr_concat, cx);
         env_add(&mut m, "arr-iter", builtins::arr_iter, cx);
         env_add(&mut m, "arr-iter-back", builtins::arr_iter_back, cx);
-        env_add(&mut m, "arr-push-front", builtins::arr_push_front, cx);
-        env_add(&mut m, "arr-front", builtins::arr_front, cx);
-        env_add(&mut m, "arr-pop-front", builtins::arr_pop_front, cx);
-        env_add(&mut m, "arr-push-back", builtins::arr_push_back, cx);
-        env_add(&mut m, "arr-back", builtins::arr_back, cx);
-        env_add(&mut m, "arr-pop-back", builtins::arr_pop_back, cx);
 
         env_add(&mut m, "app-count", builtins::app_count, cx);
         env_add(&mut m, "app-get", builtins::app_get, cx);
@@ -137,12 +125,6 @@ impl Env {
         env_add(&mut m, "app-concat", builtins::app_concat, cx);
         env_add(&mut m, "app-iter", builtins::app_iter, cx);
         env_add(&mut m, "app-iter-back", builtins::app_iter_back, cx);
-        env_add(&mut m, "app-push-front", builtins::app_push_front, cx);
-        env_add(&mut m, "app-front", builtins::app_front, cx);
-        env_add(&mut m, "app-pop-front", builtins::app_pop_front, cx);
-        env_add(&mut m, "app-push-back", builtins::app_push_back, cx);
-        env_add(&mut m, "app-back", builtins::app_back, cx);
-        env_add(&mut m, "app-pop-back", builtins::app_pop_back, cx);
 
         env_add(&mut m, "set-count", builtins::set_count, cx);
         env_add(&mut m, "set-contains?", builtins::set_contains, cx);
