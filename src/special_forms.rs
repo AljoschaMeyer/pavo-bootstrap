@@ -15,6 +15,7 @@ pub enum SpecialForm<'a> {
     If(&'a Value, &'a Value, &'a Value),
     Throw(&'a Value),
     Try(&'a Value, bool, &'a Id, &'a Value),
+    Lambda(Args<'a>, &'a Value),
     LetFn(Vec<(&'a Id, Args<'a>, &'a Value)>, &'a Value),
 }
 
@@ -32,6 +33,7 @@ pub enum FormType {
     If,
     Throw,
     Try,
+    Lambda,
     LetFn,
 }
 
@@ -113,7 +115,41 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
             return Ok(Some(SpecialForm::Try(to_try, mutable, id, cont)));
         }
 
+        Some("sf-lambda") => {
+            if v.0.len() != 3 && v.0.len() != 4  {
+                return Err(SpecialFormSyntaxError::Arity(FormType::Lambda, v.0.len()));
+            }
+
+            match v.0[1].as_arr() {
+                Some(args_arr) => {
+                    let mut args = vec![];
+
+                    let mut i = 0;
+                    while i < args_arr.0.len() {
+                        let (mutable, id) = mut_id(&v.0, i, FormType::Lambda)?;
+                        args.push((mutable, id));
+                        i += if mutable { 2 } else { 1 };
+                    }
+
+                    let cont = &v.0[2];
+
+                    return Ok(Some(SpecialForm::Lambda(Args::Destructured(args), cont)));
+                }
+
+                None => {
+                    let (mutable, id) = mut_id(&v.0, 1, FormType::Lambda)?;
+                    if !mutable && v.0.len() == 4 {
+                        return Err(SpecialFormSyntaxError::Arity(FormType::Lambda, v.0.len()));
+                    }
+                    let cont = &v.0[if mutable { 3 } else { 2 }];
+
+                    return Ok(Some(SpecialForm::Lambda(Args::All(mutable, id), cont)));
+                }
+            }
+        }
+
         Some("sf-letfn") => {
+            // TODO change the syntax to have a map from ids to arg-body pairs as the second entry
             let total = v.0.len();
             if total < 2 {
                 return Err(SpecialFormSyntaxError::Arity(FormType::LetFn, v.0.len()));

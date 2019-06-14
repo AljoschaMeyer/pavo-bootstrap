@@ -113,6 +113,20 @@ fn do_check(
                             let _ = do_check(try_, bindings)?;
                             do_check(catch, &bindings.update(bound.clone(), mutable))
                         }
+                        Some(SpecialForm::Lambda(args, body)) => {
+                            match args {
+                                Args::All(mutable, bound) => {
+                                    do_check(body, &bindings.update((*bound).clone(), mutable))
+                                }
+                                Args::Destructured(the_args) => {
+                                    let mut fn_bindings = bindings.clone();
+                                    for (mutable, bound) in the_args {
+                                        fn_bindings = fn_bindings.update((*bound).clone(), mutable);
+                                    }
+                                    do_check(body, &fn_bindings)
+                                }
+                            }
+                        }
                         Some(SpecialForm::LetFn(funs, cont)) => {
                             let mut inner_bindings = bindings.clone();
                             for (name, ..) in funs.iter() {

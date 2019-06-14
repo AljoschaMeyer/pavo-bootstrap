@@ -153,32 +153,24 @@ impl Tails {
     fn empty() -> Tails {
         Tails(HashSet::new())
     }
-
-    fn from_de_bruijns<I: Iterator<Item = DeBruijn>>(input: I) -> Tails {
-        unimplemented!();
-        // Tails(input.map(|de_bruijn| Entry { de_bruijn: DeBruijn { up: 1, id: de_bruijn.id } }).collect())
-    }
 }
 
-// pub fn compile<'a>(
-//     v: &Value,
-//     toplevel: &HashMap<String, Value>,
-// ) -> Result<Closure, StaticError> {
-//     check_toplevel(v, toplevel)?;
-//
-//     let mut s = Stack::from_toplevel(&toplevel);
-//     let mut bbb = BBB::new();
-//
-//     val_to_ir(v, BB_RETURN, true, &mut bbb, &mut Tails::empty(), true, &mut s, cx);
-//     let chunk = bbb.into_ir();
-//
-//     return Ok(Closure {
-//         fun: Rc::new(chunk),
-//         env: Environment::from_toplevel(toplevel),
-//         entry: 0,
-//         args: Some(0),
-//     });
-// }
+pub fn compile<'a>(
+    v: &Value,
+    toplevel: &HashMap<String, Value>,
+) -> Result<Closure, StaticError> {
+    check_toplevel(v, toplevel)?;
+
+    let mut s = Stack::from_toplevel(toplevel);
+    let chunk = Rc::new(compile_lambda(&Args::Destructured(vec![]), v, &mut s));
+
+    return Ok(Closure {
+        fun: chunk,
+        env: Environment::from_toplevel(toplevel),
+        entry: 0,
+        args: Some(0),
+    });
+}
 
 fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tails: &mut Tails, tail: bool, s: &mut Stack) {
     match v {
@@ -325,6 +317,14 @@ fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tails: &mut Tails, tail: bool
                     val_to_ir(nay, push, bbb, tails, tail, s);
                 }
 
+                Ok(Some(SpecialForm::Lambda(args, body))) => {
+                    let ir_chunk = Rc::new(compile_lambda(&args, body, s));
+                    bbb.append(FunLiteral(ir_chunk, 0, match args {
+                        Args::All(..) => None,
+                        Args::Destructured(all) => Some(all.len()),
+                    }));
+                }
+
                 Ok(Some(SpecialForm::LetFn(defs, cont))) => {
                     let (ir_chunk, entries) = compile_letfn(&defs, s);
                     let ir_chunk = Rc::new(ir_chunk);
@@ -344,6 +344,27 @@ fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tails: &mut Tails, tail: bool
             }
         }
     }
+}
+
+fn compile_lambda(args: &Args, body: &Value, s: &mut Stack) -> IrChunk {
+    let mut bbb = BBB::new();
+    s.push_scope();
+
+    match args {
+        Args::All(_, binder) => {
+            s.add(binder);
+        }
+        Args::Destructured(ids) => {
+            for (_, binder) in ids {
+                s.add(binder);
+            }
+        }
+    }
+
+    val_to_ir(body, true, &mut bbb, &mut Tails::empty(), true, s);
+    s.pop_scope();
+
+    return bbb.into_ir();
 }
 
 fn compile_letfn(
@@ -388,7 +409,7 @@ fn compile_letfn(
         let start_block = bbb.new_block();
         bb_ids.push(start_block);
         bbb.set_active_block(start_block);
-        val_to_ir(body, true, &mut bbb, &mut Tails::empty(), true, s);
+        val_to_ir(body, true, &mut bbb, &mut tails, true, s);
         s.pop_scope();
     }
 

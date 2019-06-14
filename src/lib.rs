@@ -265,6 +265,8 @@ mod tests {
         ));
     }
 
+    // TODO test sf-lambda, and use it in other tests instead of sf-letfn
+
     #[test]
     fn test_sf_letfn() {
         assert_ok("(sf-letfn (foo x (bar (arr-get x 0))) (bar x (typeof (arr-get x 0))) (foo nil))", Value::kw_str("nil"));
