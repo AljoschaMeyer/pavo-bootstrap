@@ -129,11 +129,11 @@ fn do_check(
                         }
                         Some(SpecialForm::LetFn(funs, cont)) => {
                             let mut inner_bindings = bindings.clone();
-                            for (name, ..) in funs.iter() {
+                            for name in funs.keys() {
                                 inner_bindings = inner_bindings.update((*name).clone(), false);
                             }
 
-                            for (_, args, body) in funs.iter() {
+                            for (args, body) in funs.values() {
                                 match args {
                                     Args::All(mutable, bound) => {
                                         let _ = do_check(body, &inner_bindings.update((*bound).clone(), *mutable))?;

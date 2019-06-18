@@ -2,11 +2,144 @@ TODO limit string size by utf-8 byte length rather than char count?
 
 # The Pavo Language Reference
 
+TODO: Introduction. Clarify role of this document: A reference to look stuff up, *not* a guided introduction to the language.
+
+TODO: include as part of application evaluation:
+The tail positions are exactly the following:
+
+- the body of the function
+- the last expression of an `sf-do` form that is in tail position
+- the `then` and `else` expressions of an `sf-if` form that is in tail position
+- the `caught-exp` of an `sf-try` form that is in tail position
+
 ## Syntax
 
 ## Values
 
 ## Evaluation
+
+### Special Forms
+
+TODO write text here...
+TODO specify errors if syntax isn't matched
+
+#### `(sf-quote x)`
+
+Evaluates to the literal value denoted by `x`, without evaluating `x`.
+
+```pavo
+(sf-quote foo) # Does not throw since the identifier is never evaluated
+(assert-eq (typeof (sf-quote foo) :identifier))
+(sf-quote ()) # Does not throw since the application is never evaluated
+(assert-eq (typeof (sf-quote ()) :application))
+(assert-not (= (sf-quote (int-add 1 1)) 2))
+```
+
+#### `(sf-do exp*)`
+
+Evaluates the expressions in sequence, evaluating to the value of the last expression. If there are zero expressions, evaluates to `nil`.
+
+```pavo
+(assert-eq (sf-do) nil)
+(assert-eq (sf-do 1) 1)
+(assert-eq (sf-do 1 2 3) 3)
+```
+
+#### `(sf-id condition then else)`
+
+Evaluates the `condition`. If it evaluated to `nil` or `false`, evaluates to the value of `else`, otherwise to the value of `then`. At most one of `then` and `else` is getting evaluated (or none if evaluating `condition` throws).
+
+```pavo
+(assert-eq (sf-if true :then :else) :then)
+(assert-eq (sf-if 0 :then :else) :then)
+(assert-eq (sf-if [] :then :else) :then)
+(assert-eq (sf-if (sf-quote ()) :then :else) :then)
+(assert-eq (sf-if nil :then :else) :else)
+(assert-eq (sf-if false :then :else) :else)
+```
+
+#### `(sf-set! id exp)`
+
+Evaluates `exp` and rebinds identifier `id` to the value. `id` must refer to a mutable binding in scope. The form itself evaluates to `nil`. If evaluating `exp` throws, the identifier is not rebound.
+
+```pavo
+(assert-eq ((sf-lambda [:mut a] (sf-do (sf-set! a 42) a)) 17) 42)
+(assert-eq ((sf-lambda [:mut a] (sf-set! a 42)) 17) nil)
+```
+
+#### `(sf-throw x)`
+
+Evaluates `x` and throws the result.
+
+```pavo
+(assert-throw (sf-throw 0) 0)
+(assert-throw (sf-do
+    0
+    (sf-throw 1)
+    (sf-throw 2)
+    3
+) 1)
+(assert-throw (sf-if
+    (sf-throw 0)
+    (sf-throw 1)
+    (sf-throw 2)
+) 0)
+```
+
+#### `(sf-try try-exp id caught-exp)` `(sf-try try-exp :mut id caught-exp)`
+
+Evaluates the `try-exp`. If it throws, the thrown value is bound to the `id` and then the `caught-exp` is evaluated. If the keyword `:mut` is supplied, the binding is mutable.
+
+```pavo
+(assert-eq (sf-try 0 foo 1) 0)
+(assert-eq (sf-try (sf-throw 0) foo 1) 1)
+(assert-eq (sf-try (sf-throw 0) :mut foo (sf-set! foo 1)) nil)
+(assert-eq (sf-try (sf-throw 0) foo foo) 0)
+(assert-throw (sf-try (sf-throw 0) foo (sf-throw 1)) 1)
+```
+
+#### `(sf-lambda id body)` `(sf-lambda :mut id body)` `(sf-lambda [<args>] body)`
+
+Evaluates to a function. Associated with that function is the current environment, i.e. the same set of variable bindings that are in scope at the program point where the `sf-lambda` form occurs. When applying the function, the environment is modified according to the arguments (see below), and then the `body` expression is evaluated in that environment. The bindings introduced through application to arguments shadow any bindings of the same identifier that have been in lexical scope at the point of the function definition.
+
+In the `(sf-lambda id body)` version, when applying the function to some argument values, the identifier `id` is bound to an array containing those values before evaluating the `body`. If the keyword `:mut` is supplied, the binding is mutable.
+
+```pavo
+(assert-eq (typeof (sf-lambda foo nil) :function))
+(assert-eq ((sf-lambda foo foo) 0 1 2) [0 1 2])
+(assert-eq ((sf-lambda :mut foo (sf-do (sf-set! foo 42) foo)) 0 1 2) 42)
+```
+
+In the `(sf-lambda [<args>] body)` version, `[<args>]` is an array containing zero or more identifiers, each optionally preceded by the `:mut` keyword. When applying the function to some arguments, if the number of arguments does not match the number of identifiers in the function definition, `{ :tag :err-num-args, :expected <defined>, :got <supplied>}` is thrown, where `<defined>` is the number of identifiers in the `[<args>]` definition, and `<supplied>` is the number of arguments to which the function was applied. If the number of arguments matches, then each argument identifier is bound to the corresponding supplied value before evaluating the `body`. For identifiers that are prefixed with the `:mut` keyword, the binding is mutable.
+
+```pavo
+(assert-eq (typeof (sf-lambda [] nil) :function))
+(assert-eq ((sf-lambda [] 42)) 42)
+(assert-throw ((sf-lambda [] 42) :an-argument) {:tag :err-num-args, :expected 0, :got 1})
+(assert-eq ((sf-lambda [a b] (int-add a b)) 1 2) 3)
+(assert-eq ((sf-lambda [a :mut b] (sf-do (sf-set! b 3) (int-add a b))) 1 2) 4)
+```
+
+#### `(sf-letfn <fns> exp)`
+
+Defines some functions via `<fns>`, then evaluates to `exp` in an environment in which these functions are immutably bound to some names. `<fns>` is a map from identifiers to applications that contain the `[<args>]` and `body` like a regular `sf-lambda` definition. When evaluating one of those function bodies, all the functions defined by the `sf-letfn` form are immutably bound to their respective identifier.
+
+```pavo
+(assert-eq (sf-letfn {
+    even? ([n] (
+        sf-if
+            (= n 0)
+            true
+            (odd? (- n 1))
+        )),
+    odd? ([n] (
+        sf-if
+            (= n 0)
+            false
+            (even? (- n 1))
+        ))
+} [(even? 10000) (odd? 10000)]) [true false])
+```
 
 ## Macro Expansion
 

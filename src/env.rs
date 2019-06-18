@@ -173,7 +173,6 @@ impl Env {
         env_add(&mut m, "diverge", builtins::diverge, cx);
 
         // TODO read, read-prefix, write, (expand, evaluate, etc.)
-        // TODO keyword functions (from/to string), same for identifiers
         // TODO floats
         // TODO cell? opaque?
 

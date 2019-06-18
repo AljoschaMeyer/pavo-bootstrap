@@ -1,4 +1,4 @@
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashSet, HashMap, BTreeMap};
 use std::rc::Rc;
 
 use im_rc::Vector as ImVector;
@@ -329,15 +329,25 @@ fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tails: &mut Tails, tail: bool
                     let (ir_chunk, entries) = compile_letfn(&defs, s);
                     let ir_chunk = Rc::new(ir_chunk);
 
-                    for (i, (name, args, _)) in defs.iter().enumerate() {
+                    for (name, (args, _)) in defs {
                         let db = DeBruijn { up: 0, id: s.add(name) };
                         tails.invalidate(db);
-                        bbb.append(FunLiteral(ir_chunk.clone(), entries[i], match args {
+                        bbb.append(FunLiteral(ir_chunk.clone(), entries[name], match args {
                             Args::All(..) => None,
                             Args::Destructured(all) => Some(all.len()),
                         }));
                         bbb.append(Pop(Addr::env(db)));
                     }
+
+                    // for (i, (name, args, _)) in defs.iter().enumerate() {
+                    //     let db = DeBruijn { up: 0, id: s.add(name) };
+                    //     tails.invalidate(db);
+                    //     bbb.append(FunLiteral(ir_chunk.clone(), entries[i], match args {
+                    //         Args::All(..) => None,
+                    //         Args::Destructured(all) => Some(all.len()),
+                    //     }));
+                    //     bbb.append(Pop(Addr::env(db)));
+                    // }
 
                     val_to_ir(cont, push, bbb, tails, tail, s);
                 }
@@ -368,14 +378,14 @@ fn compile_lambda(args: &Args, body: &Value, s: &mut Stack) -> IrChunk {
 }
 
 fn compile_letfn(
-    defs: &Vec<(&Id, Args, &Value)>,
+    defs: &BTreeMap<&Id, (Args, &Value)>,
     s: &mut Stack,
-) -> (IrChunk, Vec<BBId>) {
-    let names: Vec<&Id> = defs.iter().map(|(name, _, _)| name.clone()).collect();
+) -> (IrChunk, BTreeMap<Id, BBId>) {
+    let names: Vec<&Id> = defs.keys().map(Clone::clone).collect();
     let mut bbb = BBB::new();
-    let mut bb_ids = Vec::with_capacity(names.len());
+    let mut bb_ids = BTreeMap::new();
 
-    for (_, args, body) in defs {
+    for (name, (args, body)) in defs {
         s.push_scope();
 
         match args {
@@ -407,7 +417,7 @@ fn compile_letfn(
         }
 
         let start_block = bbb.new_block();
-        bb_ids.push(start_block);
+        bb_ids.insert((*name).clone(), start_block);
         bbb.set_active_block(start_block);
         val_to_ir(body, true, &mut bbb, &mut tails, true, s);
         s.pop_scope();
