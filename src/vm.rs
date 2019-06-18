@@ -50,9 +50,8 @@ pub enum Instruction {
     /// alternate between value and key.
     Map(usize),
     /// Create a closure value with the given IrChunk, push it to the stack.
-    /// The BBId is the block at which to begin execution of the chunk.
     /// This can't be done via `Instruction::Literal` since the environmen must be set at runtime.
-    FunLiteral(Rc<IrChunk>, BBId, Option<usize>),
+    FunLiteral(Rc<IrChunk>, Option<usize>),
     /// Jump to the given basic block. If the bb is `BB_RETURN`, return from the function instead.
     Jump(BBId),
     /// Pop the topmost stack element. Jump to the first basic block if the value was truthy,
@@ -66,23 +65,14 @@ pub enum Instruction {
     Push(Addr),
     /// Pop the stack and write the value to the Addr.
     Pop(Addr),
-    /// Swap the position of the topmost two stack elements.
-    Swap,
-    /// Call the len'th stack element with the topmost len-1 arguments in reverse order. If the
+    /// Call the len+1'th stack element with the topmost len arguments in reverse order. If the
     /// bool is true, push the result onto the stack.
     ///
-    /// Example: Call(3, true) on the stack `<top> arg2 arg1 fun foo <bottom>`
-    /// computes `(fun arg1 arg2)`
+    /// Example: Call(2, true) on the stack `<top> arg2 arg1 fun foo <bottom>`
+    /// computes `(fun arg1 arg2)` and results in the stack `<top> (fun arg1 arg2) foo <bottom>`
     Call(usize /*len*/, bool),
-    /// Reuse the current stack for "calling" the closure at the DeBruijn address, entering at its
-    /// entry (read from the closure at runtime, because I'm too lazy to implement this properly),
-    /// by jumping there, with the usize topmost arguments in reverse order (just like Call,
-    /// except the fun itself is not taken from the stack).
-    TailCall(usize, DeBruijn),
-    // TODO rework apply as a function that takes a single application as its arg
-    /// Invoke the topmost value with the arguments in the array that is the second-to-topmost
-    /// value. If the bool is true, push the result onto the stack.
-    Apply(bool), // TODO get rid of this? depends on how apply will be implemented
+    /// Same as `Call`, but performs tco.
+    TailCall(usize /*len*/, bool),
 }
 use Instruction::*;
 
@@ -114,9 +104,9 @@ struct LocalState {
 
 impl LocalState {
     // Create and initialize a `LocalState` suitable for executing the given chunk.
-    fn new(_chunk: &IrChunk, entry: BBId) -> LocalState {
+    fn new(_chunk: &IrChunk) -> LocalState {
         LocalState {
-            pc: (entry, 0),
+            pc: (0, 0),
             stack: vec![],
             catch_handler: BB_RETURN,
         }
@@ -205,8 +195,6 @@ pub struct Closure {
     #[unsafe_ignore_trace]
     pub fun: Rc<IrChunk>,
     pub env: Gc<GcCell<Environment>>,
-    // The basic block at which to begin execution of the `fun`.
-    pub entry: usize,
     // How many arguments the closure takes, or `None` if it takes a variable number.
     pub args: Option<usize>,
 }
@@ -220,11 +208,10 @@ impl Closure {
     //     Closure::from_chunk(Rc::new(script), Environment::child(top_level()), 0)
     // }
 
-    fn from_chunk(fun: Rc<IrChunk>, env: Gc<GcCell<Environment>>, entry: usize, args: Option<usize>) -> Closure {
+    fn from_chunk(fun: Rc<IrChunk>, env: Gc<GcCell<Environment>>, args: Option<usize>) -> Closure {
         Closure {
             fun,
             env,
-            entry,
             args,
         }
     }
@@ -251,11 +238,19 @@ impl Addr {
 impl Closure {
     // To perform the computation, interpret the instructions of the chunk.
     pub fn compute(&self, args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-        let mut state = LocalState::new(&self.fun, self.entry);
+        do_compute(self.clone(), args, cx)
+    }
+}
 
-        match self.args {
+fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    let mut state;
+
+    loop {
+        state = LocalState::new(&c.fun);
+
+        match c.args {
             None => {
-                Addr::env(DeBruijn { up: 0, id: 0 }).store(Value::arr(args), &mut state, &self.env);
+                Addr::env(DeBruijn { up: 0, id: 0 }).store(Value::arr(args), &mut state, &c.env);
             }
             Some(num_args) => {
                 if args.0.len() != num_args {
@@ -263,14 +258,14 @@ impl Closure {
                 }
 
                 for (i, arg) in args.0.iter().enumerate() {
-                    Addr::env(DeBruijn { up: 0, id: i }).store(arg.clone(), &mut state, &self.env);
+                    Addr::env(DeBruijn { up: 0, id: i }).store(arg.clone(), &mut state, &c.env);
                 }
             }
         }
 
         loop {
             state.pc.1 += 1;
-            match &self.fun.basic_blocks[state.pc.0][state.pc.1 - 1] {
+            match &c.fun.basic_blocks[state.pc.0][state.pc.1 - 1] {
                 Literal(val) => state.push(val.clone()),
 
                 Arr(count) => {
@@ -310,11 +305,10 @@ impl Closure {
                     state.push(Value::map_from_vec(tmp));
                 }
 
-                FunLiteral(chunk, entry, args) => state.push(Value::closure(
+                FunLiteral(chunk, args) => state.push(Value::closure(
                     Closure::from_chunk(
                         chunk.clone(),
-                        Environment::child(self.env.clone()),
-                        *entry,
+                        Environment::child(c.env.clone()),
                         *args
                     ),
                     cx
@@ -348,60 +342,18 @@ impl Closure {
                 SetCatchHandler(bb) => state.catch_handler = *bb,
 
                 Push(addr) => {
-                    let val = addr.load(&mut state, &self.env);
+                    let val = addr.load(&mut state, &c.env);
                     state.push(val);
                 }
 
                 Pop(addr) => {
                     let val = state.pop();
-                    addr.store(val, &mut state, &self.env);
-                }
-
-                Swap => {
-                    let a = state.pop();
-                    let b = state.pop();
-                    state.push(a);
-                    state.push(b);
-                }
-
-                Apply(push) => {
-                    let fun = state.pop();
-                    let args_val = state.pop();
-
-                    match args_val.as_arr() {
-                        None => {
-                            let err = type_error(&args_val, "array");
-                            if state.catch_handler == BB_RETURN {
-                                return Err(err);
-                            } else {
-                                state.push(err);
-                                state.pc = (state.catch_handler, 0);
-                            }
-                        }
-
-                        Some(args) => {
-                            match fun.compute(args.clone(), cx) {
-                                Ok(val) => {
-                                    if *push {
-                                        state.push(val);
-                                    }
-                                }
-                                Err(err) => {
-                                    if state.catch_handler == BB_RETURN {
-                                        return Err(err);
-                                    } else {
-                                        state.push(err);
-                                        state.pc = (state.catch_handler, 0);
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    addr.store(val, &mut state, &c.env);
                 }
 
                 Call(num_args, push) => {
-                    let fun = state.pop();
                     let args = state.args(*num_args);
+                    let fun = state.pop();
 
                     match fun.compute(args, cx) {
                         Ok(val) => {
@@ -422,33 +374,36 @@ impl Closure {
                     }
                 }
 
-                TailCall(num_args, db) => {
-                    let args = state.args(*num_args);
+                TailCall(num_args, push) => {
+                    let new_args = state.args(*num_args);
+                    let fun = state.pop();
 
-                    match self.args {
-                        None => {
-                            Addr::env(DeBruijn { up: 0, id: 0 }).store(Value::arr(args), &mut state, &self.env);
-                        }
-                        Some(num_args) => {
-                            if args.0.len() != num_args {
-                                return Err(num_args_error(num_args, args.0.len()));
+                    if let Value::Fun(Fun { fun: _Fun::Closure(new_c), .. }) = &fun {
+                        c = new_c.clone();
+                        args = new_args;
+                        break;
+                    } else {
+                        match fun.compute(new_args, cx) {
+                            Ok(val) => {
+                                state.pop_n(*num_args);
+                                if *push {
+                                    state.push(val);
+                                }
                             }
-
-                            for (i, arg) in args.0.iter().enumerate() {
-                                Addr::env(DeBruijn { up: 0, id: i }).store(arg.clone(), &mut state, &self.env);
+                            Err(err) => {
+                                state.pop_n(*num_args);
+                                if state.catch_handler == BB_RETURN {
+                                    return Err(err);
+                                } else {
+                                    state.push(err);
+                                    state.pc = (state.catch_handler, 0);
+                                }
                             }
                         }
                     }
-                    state.pop_n(*num_args);
-
-                    let block = match &Addr::env(*db).load(&mut state, &self.env).as_fun() {
-                        Some(Fun { fun: _Fun::Closure(c), .. }) => c.entry,
-                        _ => unreachable!("TailCall DeBruijn must point to a closure"),
-                    };
-
-                    state.pc = (block, 0);
                 }
             }
         }
     }
+
 }
