@@ -1116,7 +1116,7 @@ Starting from the beginning of the string `s`, applies the function `fun` to the
 
 Time: Iteration takes amortized O(n), where n is `(str-count-utf8 s)`.
 
-#### `(str-iter-back-utf8 s fun)`
+#### `(str-iter-utf8-back s fun)`
 
 Starting from the back of the string `s`, applies the function `fun` to the utf8 bytes of `s` in reverse order until either `fun` returns a truthy value or the end of the string is reached. Returns `nil`. Propagates any value thrown by `fun`.
 

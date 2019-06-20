@@ -135,7 +135,7 @@ impl Value {
         Value::Fun(Fun::Closure(c, cx.next_fun_id()))
     }
 
-    pub fn builtin(b: Builtin, cx: &mut Context) -> Value {
+    pub fn builtin(b: Builtin) -> Value {
         Value::Fun(Fun::Builtin(b))
     }
 
@@ -310,7 +310,7 @@ pub enum Builtin {
     IntLeadingOnes,
     IntLeadingZeros,
     IntTrailingOnes,
-    IntTralingZeros,
+    IntTrailingZeros,
     IntRotateLeft,
     IntRotateRight,
     IntReverseBytes,
@@ -371,7 +371,7 @@ pub enum Builtin {
     StrIter,
     StrIterBack,
     StrIterUtf8,
-    StrIterBackUtf8,
+    StrIterUtf8Back,
 
     FloatAdd,
     FloatSub,
@@ -388,7 +388,7 @@ pub enum Builtin {
     FloatSignum,
     FloatPowi,
     FloatPowf,
-    FloatSwrt,
+    FloatSqrt,
     FloatExp,
     FloatExp2,
     FloatLn,
@@ -418,6 +418,7 @@ pub enum Builtin {
     IntToFloat,
     FloatToBits,
     BitsToFloat,
+    IsBitsToFloat,
 
     StrToId,
     IsStrToId,
