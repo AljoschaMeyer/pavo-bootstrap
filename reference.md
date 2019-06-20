@@ -1,5 +1,3 @@
-TODO limit string size by utf-8 byte length rather than char count?
-
 # The Pavo Language Reference
 
 TODO: Introduction. Clarify role of this document: A reference to look stuff up, *not* a guided introduction to the language.
@@ -280,22 +278,22 @@ Throws a type error if any of the arguments is not a bool.
 
 Most of this has been taken/adapted from the [rust i64 docs](https://doc.rust-lang.org/std/primitive.i64.html). A helpful discussion of various design choices for the behavior of the modulus and division operations is [Boute, Raymond T. "The Euclidean definition of the functions div and mod."](https://biblio.ugent.be/publication/314490/file/452146.pdf).
 
-#### `int-max`
+#### `int-max-val`
 
 The largest integer, `2^63 - 1`.
 
 ```pavo
-(assert-eq int-max 9223372036854775807)
-(assert-throw (+ int-max 1) { :tag :err-wrap-int })
+(assert-eq int-max-val 9223372036854775807)
+(assert-throw (+ int-max-val 1) { :tag :err-wrap-int })
 ```
 
-#### `int-min`
+#### `int-min-val`
 
 The smallest integer, `- 2^63`.
 
 ```pavo
-(assert-eq int-min -9223372036854775808)
-(assert-throw (- int-min 1) { :tag :err-wrap-int })
+(assert-eq int-min-val -9223372036854775808)
+(assert-throw (- int-min-val 1) { :tag :err-wrap-int })
 ```
 
 #### `(int-count-ones n)`
@@ -387,7 +385,7 @@ Throws `{ :tag :err-wrap-int }` in case of an overflow.
 ```pavo
 (assert-eq (int-add 1 2) 3)
 (assert-eq (int-add 1 -2) -1)
-(assert-throw (int-add int-max 1) { :tag :err-wrap-int })
+(assert-throw (int-add int-max-val 1) { :tag :err-wrap-int })
 ```
 
 #### `(int-sub n m)`
@@ -399,7 +397,7 @@ Throws `{ :tag :err-wrap-int }` in case of an overflow.
 ```pavo
 (assert-eq (int-sub 1 2) -1)
 (assert-eq (int-sub 1 -2) 3)
-(assert-throw (int-sub int-min 1) { :tag :err-wrap-int })
+(assert-throw (int-sub int-min-val 1) { :tag :err-wrap-int })
 ```
 
 #### `(int-mul n m)`
@@ -411,7 +409,7 @@ Throws `{ :tag :err-wrap-int }` in case of an overflow.
 ```pavo
 (assert-eq (int-mul 2 3) 6)
 (assert-eq (int-mul 2 -3) -6)
-(assert-throw (int-mul int-max 2) { :tag :err-wrap-int })
+(assert-throw (int-mul int-max-val 2) { :tag :err-wrap-int })
 ```
 
 #### `(int-div n m)`
@@ -425,7 +423,7 @@ This computes the quotient of [euclidean division](https://en.wikipedia.org/wiki
 ```pavo
 (assert-eq (int-div 8 3) 2)
 (assert-eq (int-div -8 3) -3)
-(assert-throw (int-div int-min -1) { :tag :err-wrap-int })
+(assert-throw (int-div int-min-val -1) { :tag :err-wrap-int })
 (assert-throw (int-div 1 0) { :tag :err-zero })
 ```
 
@@ -440,7 +438,7 @@ This computes the quotient of [truncating division](https://en.wikipedia.org/w/i
 ```pavo
 (assert-eq (int-div-trunc 8 3) 2)
 (assert-eq (int-div-trunc -8 3) -2)
-(assert-throw (int-div-trunc int-min -1) { :tag :err-wrap-int })
+(assert-throw (int-div-trunc int-min-val -1) { :tag :err-wrap-int })
 (assert-throw (int-div-trunc 1 0) { :tag :err-zero })
 ```
 
@@ -455,7 +453,7 @@ This computes the remainder of [euclidean division](https://en.wikipedia.org/wik
 ```pavo
 (assert-eq (int-mod 8 3) 2)
 (assert-eq (int-mod -8 3) 1)
-(assert-throw (int-mod int-min -1) { :tag :err-wrap-int })
+(assert-throw (int-mod int-min-val -1) { :tag :err-wrap-int })
 (assert-throw (int-mod 1 0) { :tag :err-zero })
 ```
 
@@ -470,7 +468,7 @@ This computes the remainder of [truncating division](https://en.wikipedia.org/w/
 ```pavo
 (assert-eq (int-mod-trunc 8 3) 2)
 (assert-eq (int-mod-trunc -8 3) -2)
-(assert-throw (int-mod-trunc int-min -1) { :tag :err-wrap-int })
+(assert-throw (int-mod-trunc int-min-val -1) { :tag :err-wrap-int })
 (assert-throw (int-mod-trunc 1 0) { :tag :err-zero })
 ```
 
@@ -482,7 +480,7 @@ Negates the int `n`.Throws `{ :tag :err-wrap-int }` in case of an overflow.
 (assert-eq (int-neg 42) -42)
 (assert-eq (int-neg -42) 42)
 (assert-eq (int-neg 0) 0)
-(assert-throw (int-neg int-min) { :tag :err-wrap-int })
+(assert-throw (int-neg int-min-val) { :tag :err-wrap-int })
 ```
 
 #### `(int-shl n m)`
@@ -513,7 +511,7 @@ Throws `{ :tag :err-wrap-int }` in case of an overflow.
 (assert-eq (int-abs 42) 42)
 (assert-eq (int-abs -42) 42)
 (assert-eq (int-abs 0) 0)
-(assert-throw (int-abs int-min) { :tag :err-wrap-int })
+(assert-throw (int-abs int-min-val) { :tag :err-wrap-int })
 ```
 
 #### `(int-pow n m)`
@@ -538,8 +536,8 @@ Adds the int `n` to the int `m`, saturating at the numeric bounds instead of ove
 ```pavo
 (assert-eq (int-add-sat 1 2) 3)
 (assert-eq (int-add-sat 1 -2) -1)
-(assert-eq (int-add-sat int-max 1) int-max)
-(assert-eq (int-add-sat int-min -1) int-min)
+(assert-eq (int-add-sat int-max-val 1) int-max-val)
+(assert-eq (int-add-sat int-min-val -1) int-min-val)
 ```
 
 #### `(int-sub-sat n m)`
@@ -549,8 +547,8 @@ Subtracts the int `n` from the int `m`, saturating at the numeric bounds instead
 ```pavo
 (assert-eq (int-sub-sat 1 2) -1)
 (assert-eq (int-sub-sat 1 -2) 3)
-(assert-eq (int-sub-sat int-min 1) int-min)
-(assert-eq (int-sub-sat int-max -1) int-max)
+(assert-eq (int-sub-sat int-min-val 1) int-min-val)
+(assert-eq (int-sub-sat int-max-val -1) int-max-val)
 ```
 
 #### `(int-mul-sat n m)`
@@ -560,8 +558,8 @@ Multiplies the int `n` with the int `m`, saturating at the numeric bounds instea
 ```pavo
 (assert-eq (int-mul-sat 2 3) 6)
 (assert-eq (int-mul-sat 2 -3) -6)
-(assert-eq (int-mul-sat int-max 2) int-max)
-(assert-eq (int-mul-sat int-min 2) int-min)
+(assert-eq (int-mul-sat int-max-val 2) int-max-val)
+(assert-eq (int-mul-sat int-min-val 2) int-min-val)
 ```
 
 #### `(int-pow-sat n m)`
@@ -574,8 +572,8 @@ Computes the int `n` to the power of the positive int `m`, saturating at the num
 (assert-eq (int-pow 0 999) 0)
 (assert-eq (int-pow 1 999) 1)
 (assert-eq (int-pow -1 999) -1)
-(assert-eq (int-pow 99 99) int-max)
-(assert-eq (int-pow -99 99) int-min)
+(assert-eq (int-pow 99 99) int-max-val)
+(assert-eq (int-pow -99 99) int-min-val)
 ```
 
 #### `(int-add-wrap n m)`
@@ -584,8 +582,8 @@ Adds the int `n` to the int `m`, wrapping around the numeric bounds instead of o
 
 ```pavo
 (assert-eq (int-add-wrap 1 2) 3)
-(assert-eq (int-add-wrap int-max 1) int-min)
-(assert-eq (int-add-wrap int-min -1) int-max)
+(assert-eq (int-add-wrap int-max-val 1) int-min-val)
+(assert-eq (int-add-wrap int-min-val -1) int-max-val)
 ```
 
 #### `(int-sub-wrap n m)`
@@ -594,8 +592,8 @@ Subtracts the int `n` from the int `m`, wrapping around the numeric bounds inste
 
 ```pavo
 (assert-eq (int-sub-wrap 1 2) -1)
-(assert-eq (int-sub-wrap int-min 1) int-max)
-(assert-eq (int-sub-wrap int-max -1) int-min)
+(assert-eq (int-sub-wrap int-min-val 1) int-max-val)
+(assert-eq (int-sub-wrap int-max-val -1) int-min-val)
 ```
 
 #### `(int-mul-wrap n m)`
@@ -604,10 +602,10 @@ Muliplies the int `n` with the int `m`, wrapping around the numeric bounds inste
 
 ```pavo
 (assert-eq (int-mul-wrap 2 3) 6)
-(assert-eq (int-mul-wrap int-max 2) 2)
-(assert-eq (int-mul-wrap int-max -2) 2)
-(assert-eq (int-mul-wrap int-min 2) 0)
-(assert-eq (int-mul-wrap int-min -2) 0)
+(assert-eq (int-mul-wrap int-max-val 2) 2)
+(assert-eq (int-mul-wrap int-max-val -2) 2)
+(assert-eq (int-mul-wrap int-min-val 2) 0)
+(assert-eq (int-mul-wrap int-min-val -2) 0)
 ```
 
 #### `(int-div-wrap n m)`
@@ -621,7 +619,7 @@ This computes the quotient of [euclidean division](https://en.wikipedia.org/wiki
 ```pavo
 (assert-eq (int-div-wrap 8 3) 2)
 (assert-eq (int-div-wrap -8 3) -3)
-(assert-eq (int-div-wrap int-min -1) int-min)
+(assert-eq (int-div-wrap int-min-val -1) int-min-val)
 (assert-throw (int-div-wrap 1 0) { :tag :err-zero })
 ```
 
@@ -636,7 +634,7 @@ This computes the quotient of [truncating division](https://en.wikipedia.org/w/i
 ```pavo
 (assert-eq (int-div-trunc-wrap 8 3) 2)
 (assert-eq (int-div-trunc-wrap -8 3) -2)
-(assert-eq (int-div-trunc-wrap int-min -1) int-min)
+(assert-eq (int-div-trunc-wrap int-min-val -1) int-min-val)
 (assert-throw (int-div-trunc-wrap 1 0) { :tag :err-zero })
 ```
 
@@ -651,7 +649,7 @@ This computes the remainder of [euclidean division](https://en.wikipedia.org/wik
 ```pavo
 (assert-eq (int-mod-wrap 8 3) 2)
 (assert-eq (int-mod-wrap -8 3) 1)
-(assert-eq (int-mod-wrap int-min -1) 0)
+(assert-eq (int-mod-wrap int-min-val -1) 0)
 (assert-throw (int-mod-wrap 1 0) { :tag :err-zero })
 ```
 
@@ -666,7 +664,7 @@ This computes the remainder of [truncating division](https://en.wikipedia.org/w/
 ```pavo
 (assert-eq (int-mod-trunc-wrap 8 3) 2)
 (assert-eq (int-mod-trunc-wrap -8 3) -2)
-(assert-eq (int-mod-trunc-wrap int-min -1) 0)
+(assert-eq (int-mod-trunc-wrap int-min-val -1) 0)
 (assert-throw (int-mod-trunc-wrap 1 0) { :tag :err-zero })
 ```
 
@@ -678,7 +676,7 @@ Negates the int `n`, wrapping around the numeric bounds instead of overflowing.
 (assert-eq (int-neg 42) -42)
 (assert-eq (int-neg -42) 42)
 (assert-eq (int-neg 0) 0)
-(assert-eq (int-neg int-min) int-min)
+(assert-eq (int-neg int-min-val) int-min-val)
 ```
 
 #### `(int-abs-wrap n)`
@@ -689,7 +687,7 @@ Returns the absolute value of the int `n`, wrapping around the numeric bounds in
 (assert-eq (int-abs-wrap 42) 42)
 (assert-eq (int-abs-wrap -42) 42)
 (assert-eq (int-abs-wrap 0) 0)
-(assert-eq (int-abs-wrap int-min) int-min)
+(assert-eq (int-abs-wrap int-min-val) int-min-val)
 ```
 
 #### `(int-pow-wrap n m)`
@@ -884,12 +882,12 @@ Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
 
 ### Chars
 
-#### `char-max`
+#### `char-max-val`
 
 The largest char (numerically the largest unicode scalar value).
 
 ```pavo
-(assert-eq char-max '\{10ffff}')
+(assert-eq char-max-val '\{10ffff}')
 ```
 
 #### `(int=>char n)`
@@ -922,8 +920,6 @@ Returns the unicode scalar value of the char `c` as an int.
 
 ### Strings
 
-TODO utf-8 stuff
-
 #### `(str-count s)`
 
 Returns the number of chars in the string `s`.
@@ -937,7 +933,7 @@ Time: O(1).
 (assert-eq (str-count "abc") 3)
 ```
 
-<!-- #### `(str-count-utf8 s)`
+#### `(str-count-utf8 s)`
 
 Returns the number of bytes in the utf8 encoding of the string `s`.
 
@@ -948,7 +944,7 @@ Time: O(1).
 (assert-eq (str-count-utf8 "a") 1)
 (assert-eq (str-count-utf8 "⚗") 3)
 (assert-eq (str-count-utf8 "abc") 3)
-``` -->
+```
 
 #### `(str-get s index)`
 
@@ -962,6 +958,22 @@ Time: O(log n), where n is `(str-count s)`.
 (assert-eq (str-get "a" 0) 'a')
 (assert-eq (str-get "⚗b" 1) 'b')
 (assert-throw (str-get "" 0) { :tag :err-lookup, :got 0})
+```
+
+#### `(str-get-utf8 s index)`
+
+Returns the utf8 byte at the int `index` in the string `s`.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+Time: O(log n), where n is `(str-count-utf8 s)`.
+
+```pavo
+(assert-eq (str-get-utf8 "a" 0) 'a')
+(assert-eq (str-get-utf8 "⚗" 0) 226)
+(assert-eq (str-get-utf8 "⚗" 1) 154)
+(assert-eq (str-get-utf8 "⚗" 2) 151)
+(assert-throw (str-get-utf8 "" 0) { :tag :err-lookup, :got 0})
 ```
 
 #### `(str-insert s index c)`
@@ -1098,8 +1110,204 @@ Time: Iteration takes amortized O(n), where n is `(str-count s)`.
 ))
 ```
 
+#### `(str-iter-utf8 s fun)`
+
+Starting from the beginning of the string `s`, applies the function `fun` to the utf8 bytes of `s` in sequence until either `fun` returns a truthy value or the end of the string is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(str-count-utf8 s)`.
+
+#### `(str-iter-back-utf8 s fun)`
+
+Starting from the back of the string `s`, applies the function `fun` to the utf8 bytes of `s` in reverse order until either `fun` returns a truthy value or the end of the string is reached. Returns `nil`. Propagates any value thrown by `fun`.
+
+Time: Iteration takes amortized O(n), where n is `(str-count-utf8 s)`.
+
 ### Floats
 
+TODO bla
+
+All functions that operate on floats throw `:inf` if the result would be infinity under IEEE754 semantics, `:-inf` if the result would be negative infinity under IEEE754 semantics, and `:nan` if the result would be not-a-number under IEEE753 semantics.
+
+#### `float-max-val`
+
+The largest float.
+
+```pavo
+(assert-throw (float-mul float-max-val 2) :inf)
+```
+
+#### `float-min-val`
+
+The smallest float.
+
+```pavo
+(assert-throw (float-mul float-min-val 1) :-inf)
+```
+
+#### `(float-add n m)`
+
+Adds the float `n` to the float `m`.
+
+```pavo
+(assert-eq (float-add 1.0 2.0) 3.0)
+(assert-eq (float-add 1.0 -2.0) -1.0)
+(assert-eq (float-add 0.1 0.2) 0.30000000000000004)
+```
+
+#### `(float-sub n m)`
+
+Subtracts the float `m` from the float `n`.
+
+```pavo
+(assert-eq (float-sub 1.0 2.0) -1.0)
+(assert-eq (float-sub 1.0 -2.0) 3.0)
+```
+
+#### `(float-mul n m)`
+
+Multiplies the float `n` with the int `m`.
+
+```pavo
+(assert-eq (float-mul 2.0 3.0) 6.0)
+(assert-eq (float-mul 2.0 -3.0) -6.0)
+```
+
+#### `(float-div n m)`
+
+Divides the float `n` by the float `m`.
+
+```pavo
+(assert-eq (float-div 8.0 3.0) 2.6666666666666665)
+```
+
+#### `(float-mul-add a b c)`
+TODO (a*b) + c
+
+#### `(float-neg x)`
+TODO
+
+#### `(float-floor x)`
+TODO
+
+#### `(float-ceil x)`
+TODO
+
+#### `(float-round x)`
+TODO
+
+#### `(float-trunc x)`
+TODO
+
+#### `(float-fract x)`
+TODO
+
+#### `(float-abs x)`
+TODO
+
+#### `(float-signum x)`
+TODO
+
+#### `(float-powi x n)`
+TODO
+
+#### `(float-powf x y)`
+TODO
+
+#### `(float-sqrt x)`
+TODO
+
+#### `(float-exp x)`
+TODO
+
+#### `(float-exp2 x)`
+TODO
+
+#### `(float-ln x)`
+TODO
+
+#### `(float-log2 x)`
+TODO
+
+#### `(float-log10 x)`
+TODO
+
+#### `(float-hypot x y)`
+TODO
+
+#### `(float-sin x)`
+TODO
+
+#### `(float-cos x)`
+TODO
+
+#### `(float-tan x)`
+TODO
+
+#### `(float-asin x)`
+TODO
+
+#### `(float-acos x)`
+TODO
+
+#### `(float-atan x)`
+TODO
+
+#### `(float-atan2 x y)`
+TODO
+
+#### `(float-exp-m1 x)`
+TODO
+
+#### `(float-ln-1p x)`
+TODO
+
+#### `(float-sinh x)`
+TODO
+
+#### `(float-cosh x)`
+TODO
+
+#### `(float-tanh x)`
+TODO
+
+#### `(float-asinh x)`
+TODO
+
+#### `(float-acosh x)`
+TODO
+
+#### `(float-atanh x)`
+TODO
+
+#### `(float-classify x)`
+TODO :zero :subnormal :normal
+
+#### `(float-recip x)`
+TODO
+
+#### `(float->degrees x)`
+TODO
+
+#### `(float->radians x)`
+TODO
+
+#### `(float->int x)`
+Truncate towards zero, yields int-max-val if too large or int-min-val if too small
+TODO
+
+#### `(int->float n)`
+The usual rounding if the int can't be represented exactly
+TODO
+
+#### `(float->bits x)`
+https://doc.rust-lang.org/std/primitive.f64.html#method.to_bits
+TODO
+
+#### `(bits=>float n)`
+https://doc.rust-lang.org/std/primitive.f64.html#method.from_bits
+TODO
+
+#### `(bits=>float? n)`
 TODO
 
 ### Identifiers
@@ -1512,6 +1720,13 @@ Time: Iteration takes amortized O(n), where n is `(app-count app)`.
 ))
 ```
 
+#### `(app-apply app)`
+
+Applies the first value in the application to the remaining values.
+
+TODO wrap errors or not?
+TODO examples
+
 ### Sets
 
 #### `(set-count set)`
@@ -1877,7 +2092,7 @@ Returns the map that contains all the entries in the maps `lhs` and `rhs` whose 
 
 Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
 
-#### `(set-iter set fun)`
+#### `(map-iter map fun)`
 
 Starting from the entry with the minimal key in the map `map`, applies the function `fun` to the entries of `map` in ascending order until either `fun` returns a truthy value or the end of the set is reached. Returns `nil`. Propagates any value thrown by `fun`.
 
@@ -1899,7 +2114,7 @@ Time: Iteration takes amortized O(n), where n is `(map-count map)`.
 ))
 ```
 
-#### `(map-iter-back set fun)`
+#### `(map-iter-back map fun)`
 
 Starting from the entry with the maximal key in the map `map`, applies the function `fun` to the entries of `map` in descending order until either `fun` returns a truthy value or the end of the set is reached. Returns `nil`. Propagates any value thrown by `fun`.
 
@@ -1931,6 +2146,41 @@ Returns a fresh symbol that is only equal to itself.
 (assert (let x (symbol) (= x x)))
 (assert-not (= (symbol) (symbol)))
 ```
+
+### Cells
+
+#### `(cell x)`
+
+Returns a new cell that contains the value `x`. The cell is only equal to itself.
+
+```pavo
+(assert (let x (cell 42) (= x x)))
+(assert-not (= (cell 42) (cell 42)))
+```
+
+#### `(cell-get cl)`
+
+Returns the value contained in the cell.
+
+```pavo
+(assert-eq (cell-get (cell 42)) 42)
+```
+
+#### `(cell-set cl x)`
+
+Updates the cell `cl` to now contain the value `x`.
+
+```pavo
+(assert-eq ((sf-lambda [x] (sf-do (cell-set x 43) (cell-get x))) (cell 42)) 43)
+```
+
+### Opaques
+
+#### `(opaque)`
+
+Returns an array containing two functions: One that takes a value and returns an opaque value, and one that inverts it (but throws `{:tag :err-opaque}` if its input has not been produced by the first function).
+
+TODO
 
 #### Equality and Ordering
 TODO introduction, explain equality and the total order over all values, talk about determinism
@@ -2011,20 +2261,6 @@ Time: O(n), where n is `(string-count <prefix>)`, where `<prefix>` is the longes
 (assert-throw (read "(a) b") { :tag :err-not-expression })
 ```
 
-#### `(read-prefix)`
-
-If a prefix of the string `s` is a pavo expression, returns `{ :expression <expr>, :suffix <suffix>}` where `<expr>` is the value denoted by that expression and `<suffix>` is the remainder of the string.
-
-Throws `{ :tag :err-not-expression }` if no prefix of the string is a valid pavo expression.
-
-Time: O(n), where n is `(string-count <prefix>)`, where `<prefix>` is the longest prefix of `s` that is a pavo expression.
-
-```pavo
-(assert-eq (read-prefix "42") {:expression 42, :suffix ""})
-(assert-eq (read-prefix "(a) ") {:expression $(a), :suffix " "})
-(assert-throw (read-str "(a) b") {:expression $(a), :suffix " b"})
-```
-
 #### `(write v)`
 
 Returns a string `s` such that `(read s)` equals the value `v`. The precise definition is given at the end of this document.
@@ -2040,13 +2276,13 @@ Time: Linear in the length of the returned string. Yeah, that's not a proper def
 (assert-throw (write (symbol)) { :tag :err-not-writable })
 ```
 
-TODO expand, check, evaluate, etc.
+TODO expand, check, eval, exval (expand then eval)
 
 ### Miscellaneous
 
 #### `(typeof x)`
 
-Returns a keyword indicating the type of `x`: `:nil`, `:bool`, `:int`, `:float`, `:char`, `:string`, `:bytes`, `:keyword`, `:identifier`, `:symbol`, `:function`, `:array`, `:application`, `:map` or `:set`.
+Returns a keyword indicating the type of `x`: `:nil`, `:bool`, `:int`, `:float`, `:char`, `:string`, `:bytes`, `:keyword`, `:identifier`, `:symbol`, `:function`, `:array`, `:application`, `:map`, `:set`, `:cell` or `:opaque`.
 
 ```pavo
 (assert-eq (typeof nil) :nil)
@@ -2057,14 +2293,17 @@ Returns a keyword indicating the type of `x`: `:nil`, `:bool`, `:int`, `:float`,
 (assert-eq (typeof "foo") :string)
 (assert-eq (typeof @[]) :bytes)
 (assert-eq (typeof :kw) :keyword)
-(assert-eq (typeof `id) :identifier)
+(assert-eq (typeof $id) :identifier)
 (assert-eq (typeof (symbol)) :symbol)
 (assert-eq (typeof typeof) :function)
+(assert-eq (typeof (cell 42)) :cell)
 (assert-eq (typeof []) :array)
-(assert-eq (typeof `()) :application)
+(assert-eq (typeof $()) :application)
 (assert-eq (typeof {}) :map)
 (assert-eq (typeof @{}) :set)
 ```
+
+TODO opaque
 
 #### `(truthy? x)`
 
@@ -2087,6 +2326,8 @@ Immediately and abnormally terminates the execution of the program. Semantically
 Note that this is different from a program terminating through an uncaught throw and you should almost always throw instead of deliberately calling `diverge` (just as there are very few situations where you'd deliberately go into an effect-free infinite loop).
 
 ## Appendix: Precise Definition of `(write v)`
+
+TODO rewrite this, explain with recursion rather than induction...
 
 This section defines the return value of `(write v)` for any expression `v`, defined through structural induction (examples/tests are below).
 
@@ -2117,6 +2358,8 @@ This section defines the return value of `(write v)` for any expression `v`, def
 - `(= (typeof v) :identifier)`: the identifier itself
 - `(= (typeof v) :symbol)`: throw `{ :tag :err-not-writable }`
 - `(= (typeof v) :function)`: throw `{ :tag :err-not-writable }`
+- `(= (typeof v) :cell)`: throw `{ :tag :err-not-writable }`
+- `(= (typeof v) :opaque)`: throw `{ :tag :err-not-writable }`
 
 ### Induction Steps
 
@@ -2162,6 +2405,7 @@ Collections serialize their components and separate them by a single space (ther
 
 (assert-throw (write (symbol)) {:tag :err-not-writable})
 (assert-throw (write write) {:tag :err-not-writable})
+# TODO example with an opaque value here
 
 (assert-eq (write [ ]) "[]")
 (assert-eq (write [ 2]) "[2]")
@@ -2183,3 +2427,32 @@ Collections serialize their components and separate them by a single space (ther
 ```
 
 TODO floats... those are fun!
+
+---
+
+TODO require (dynamic linking, *not* loading)
+
+TODO syntax sugar
+
+---
+
+- functions that compute the builtin macros?
+
+Macros:
+
+- `set!`
+- `quote`
+- `throw`
+- `if`
+- `fn`
+- `letfn`
+- `let`
+- `try`
+- `do`
+- `quasiquote`
+- `->`, `->>`
+- `and`, `or`
+- `while`
+
+- `dotimes` ?
+- `case`, `loop` ?

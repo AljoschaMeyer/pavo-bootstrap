@@ -8,7 +8,7 @@ use std::{
     iter::FromIterator
 };
 
-use gc::Gc;
+use gc::GcCell;
 use gc_derive::{Trace, Finalize};
 use im_rc::{
     Vector as ImVector,
@@ -19,7 +19,6 @@ use ropey::Rope as Ropey;
 
 use crate::builtins::type_error;
 use crate::context::Context;
-use crate::env::Env;
 use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
 use crate::vm::Closure;
 
@@ -32,6 +31,7 @@ pub enum Value {
     Set(OrdSet<Value>),
     Map(OrdMap<Value, Value>),
     Fun(Fun),
+    Cell(Box<GcCell<Value>>, u64),
 }
 
 impl Value {
@@ -132,28 +132,19 @@ impl Value {
     }
 
     pub fn closure(c: Closure, cx: &mut Context) -> Value {
-        Value::Fun(Fun {
-            fun: _Fun::Closure(c),
-            id: cx.next_fun_id()
-        })
+        Value::Fun(Fun::Closure(c, cx.next_fun_id()))
     }
 
     pub fn builtin(b: Builtin, cx: &mut Context) -> Value {
-        Value::Fun(Fun {
-            fun: _Fun::Builtin(b),
-            id: cx.next_fun_id()
-        })
+        Value::Fun(Fun::Builtin(b))
     }
 
     pub fn symbol(cx: &mut Context) -> Value {
         Value::Id(Id::Symbol(cx.next_symbol_id()))
     }
 
-    pub fn apply(cx: &mut Context) -> Value {
-        Value::Fun(Fun {
-            fun: _Fun::Apply,
-            id: cx.next_fun_id()
-        })
+    pub fn cell(v: &Value, cx: &mut Context) -> Value {
+        Value::Cell(Box::new(GcCell::new(v.clone())), cx.next_cell_id())
     }
 
     pub fn as_id(&self) -> Option<&Id> {
@@ -259,25 +250,19 @@ impl Id {
     }
 }
 
-// Eq and Ord are only considering the id.
 #[derive(Debug, Clone, Trace, Finalize)]
-pub struct Fun {
-    pub fun: _Fun,
-    pub id: u64,
-}
-
-impl Fun {
-    pub fn compute(&self, args: Vector<Value>, ctx: &mut Context) -> Result<Value, Value> {
-        match self.fun {
-            _ => unimplemented!(),
-            // TODO special logic for app_apply lives here
-        }
-    }
+pub enum Fun {
+    Closure(Closure, u64),
+    Builtin(Builtin),
 }
 
 impl PartialEq for Fun {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+        match (self, other) {
+            (Fun::Builtin(a), Fun::Builtin(b)) => a.eq(b),
+            (Fun::Closure(_, id_a), Fun::Closure(_, id_b)) => id_a.eq(id_b),
+            _ => false,
+        }
     }
 }
 
@@ -285,7 +270,12 @@ impl Eq for Fun {}
 
 impl Ord for Fun {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.id.cmp(&other.id)
+        match (self, other) {
+            (Fun::Builtin(a), Fun::Builtin(b)) => a.cmp(b),
+            (Fun::Builtin(..), Fun::Closure(..)) => Ordering::Less,
+            (Fun::Closure(..), Fun::Builtin(..)) => Ordering::Greater,
+            (Fun::Closure(_, id_a), Fun::Closure(_, id_b)) => id_a.cmp(id_b),
+        }
     }
 }
 
@@ -295,19 +285,228 @@ impl PartialOrd for Fun {
     }
 }
 
-#[derive(Debug, Clone, Trace, Finalize)]
-pub enum _Fun {
-    Closure(Closure),
-    Builtin(Builtin),
-    Apply, // the builtin function `apply` requires special interpretation logic
+impl Fun {
+    pub fn compute(&self, args: Vector<Value>, ctx: &mut Context) -> Result<Value, Value> {
+        unimplemented!();
+        // match self {
+        //     Value::Fun(fun) => fun.compute(args, ctx),
+        //     _ => Err(type_error(self, "function")),
+        // }
+    }
 }
 
-/// A function that is provided by pavo (as opposed to a programmer-defined closure).
-#[derive(Clone, Trace, Finalize)]
-pub struct Builtin(#[unsafe_ignore_trace] pub fn(Value, &mut Context) -> Result<Value, Value>);
+// TODO, FIXME, XXX: Sort summands lexicographically by their pavo name
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
+pub enum Builtin {
+    BoolNot,
+    BoolAnd,
+    BoolOr,
+    BoolIf,
+    BoolIff,
+    BoolXor,
 
-impl fmt::Debug for Builtin {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Builtin({:?})", self.0 as usize)
-    }
+    IntCountOnes,
+    IntCountZeros,
+    IntLeadingOnes,
+    IntLeadingZeros,
+    IntTrailingOnes,
+    IntTralingZeros,
+    IntRotateLeft,
+    IntRotateRight,
+    IntReverseBytes,
+    IntReverseBits,
+    IntAdd,
+    IntSub,
+    IntMul,
+    IntDiv,
+    IntDivTrunc,
+    IntMod,
+    IntModTrunc,
+    IntNeg,
+    IntShl,
+    IntShr,
+    IntAbs,
+    IntPow,
+    IntAddSat,
+    IntSubSat,
+    IntMulSat,
+    IntPowSat,
+    IntAddWrap,
+    IntSubWrap,
+    IntMulWrap,
+    IntDivWrap,
+    IntDivTruncWrap,
+    IntModWrap,
+    IntModTruncWrap,
+    IntNegWrap,
+    IntAbsWrap,
+    IntPowWrap,
+    IntSignum,
+
+    BytesCount,
+    BytesGet,
+    BytesInsert,
+    BytesRemove,
+    BytesUpdate,
+    BytesSlice,
+    BytesSplice,
+    BytesConcat,
+    BytesIter,
+    BytesIterBack,
+
+    IntToChar,
+    IsIntToChar,
+    CharToInt,
+
+    StrCount,
+    StrCountUtf8,
+    StrGet,
+    StrGetUtf8,
+    StrInsert,
+    StrRemove,
+    StrUpdate,
+    StrSlice,
+    StrSplice,
+    StrConcat,
+    StrIter,
+    StrIterBack,
+    StrIterUtf8,
+    StrIterBackUtf8,
+
+    FloatAdd,
+    FloatSub,
+    FloatMul,
+    FloatDiv,
+    FloatMulAdd,
+    FloatNeg,
+    FloatFloor,
+    FloatCeil,
+    FloatRound,
+    FloatTrunc,
+    FloatFract,
+    FloatAbs,
+    FloatSignum,
+    FloatPowi,
+    FloatPowf,
+    FloatSwrt,
+    FloatExp,
+    FloatExp2,
+    FloatLn,
+    FloatLog2,
+    FloatLog10,
+    FloatHypot,
+    FloatSin,
+    FloatCos,
+    FloatTan,
+    FloatAsin,
+    FloatAcos,
+    FloatAtan,
+    FloatAtan2,
+    FloatExpM1,
+    FloatLn1P,
+    FloatSinH,
+    FloatCosH,
+    FloatTanH,
+    FloatAsinH,
+    FloatAcosH,
+    FloatAtanH,
+    FloatClassify,
+    FloatRecip,
+    FloatToDegrees,
+    FloatToRadians,
+    FloatToInt,
+    IntToFloat,
+    FloatToBits,
+    BitsToFloat,
+
+    StrToId,
+    IsStrToId,
+    IdToStr,
+
+    StrToKw,
+    IsStrToKw,
+    KwToStr,
+
+    ArrCount,
+    ArrGet,
+    ArrInsert,
+    ArrRemove,
+    ArrUpdate,
+    ArrSlice,
+    ArrSplice,
+    ArrConcat,
+    ArrIter,
+    ArrIterBack,
+
+    AppCount,
+    AppGet,
+    AppInsert,
+    AppRemove,
+    AppUpdate,
+    AppSlice,
+    AppSplice,
+    AppConcat,
+    AppIter,
+    AppIterBack,
+    AppApply,
+
+    SetCount,
+    SetContains,
+    SetMin,
+    SetMax,
+    SetInsert,
+    SetRemove,
+    SetUnion,
+    SetIntersection,
+    SetDifference,
+    SetSymmetricDifference,
+    SetIter,
+    SetIterBack,
+
+    MapCount,
+    MapGet,
+    MapContains,
+    MapMin,
+    MapMinKey,
+    MapMinEntry,
+    MapMax,
+    MapMaxKey,
+    MapMaxEntry,
+    MapInsert,
+    MapRemove,
+    MapUnion,
+    MapIntersection,
+    MapDifference,
+    MapSymmetricDifference,
+    MapIter,
+    MapIterBack,
+
+    Symbol,
+
+    Cell,
+    CellGet,
+    CellSet,
+
+    Opaque,
+
+    Eq,
+    Lt,
+    Lte,
+    Gt,
+    Gte,
+
+    Read,
+    Write,
+    Expand,
+    Check,
+    Eval,
+    Exval,
+
+    Typeof,
+    Truthy,
+    Diverge,
+
+    Require,
+
+    // TODO macros as functions
 }

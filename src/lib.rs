@@ -9,7 +9,6 @@ mod check;
 mod compile;
 mod context;
 mod env;
-mod eval;
 mod expand;
 mod gc_foreign;
 mod special_forms;
@@ -20,7 +19,6 @@ mod vm;
 use check::{check, StaticError};
 use context::Context;
 use env::Env;
-use eval::eval;
 use expand::{expand, ExpandError};
 use gc_foreign::OrdMap;
 use value::{Id, Value};
@@ -87,6 +85,7 @@ pub fn execute(src: &str) -> Result<Result<Value, Value>, Error> {
     let default_env = Env::default(&mut default_cx);
 
     let v = read(CompleteStr(src))?;
+    let closure = compile::compile(&v, &default_env)?;
     check(&v, &default_env)?;
     Ok(eval(v, default_env, &mut default_cx))
 }

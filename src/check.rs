@@ -9,7 +9,6 @@ use std::collections::HashMap;
 
 use im_rc::OrdMap;
 
-use crate::env::Env;
 use crate::special_forms::{SpecialForm, Args, SpecialFormSyntaxError, special};
 use crate::value::{Value, Id};
 
@@ -29,7 +28,7 @@ impl From<SpecialFormSyntaxError> for StaticError {
 
 /// Check the value `v` in the given environment. Treats all bindings in the environment as
 /// immutable.
-pub fn check(v: &Value, env: &Env) -> Result<(), StaticError> {
+pub fn check(v: &Value, env: &HashMap<String, Value>) -> Result<(), StaticError> {
     let mut bindings = OrdMap::new();
     for id in (env.0).0.keys() {
         bindings.insert(id.clone(), false);

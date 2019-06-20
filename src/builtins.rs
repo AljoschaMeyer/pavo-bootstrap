@@ -758,6 +758,16 @@ pub fn int_to_char(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     }
 }
 
+pub fn is_int_to_char(args: Value, _cx: &mut Context) -> Result<Value, Value> {
+    let n = int!(arg!(args, 0));
+    match std::char::from_u32(n as u32) {
+        Some(c) => {
+            Ok(Value::bool_(true))
+        }
+        None => Ok(Value::bool_(false)),
+    }
+}
+
 pub fn char_to_int(args: Value, _cx: &mut Context) -> Result<Value, Value> {
     let c = char!(arg!(args, 0));
     Ok(Value::int(c as i64))

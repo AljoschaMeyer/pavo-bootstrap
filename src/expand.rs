@@ -1,7 +1,6 @@
 use im_rc::{OrdMap as ImOrdMap, Vector as ImVector};
 
 use crate::context::Context;
-use crate::env::Env;
 use crate::gc_foreign::{OrdMap, Vector};
 use crate::value::{Value, Id, Fun, _Fun, Builtin};
 use crate::{expand_check_eval, E};
