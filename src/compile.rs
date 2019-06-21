@@ -68,12 +68,12 @@ impl Stack {
         unreachable!("Always at least one environment, id can not be unused (caught by static checks)");
     }
 
-    fn from_toplevel(toplevel: &HashMap<String, Value>) -> Stack {
+    fn from_toplevel(toplevel: &HashMap<Id, Value>) -> Stack {
         let mut ret = Stack::new();
         ret.push_scope();
 
         for (i, (name, _)) in toplevel.iter().enumerate() {
-            ret.0[0].insert(Id::user(name), i);
+            ret.0[0].insert(name.clone(), i);
         }
 
         ret
@@ -136,7 +136,7 @@ impl BBB {
 
 pub fn compile<'a>(
     v: &Value,
-    toplevel: &HashMap<String, Value>,
+    toplevel: &HashMap<Id, Value>,
 ) -> Result<Closure, StaticError> {
     check_toplevel(v, toplevel)?;
 
@@ -152,7 +152,7 @@ pub fn compile<'a>(
 
 fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
     match v {
-        Value::Atomic(..) | Value::Fun(..) => {
+        Value::Atomic(..) | Value::Fun(..) | Value::Cell(..) => {
             if push {
                 bbb.append(Literal(v.clone()));
             }

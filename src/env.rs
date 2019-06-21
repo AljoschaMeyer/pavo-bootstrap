@@ -5,6 +5,9 @@ use crate::value::{Value, Id, Builtin};
 pub fn default() -> HashMap<Id, Value> {
     let mut m = HashMap::new();
 
+    // TODO macro functions
+    // TODO trace
+
     env_add(&mut m, "bool-not", Builtin::BoolNot);
     env_add(&mut m, "bool-and", Builtin::BoolAnd);
     env_add(&mut m, "bool-or", Builtin::BoolOr);

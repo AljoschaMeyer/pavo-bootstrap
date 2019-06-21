@@ -24,6 +24,7 @@ pub fn typeof__(v: &Value) -> Value {
         Value::App(..) => Value::kw_str("application"),
         Value::Map(..) => Value::kw_str("map"),
         Value::Set(..) => Value::kw_str("set"),
+        Value::Cell(..) => Value::kw_str("cell"),
     }
 }
 
@@ -1637,8 +1638,6 @@ fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
             Ok(())
         }
         Value::Id(Id::User(id)) => Ok(out.push_str(id)),
-        Value::Id(Id::Symbol(..)) => Err(unwritable_error()),
-        Value::Fun(..) => Err(unwritable_error()),
         Value::Arr(arr) => {
             out.push_str("[");
             for (i, v) in arr.0.iter().enumerate() {
@@ -1685,5 +1684,6 @@ fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
             out.push_str("]");
             Ok(())
         }
+        Value::Id(Id::Symbol(..)) | Value::Fun(..) | Value::Cell(..) => Err(unwritable_error()),
     }
 }

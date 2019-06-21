@@ -2430,6 +2430,8 @@ TODO floats... those are fun!
 
 ---
 
+TODO trace
+
 TODO require (dynamic linking, *not* loading)
 
 TODO syntax sugar

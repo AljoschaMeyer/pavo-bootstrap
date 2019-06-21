@@ -1,9 +1,11 @@
+use std::collections::HashMap;
+
 use im_rc::{OrdMap as ImOrdMap, Vector as ImVector};
 
 use crate::context::Context;
 use crate::gc_foreign::{OrdMap, Vector};
-use crate::value::{Value, Id, Fun, _Fun, Builtin};
-use crate::{expand_check_eval, E};
+use crate::value::{Value, Id, Fun, Builtin};
+use crate::{exval, E};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum ExpandError {
@@ -23,14 +25,14 @@ impl From<E> for ExpandError {
     }
 }
 
-pub fn expand(v: &Value, env: Env, macros: &ImOrdMap<Id, Value>, cx: &mut Context) -> Result<Value, ExpandError> {
+pub fn expand(v: &Value, env: &HashMap<Id, Value>, macros: &ImOrdMap<Id, Value>, cx: &mut Context) -> Result<Value, ExpandError> {
     match v {
-        Value::Atomic(..) | Value::Id(..) | Value::Fun(..)  => Ok(v.clone()),
+        Value::Atomic(..) | Value::Id(..) | Value::Fun(..) | Value::Cell(..)  => Ok(v.clone()),
 
         Value::Arr(ref vals) => {
             let mut expanded = Vec::with_capacity(vals.0.len());
             for item in vals.0.iter() {
-                expanded.push(expand(item, env.clone(), macros, cx)?);
+                expanded.push(expand(item, env, macros, cx)?);
             }
             return Ok(Value::arr_from_vec(expanded));
         }
@@ -38,7 +40,7 @@ pub fn expand(v: &Value, env: Env, macros: &ImOrdMap<Id, Value>, cx: &mut Contex
         Value::Set(ref vals) => {
             let mut expanded = Vec::with_capacity(vals.0.len());
             for item in vals.0.iter() {
-                expanded.push(expand(item, env.clone(), macros, cx)?);
+                expanded.push(expand(item, env, macros, cx)?);
             }
             return Ok(Value::set_from_vec(expanded));
         }
@@ -46,8 +48,8 @@ pub fn expand(v: &Value, env: Env, macros: &ImOrdMap<Id, Value>, cx: &mut Contex
         Value::Map(ref vals) => {
             let mut expanded = Vec::with_capacity(vals.0.len());
             for entry in vals.0.iter() {
-                let key = expand(&entry.0, env.clone(), macros, cx)?;
-                let val = expand(&entry.1, env.clone(), macros, cx)?;
+                let key = expand(&entry.0, env, macros, cx)?;
+                let val = expand(&entry.1, env, macros, cx)?;
                 expanded.push((key, val));
             }
             return Ok(Value::map_from_vec(expanded));
@@ -66,7 +68,7 @@ pub fn expand(v: &Value, env: Env, macros: &ImOrdMap<Id, Value>, cx: &mut Contex
                         return Err(ExpandError::Arity(v.clone()));
                     }
 
-                    let body = expand_check_eval(&vals.0[2], env.clone(), macros, env.clone(), cx)?;
+                    let body = exval(&vals.0[2], env, macros, env, cx)?;
                     let new_macros = match_macro(&body, &vals.0[1], macros)?;
                     expand(&vals.0[3], env, &new_macros, cx)
                 }
@@ -97,7 +99,7 @@ pub fn expand(v: &Value, env: Env, macros: &ImOrdMap<Id, Value>, cx: &mut Contex
                     None => {
                         let mut expanded = Vec::with_capacity(vals.0.len());
                         for item in vals.0.iter() {
-                            expanded.push(expand(item, env.clone(), macros, cx)?);
+                            expanded.push(expand(item, env, macros, cx)?);
                         }
                         return Ok(Value::app_from_vec(expanded));
                     }
@@ -106,7 +108,7 @@ pub fn expand(v: &Value, env: Env, macros: &ImOrdMap<Id, Value>, cx: &mut Contex
                 _ => {
                     let mut expanded = Vec::with_capacity(vals.0.len());
                     for item in vals.0.iter() {
-                        expanded.push(expand(item, env.clone(), macros, cx)?);
+                        expanded.push(expand(item, env, macros, cx)?);
                     }
                     return Ok(Value::app_from_vec(expanded));
                 }

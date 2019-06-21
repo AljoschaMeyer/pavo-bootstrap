@@ -8,7 +8,7 @@ use im_rc::Vector as ImVector;
 use crate::builtins::{num_args_error, type_error};
 use crate::context::Context;
 use crate::gc_foreign::Vector;
-use crate::value::{Value, Fun, _Fun};
+use crate::value::{Value, Fun, Id};
 
 pub type BBId = usize;
 pub type BindingId = usize;
@@ -178,7 +178,7 @@ impl Environment {
         }))
     }
 
-    pub fn from_toplevel(toplevel: &HashMap<String, Value>) -> Gc<GcCell<Environment>> {
+    pub fn from_toplevel(toplevel: &HashMap<Id, Value>) -> Gc<GcCell<Environment>> {
         let ret = Environment::root();
 
         for (id, val) in toplevel.values().enumerate() {
@@ -200,14 +200,6 @@ pub struct Closure {
 }
 
 impl Closure {
-    // /// Create a closure suitable for executing the main body of a script.
-    // ///
-    // /// Behaves as if the script was the body of a zero-argument function defined in the lexical
-    // /// scope of the (given) top-level environment.
-    // pub fn from_script_chunk(script: IrChunk) -> Closure {
-    //     Closure::from_chunk(Rc::new(script), Environment::child(top_level()), 0)
-    // }
-
     fn from_chunk(fun: Rc<IrChunk>, env: Gc<GcCell<Environment>>, args: Option<usize>) -> Closure {
         Closure {
             fun,
@@ -378,26 +370,41 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     let new_args = state.args(*num_args);
                     let fun = state.pop();
 
-                    if let Value::Fun(Fun { fun: _Fun::Closure(new_c), .. }) = &fun {
-                        c = new_c.clone();
-                        args = new_args;
-                        break;
-                    } else {
-                        match fun.compute(new_args, cx) {
-                            Ok(val) => {
-                                state.pop_n(*num_args);
-                                if *push {
-                                    state.push(val);
+                    match &fun {
+                        Value::Fun(Fun::Closure(new_c, _)) => {
+                            c = new_c.clone();
+                            args = new_args;
+                            break;
+                        }
+
+                        Value::Fun(Fun::Builtin(..)) => {
+                            match fun.compute(new_args, cx) {
+                                Ok(val) => {
+                                    state.pop_n(*num_args);
+                                    if *push {
+                                        state.push(val);
+                                    }
+                                }
+                                Err(err) => {
+                                    state.pop_n(*num_args);
+                                    if state.catch_handler == BB_RETURN {
+                                        return Err(err);
+                                    } else {
+                                        state.push(err);
+                                        state.pc = (state.catch_handler, 0);
+                                    }
                                 }
                             }
-                            Err(err) => {
-                                state.pop_n(*num_args);
-                                if state.catch_handler == BB_RETURN {
-                                    return Err(err);
-                                } else {
-                                    state.push(err);
-                                    state.pc = (state.catch_handler, 0);
-                                }
+                        }
+
+                        _ => {
+                            let err = type_error(&fun.clone(), "function");
+                            state.pop_n(*num_args);
+                            if state.catch_handler == BB_RETURN {
+                                return Err(err);
+                            } else {
+                                state.push(err);
+                                state.pc = (state.catch_handler, 0);
                             }
                         }
                     }

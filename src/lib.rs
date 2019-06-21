@@ -1,5 +1,6 @@
 #![feature(reverse_bits)]
 #![feature(euclidean_division)]
+use std::collections::HashMap;
 
 use nom::types::CompleteStr;
 use im_rc::OrdMap as ImOrdMap;
@@ -16,29 +17,28 @@ mod value;
 mod read;
 mod vm;
 
-use check::{check, StaticError};
+use check::{check_toplevel, StaticError};
 use context::Context;
-use env::Env;
-use expand::{expand, ExpandError};
+use expand::ExpandError;
 use gc_foreign::OrdMap;
 use value::{Id, Value};
 use read::{read, ParseError};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum Error {
+pub enum ExecuteError {
     Parse(ParseError),
-    Static(StaticError),
+    E(E),
 }
 
-impl From<ParseError> for Error {
+impl From<ParseError> for ExecuteError {
     fn from(err: ParseError) -> Self {
-        Error::Parse(err)
+        ExecuteError::Parse(err)
     }
 }
 
-impl From<StaticError> for Error {
-    fn from(err: StaticError) -> Self {
-        Error::Static(err)
+impl From<E> for ExecuteError {
+    fn from(err: E) -> Self {
+        ExecuteError::E(err)
     }
 }
 
@@ -67,64 +67,62 @@ impl From<Value> for E {
     }
 }
 
-pub fn expand_check_eval(
+pub fn exval(
     v: &Value,
-    m_env: Env,
+    m_env: &HashMap<Id, Value>,
     macros: &ImOrdMap<Id, Value>,
-    env: Env,
+    env: &HashMap<Id, Value>,
     cx: &mut Context,
 ) -> Result<Value, E> {
     let expanded = expand::expand(v, m_env, macros, cx)?;
-    let _ = check(&expanded, &env)?;
-    let yay = eval(expanded, env, cx)?;
-    Ok(yay)
+    let c = compile::compile(&expanded, env)?;
+    c.compute(gc_foreign::Vector(im_rc::Vector::new()), cx).map_err(|nay| E::Eval(nay))
 }
 
-pub fn execute(src: &str) -> Result<Result<Value, Value>, Error> {
+pub fn execute(src: &str) -> Result<Value, ExecuteError> {
     let mut default_cx = Context::default();
-    let default_env = Env::default(&mut default_cx);
+    let default_env = env::default();
+    let default_macros = ImOrdMap::new(); // TODO
 
     let v = read(CompleteStr(src))?;
-    let closure = compile::compile(&v, &default_env)?;
-    check(&v, &default_env)?;
-    Ok(eval(v, default_env, &mut default_cx))
+    let yay = exval(&v, &default_env, &default_macros, &default_env, &mut default_cx)?;
+    return Ok(yay);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Value, execute, Error, StaticError, value::Id};
+    use super::{Value, execute, ExecuteError, E, StaticError, value::Id};
     use super::special_forms::{SpecialFormSyntaxError, FormType};
 
     fn assert_ok(src: &str, expected: Value) {
         match execute(src) {
-            Err(err) => panic!("Unexpected static error: {:?}", err),
-            Ok(Err(err)) => panic!("Unexpected runtime error: {:?}", err),
-            Ok(Ok(v)) => assert_eq!(v, expected),
+            Err(err) => panic!("Unexpected error: {:?}", err),
+            Ok(v) => assert_eq!(v, expected),
         }
     }
 
     fn assert_static_err(src: &str, expected: StaticError) {
         match execute(src) {
-            Err(Error::Static(err)) => assert_eq!(err, expected),
-            Err(Error::Parse(err)) => panic!("Unexpected parse error: {:?}", err),
-            Ok(Err(err)) => panic!("Unexpected runtime error: {:?}", err),
-            Ok(Ok(v)) => panic!("Expected a static error, but it evaluated: {:?}", v),
+            Err(ExecuteError::E(E::Static(err))) => assert_eq!(err, expected),
+            Err(ExecuteError::Parse(err)) => panic!("Unexpected parse error: {:?}", err),
+            Err(other) => panic!("Expected a static error, got another error instead: {:?}"),
+            Ok(v) => panic!("Expected a static error, but it evaluated: {:?}", v),
         }
     }
 
     fn assert_runtime_error(src: &str, expected: Value) {
         match execute(src) {
-            Err(err) => panic!("Unexpected static error: {:?}", err),
-            Ok(Err(err)) => assert_eq!(err, expected),
-            Ok(Ok(v)) => panic!("Expected a runtime error, but got value: {:?}", v),
+            Err(ExecuteError::E(E::Eval(err))) => assert_eq!(err, expected),
+            Err(err) => panic!("Unexpected non-runtime error: {:?}", err),
+            Ok(v) => panic!("Expected a runtime error, but got value: {:?}", v),
         }
     }
 
     fn assert_any_runtime_error(src: &str) {
         match execute(src) {
-            Err(err) => panic!("Unexpected static error: {:?}", err),
-            Ok(Err(err)) => {}
-            Ok(Ok(v)) => panic!("Expected runtime error, but got value: {:?}", v),
+            Err(ExecuteError::E(E::Eval(err))) => {}
+            Err(err) => panic!("Unexpected non-runtime error: {:?}", err),
+            Ok(v) => panic!("Expected a runtime error, but got value: {:?}", v),
         }
     }
 

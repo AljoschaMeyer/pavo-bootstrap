@@ -26,20 +26,10 @@ impl From<SpecialFormSyntaxError> for StaticError {
     }
 }
 
-/// Check the value `v` in the given environment. Treats all bindings in the environment as
-/// immutable.
-pub fn check(v: &Value, env: &HashMap<String, Value>) -> Result<(), StaticError> {
-    let mut bindings = OrdMap::new();
-    for id in (env.0).0.keys() {
-        bindings.insert(id.clone(), false);
-    }
-    do_check(v, &bindings)
-}
-
-pub fn check_toplevel(v: &Value, env: &HashMap<String, Value>) -> Result<(), StaticError> {
+pub fn check_toplevel(v: &Value, env: &HashMap<Id, Value>) -> Result<(), StaticError> {
     let mut bindings = OrdMap::new();
     for id in env.keys() {
-        bindings.insert(Id::user(id), false);
+        bindings.insert(id.clone(), false);
     }
     do_check(v, &bindings)
 }
@@ -49,7 +39,7 @@ fn do_check(
     bindings: &OrdMap<Id, bool /*mutability*/>
 ) -> Result<(), StaticError> {
     match v {
-        Value::Atomic(..) | Value::Fun(..) => Ok(()),
+        Value::Atomic(..) | Value::Fun(..) | Value::Cell(..) => Ok(()),
 
         Value::Id(id) => match bindings.get(id) {
             Some(_) => Ok(()),
