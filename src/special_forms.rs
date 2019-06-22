@@ -46,8 +46,6 @@ pub enum SpecialFormSyntaxError {
     LetFnMap(Value),
     LetFnName(Value),
     LetFnApp(Value),
-    // LetFnNoParens(Value),
-    // FnName(Value),
 }
 
 pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, SpecialFormSyntaxError> {
@@ -170,7 +168,7 @@ fn fun_def<'a>(v: &'a ImVector<Value>, start_at: usize, ft: FormType) -> Result<
 
             let mut i = 0;
             while i < args_arr.0.len() {
-                let (mutable, id) = mut_id(v, i, ft)?;
+                let (mutable, id) = mut_id(&args_arr.0, i, ft)?;
                 args.push((mutable, id));
                 i += if mutable { 2 } else { 1 };
             }
@@ -187,11 +185,11 @@ fn fun_def<'a>(v: &'a ImVector<Value>, start_at: usize, ft: FormType) -> Result<
             let (mutable, id) = mut_id(v, start_at, ft)?;
 
             if mutable {
-                if v.len() != start_at + 2 {
+                if v.len() != start_at + 3 {
                     return Err(SpecialFormSyntaxError::Arity(ft, v.len()));
                 }
             } else {
-                if v.len() != start_at + 3 {
+                if v.len() != start_at + 2 {
                     return Err(SpecialFormSyntaxError::Arity(ft, v.len()));
                 }
             }
@@ -203,6 +201,7 @@ fn fun_def<'a>(v: &'a ImVector<Value>, start_at: usize, ft: FormType) -> Result<
 }
 
 fn mut_id<'a>(v: &'a ImVector<Value>, start_at: usize, ft: FormType) -> Result<(bool, &'a Id), SpecialFormSyntaxError> {
+    // println!("{:?}", (v, start_at));
     if v[start_at].is_kw("mut") {
         match v[start_at + 1].as_id() {
             Some(id) => Ok((true, id)),

@@ -17,7 +17,7 @@ use im_rc::{
 };
 use ropey::Rope as Ropey;
 
-use crate::builtins::type_error;
+use crate::builtins::{self, type_error};
 use crate::context::Context;
 use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
 use crate::vm::Closure;
@@ -217,9 +217,9 @@ impl Value {
         }
     }
 
-    pub fn compute(&self, args: Vector<Value>, ctx: &mut Context) -> Result<Value, Value> {
+    pub fn compute(&self, args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
         match self {
-            Value::Fun(fun) => fun.compute(args, ctx),
+            Value::Fun(fun) => fun.compute(args, cx),
             _ => Err(type_error(self, "function")),
         }
     }
@@ -286,12 +286,15 @@ impl PartialOrd for Fun {
 }
 
 impl Fun {
-    pub fn compute(&self, args: Vector<Value>, ctx: &mut Context) -> Result<Value, Value> {
-        unimplemented!();
-        // match self {
-        //     Value::Fun(fun) => fun.compute(args, ctx),
-        //     _ => Err(type_error(self, "function")),
-        // }
+    pub fn compute(&self, args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+        match self {
+            Fun::Closure(c, _) => c.compute(args, cx),
+            Fun::Builtin(Builtin::IntAdd) => builtins::int_add(args, cx),
+            Fun::Builtin(Builtin::IntSub) => builtins::int_sub(args, cx),
+            Fun::Builtin(Builtin::Eq) => builtins::pavo_eq(args, cx),
+            Fun::Builtin(Builtin::Typeof) => builtins::typeof_(args, cx),
+            _ => unimplemented!(),
+        }
     }
 }
 

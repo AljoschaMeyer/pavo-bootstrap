@@ -2,30 +2,53 @@
 
 TODO: Introduction. Clarify role of this document: A reference to look stuff up, *not* a guided introduction to the language.
 
-TODO: include as part of application evaluation:
-The tail positions are exactly the following:
-
-- the body of the function
-- the last expression of an `sf-do` form that is in tail position
-- the `then` and `else` expressions of an `sf-if` form that is in tail position
-- the `caught-exp` of an `sf-try` form that is in tail position
-
 ## Syntax
 
 ## Values
 
+## Static Checks
+
+Before evaluating any pavo value in an environment, some static checks are performed first. TODO
+
 ## Evaluation
+
+Evaluation takes an input value and an environment of mutable and immutable name-to-value bindings, and yields either the successfully computed resulting value, or an error that was thrown.
+
+The following values evaluate to themselves: nil, bools, ints, floats, chars, strings, bytes, keywords, functions, cells and opaques.
+
+Evaluation of an array consists of evaluating the contained values in iteration order. If the evaluation of an inner value throws an error, the evaluation of the array stops by throwing that same error. If no inner evaluation errors, the overall evaluation yields the array containing the evaluation results in the same order.
+
+Evaluation of a set consists of evaluating the contained values in iteration order. If the evaluation of an inner value throws an error, the evaluation of the set stops by throwing that same error. If no inner evaluation errors, the overall evaluation yields the set containing the evaluation results.
+
+Note that the iteration order of a set might not be the same as the order in which the items occur in the source code (i.e. the syntax):
+
+```pavo
+(assert-throw @{(sf-throw :b) (sf-throw :a)} :a)
+```
+
+Evaluation of a map consists of evaluating the contained entries in iteration order. For each entry, the key is evaluated first, then the value. If an inner evaluation throws an error, the evaluation of the map stops by throwing that same error. If no inner evaluation errors, the overall evaluation yields the map containing the evaluated entries.
+
+Note that the iteration order of a map might not be the same as the order in which the items occur in the source code (i.e. the syntax):
+
+```pavo
+(assert-throw {:b (sf-throw 1), :a (sf-throw 0)} 0)
+(assert-throw {(sf-throw :b) 42, (sf-throw :a) 42} :a)
+```
+
+Names (identifiers and symbols) evaluate to the value to which they are bound in the current environment. Unbound names never get evaluated, the static checks prevent evaluation in such a case.
+
+Applications are where the magic happens. If the application contains zero items, the evaluation stops immediately by throwing `{:tag :err-lookup :got 0}`. If the first item of an application is the identifier of a special form, application proceeds as described in the section on that particular special form. Otherwise, the contained values are evaluated in iteration order. If the evaluation of an inner value throws an error, the evaluation of the application stops by throwing that same error. If no inner evaluation errors, the type of the evaluation result of the first item is checked. If it is not a function, the evaluation stops by throwing `{:tag :err-type, :expected :function, :got <the_actual_type_as_a_keyword>}`. Otherwise, the function is applied to the remaining results.
 
 ### Special Forms
 
-TODO write text here...
-TODO specify errors if syntax isn't matched
+Special forms form the backbone of pavo's evaluation, by providing crucial ways of deviating from the regular evaluation rules. Special form syntax is statically checked, so when evaluating a special form, it always matches one of the cases described below.
 
 #### `(sf-quote x)`
 
 Evaluates to the literal value denoted by `x`, without evaluating `x`.
 
 ```pavo
+(assert-eq (sf-quote 42) 42)
 (sf-quote foo) # Does not throw since the identifier is never evaluated
 (assert-eq (typeof (sf-quote foo) :identifier))
 (sf-quote ()) # Does not throw since the application is never evaluated
@@ -43,7 +66,7 @@ Evaluates the expressions in sequence, evaluating to the value of the last expre
 (assert-eq (sf-do 1 2 3) 3)
 ```
 
-#### `(sf-id condition then else)`
+#### `(sf-if condition then else)`
 
 Evaluates the `condition`. If it evaluated to `nil` or `false`, evaluates to the value of `else`, otherwise to the value of `then`. At most one of `then` and `else` is getting evaluated (or none if evaluating `condition` throws).
 
@@ -100,10 +123,10 @@ Evaluates the `try-exp`. If it throws, the thrown value is bound to the `id` and
 
 Evaluates to a function. Associated with that function is the current environment, i.e. the same set of variable bindings that are in scope at the program point where the `sf-lambda` form occurs. When applying the function, the environment is modified according to the arguments (see below), and then the `body` expression is evaluated in that environment. The bindings introduced through application to arguments shadow any bindings of the same identifier that have been in lexical scope at the point of the function definition.
 
-In the `(sf-lambda id body)` version, when applying the function to some argument values, the identifier `id` is bound to an array containing those values before evaluating the `body`. If the keyword `:mut` is supplied, the binding is mutable.
+In the `(sf-lambda <:mut> id body)` version, when applying the function to some argument values, the identifier `id` is bound to an array containing those values before evaluating the `body`. If the keyword `:mut` is supplied, the binding is mutable.
 
 ```pavo
-(assert-eq (typeof (sf-lambda foo nil) :function))
+(assert-eq (typeof (sf-lambda foo nil)) :function))
 (assert-eq ((sf-lambda foo foo) 0 1 2) [0 1 2])
 (assert-eq ((sf-lambda :mut foo (sf-do (sf-set! foo 42) foo)) 0 1 2) 42)
 ```
@@ -111,12 +134,19 @@ In the `(sf-lambda id body)` version, when applying the function to some argumen
 In the `(sf-lambda [<args>] body)` version, `[<args>]` is an array containing zero or more identifiers, each optionally preceded by the `:mut` keyword. When applying the function to some arguments, if the number of arguments does not match the number of identifiers in the function definition, `{ :tag :err-num-args, :expected <defined>, :got <supplied>}` is thrown, where `<defined>` is the number of identifiers in the `[<args>]` definition, and `<supplied>` is the number of arguments to which the function was applied. If the number of arguments matches, then each argument identifier is bound to the corresponding supplied value before evaluating the `body`. For identifiers that are prefixed with the `:mut` keyword, the binding is mutable.
 
 ```pavo
-(assert-eq (typeof (sf-lambda [] nil) :function))
+(assert-eq (typeof (sf-lambda [] nil)) :function)
 (assert-eq ((sf-lambda [] 42)) 42)
 (assert-throw ((sf-lambda [] 42) :an-argument) {:tag :err-num-args, :expected 0, :got 1})
 (assert-eq ((sf-lambda [a b] (int-add a b)) 1 2) 3)
 (assert-eq ((sf-lambda [a :mut b] (sf-do (sf-set! b 3) (int-add a b))) 1 2) 4)
 ```
+
+Pavo guarantees tail-call optimization, (mutually) recursive function calls in tail position only take up a bounded amount of stack space. The tail positions are exactly the following:
+
+- the body of a function
+- the last expression of an `sf-do` form that is in tail position
+- the `then` and `else` expressions of an `sf-if` form that is in tail position
+- the `caught-exp` of an `sf-try` form that is in tail position
 
 #### `(sf-letfn <fns> exp)`
 
@@ -147,11 +177,7 @@ Defines some functions via `<fns>`, then evaluates to `exp` in an environment in
 
 These are all the values that are bound to an identifier in the toplevel environment in which code is executed by default. All of these bindings are immutable.
 
-In the example code blocks, all "statements" evaluate to `nil`, none throws. If you put all examples into a `sf-do` special form, it would evaluate to `nil`. TODO introduce assertion functions/macros.
-
 The given time complexities are the minimum that a pavo implementation must provide. An implementation is of course free to provide *better* complexity bounds than those required. In particular, any amortized complexity bound can be implemented as non-amortized. The converse is not true: If a complexity requirement is unamortized, then implementations are not allowed to provide only amortized bounds.
-
-All time complexities are allowed to be probabilistic, but they must be preserved under adversarial input (under the assumption that the adversary can not predict the source of randomness).
 
 Whenever a function is described to "throw a type error", it throws a map `{ :tag :err-type, :expected <expected>, :got <got>}` where `<expected>` and `<got>` are the keywords denoting the respective types (see `(typeof x)`). Type errors are also trown when an argument is described as having a certain type, but an argument of a different type is supplied. For example "Do foo to the int `n`" throws a type error with `:expected :int` if `n` is not an int.
 
@@ -159,6 +185,7 @@ Whenever an argument is referred to as a "positive int", but an int less than ze
 
 TODO Specify errors that are thrown on incorrect number of args
 TODO specify in which order all errors apply.
+TODO add examples for errors (type, negative, precedences)
 
 ### Bool
 

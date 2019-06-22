@@ -54,7 +54,6 @@ impl Stack {
 
     fn resolve(&self, id: &Id) -> DeBruijn {
         let num_envs = self.0.len();
-        let mut env_level = num_envs - 1;
 
         for (up, env) in self.0.iter().rev().enumerate() {
             if let Some(offset) = env.get(id) {
@@ -145,7 +144,7 @@ pub fn compile<'a>(
 
     return Ok(Closure {
         fun: chunk,
-        env: Environment::from_toplevel(toplevel),
+        env: Environment::child(Environment::from_toplevel(toplevel)),
         args: Some(0),
     });
 }
@@ -296,19 +295,26 @@ fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
                 }
 
                 Ok(Some(SpecialForm::LetFn(defs, cont))) => {
-                    let ir_chunk = compile_letfn(&defs, s);
-                    let ir_chunk = Rc::new(ir_chunk);
+                    s.push_scope();
 
-                    for (name, (args, _)) in defs {
-                        let db = DeBruijn { up: 0, id: s.add(name) };
-                        bbb.append(FunLiteral(ir_chunk.clone(), match args {
-                            Args::All(..) => None,
-                            Args::Destructured(all) => Some(all.len()),
-                        }));
-                        bbb.append(Pop(Addr::env(db)));
+                    let mut dbs = BTreeMap::new();
+                    for name in defs.keys() {
+                        dbs.insert(name, DeBruijn { up: 0, id: s.add(name) });
+                    }
+
+                    for (name, (args, _)) in defs.iter() {
+                        bbb.append(FunLiteral(
+                            Rc::new(compile_letfn(&defs, name, s)),
+                            match args {
+                                Args::All(..) => None,
+                                Args::Destructured(all) => Some(all.len()),
+                            }
+                        ));
+                        bbb.append(Pop(Addr::env(dbs[name])));
                     }
 
                     val_to_ir(cont, push, bbb, tail, s);
+                    s.pop_scope();
                 }
             }
         }
@@ -338,36 +344,32 @@ fn compile_lambda(args: &Args, body: &Value, s: &mut Stack) -> IrChunk {
 
 fn compile_letfn(
     defs: &BTreeMap<&Id, (Args, &Value)>,
+    this: &Id,
     s: &mut Stack,
 ) -> IrChunk {
     let names: Vec<&Id> = defs.keys().map(Clone::clone).collect();
     let mut bbb = BBB::new();
-    let mut bb_ids = BTreeMap::new();
+    s.push_scope();
 
-    for (name, (args, body)) in defs {
-        s.push_scope();
+    let (args, body) = defs.get(this).unwrap();
 
-        match args {
-            Args::All(_, binder) => {
+    match args {
+        Args::All(_, binder) => {
+            s.add(binder);
+        }
+        Args::Destructured(ids) => {
+            for (_, binder) in ids {
                 s.add(binder);
             }
-            Args::Destructured(ids) => {
-                for (_, binder) in ids {
-                    s.add(binder);
-                }
-            }
         }
-
-        for id in names.iter() {
-            s.add_dont_overwrite(id);
-        }
-
-        let start_block = bbb.new_block();
-        bb_ids.insert((*name).clone(), start_block);
-        bbb.set_active_block(start_block);
-        val_to_ir(body, true, &mut bbb, true, s);
-        s.pop_scope();
     }
+    //
+    // for id in names.iter() {
+    //     s.add_dont_overwrite(id);
+    // }
+
+    val_to_ir(body, true, &mut bbb, true, s);
+    s.pop_scope();
 
     return bbb.into_ir();
 }

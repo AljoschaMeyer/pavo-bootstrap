@@ -121,13 +121,11 @@ impl LocalState {
     }
 
     fn args(&mut self, num: usize) -> Vector<Value> {
-        let start = self.stack.len() - num;
-        Vector(ImVector::from(&self.stack[start..]))
-    }
-
-    fn pop_n(&mut self, num: usize) {
-        let new_len = self.stack.len() - num;
-        self.stack.truncate(new_len);
+        let mut vector = ImVector::new();
+        for _ in 0..num {
+            vector.push_front(self.pop());
+        }
+        Vector(vector)
     }
 }
 
@@ -257,10 +255,12 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
 
         loop {
             state.pc.1 += 1;
-            match &c.fun.basic_blocks[state.pc.0][state.pc.1 - 1] {
-                Literal(val) => state.push(val.clone()),
+            match &c.fun.basic_blocks[state.pc.0].get(state.pc.1 - 1) {
+                None => return Ok(state.pop()),
 
-                Arr(count) => {
+                Some(Literal(val)) => state.push(val.clone()),
+
+                Some(Arr(count)) => {
                     let mut tmp = Vec::with_capacity(*count);
                     for _ in 0..*count {
                         tmp.push(state.pop());
@@ -269,7 +269,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     state.push(Value::arr_from_vec(tmp));
                 }
 
-                App(count) => {
+                Some(App(count)) => {
                     let mut tmp = Vec::with_capacity(*count);
                     for _ in 0..*count {
                         tmp.push(state.pop());
@@ -278,7 +278,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     state.push(Value::app_from_vec(tmp));
                 }
 
-                Set(count) => {
+                Some(Set(count)) => {
                     let mut tmp = Vec::with_capacity(*count);
                     for _ in 0..*count {
                         tmp.push(state.pop());
@@ -286,7 +286,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     state.push(Value::set_from_vec(tmp));
                 }
 
-                Map(count) => {
+                Some(Map(count)) => {
                     let mut tmp = Vec::with_capacity(*count);
                     for _ in 0..(*count) {
                         let val = state.pop();
@@ -297,7 +297,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     state.push(Value::map_from_vec(tmp));
                 }
 
-                FunLiteral(chunk, args) => state.push(Value::closure(
+                Some(FunLiteral(chunk, args)) => state.push(Value::closure(
                     Closure::from_chunk(
                         chunk.clone(),
                         Environment::child(c.env.clone()),
@@ -306,7 +306,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     cx
                 )),
 
-                Jump(block) => {
+                Some(Jump(block)) => {
                     if *block == BB_RETURN {
                         return Ok(state.pop());
                     } else {
@@ -314,7 +314,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     }
                 }
 
-                CondJump(then_block, else_block) => {
+                Some(CondJump(then_block, else_block)) => {
                     let val = state.pop();
                     if val.truthy() {
                         state.pc = (*then_block, 0);
@@ -323,7 +323,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     }
                 }
 
-                Throw => {
+                Some(Throw) => {
                     if state.catch_handler == BB_RETURN {
                         return Err(state.pop());
                     } else {
@@ -331,31 +331,29 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     }
                 }
 
-                SetCatchHandler(bb) => state.catch_handler = *bb,
+                Some(SetCatchHandler(bb)) => state.catch_handler = *bb,
 
-                Push(addr) => {
+                Some(Push(addr)) => {
                     let val = addr.load(&mut state, &c.env);
                     state.push(val);
                 }
 
-                Pop(addr) => {
+                Some(Pop(addr)) => {
                     let val = state.pop();
                     addr.store(val, &mut state, &c.env);
                 }
 
-                Call(num_args, push) => {
+                Some(Call(num_args, push)) => {
                     let args = state.args(*num_args);
                     let fun = state.pop();
 
                     match fun.compute(args, cx) {
                         Ok(val) => {
-                            state.pop_n(*num_args);
                             if *push {
                                 state.push(val);
                             }
                         }
                         Err(err) => {
-                            state.pop_n(*num_args);
                             if state.catch_handler == BB_RETURN {
                                 return Err(err);
                             } else {
@@ -366,7 +364,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     }
                 }
 
-                TailCall(num_args, push) => {
+                Some(TailCall(num_args, push)) => {
                     let new_args = state.args(*num_args);
                     let fun = state.pop();
 
@@ -380,13 +378,11 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                         Value::Fun(Fun::Builtin(..)) => {
                             match fun.compute(new_args, cx) {
                                 Ok(val) => {
-                                    state.pop_n(*num_args);
                                     if *push {
                                         state.push(val);
                                     }
                                 }
                                 Err(err) => {
-                                    state.pop_n(*num_args);
                                     if state.catch_handler == BB_RETURN {
                                         return Err(err);
                                     } else {
@@ -399,7 +395,6 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
 
                         _ => {
                             let err = type_error(&fun.clone(), "function");
-                            state.pop_n(*num_args);
                             if state.catch_handler == BB_RETURN {
                                 return Err(err);
                             } else {
