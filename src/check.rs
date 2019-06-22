@@ -116,29 +116,6 @@ fn do_check(
                                 }
                             }
                         }
-                        Some(SpecialForm::LetFn(funs, cont)) => {
-                            let mut inner_bindings = bindings.clone();
-                            for name in funs.keys() {
-                                inner_bindings = inner_bindings.update((*name).clone(), false);
-                            }
-
-                            for (args, body) in funs.values() {
-                                match args {
-                                    Args::All(mutable, bound) => {
-                                        let _ = do_check(body, &inner_bindings.update((*bound).clone(), *mutable))?;
-                                    }
-                                    Args::Destructured(the_args) => {
-                                        let mut fn_bindings = inner_bindings.clone();
-                                        for (mutable, bound) in the_args {
-                                            fn_bindings = fn_bindings.update((*bound).clone(), *mutable);
-                                        }
-                                        let _ = do_check(body, &fn_bindings)?;
-                                    }
-                                }
-                            }
-
-                            do_check(cont, &inner_bindings)
-                        }
                         None => {
                             match bindings.get(id) {
                                 Some(_) => {

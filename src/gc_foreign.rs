@@ -3,7 +3,6 @@
 use gc::{Trace, Finalize, custom_trace};
 use gc_derive::{Trace, Finalize};
 use im_rc;
-use num_traits::float::Float;
 use ordered_float;
 use ropey;
 

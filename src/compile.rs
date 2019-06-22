@@ -1,14 +1,10 @@
-use std::collections::{HashSet, HashMap, BTreeMap};
+use std::collections::HashMap;
 use std::rc::Rc;
-
-use im_rc::Vector as ImVector;
 
 use crate::builtins;
 use crate::check::{check_toplevel, StaticError};
-use crate::context::Context;
-use crate::gc_foreign::Vector;
-use crate::special_forms::{SpecialForm, Args, SpecialFormSyntaxError, special};
-use crate::value::{Value, Id, Builtin};
+use crate::special_forms::{SpecialForm, Args, special};
+use crate::value::{Value, Id};
 use crate::vm::{Closure, DeBruijn, BindingId, BBId, BB_RETURN, Instruction, IrChunk, Addr, Environment};
 
 use Instruction::*;
@@ -38,23 +34,7 @@ impl Stack {
         len
     }
 
-    fn add_dont_overwrite(&mut self, id: &Id) -> usize {
-        let scopes_len = self.0.len();
-        let scope = &mut self.0[scopes_len - 1];
-        let len = scope.len();
-
-        match scope.get(id) {
-            Some(offset) => return *offset,
-            None => {
-                scope.insert(id.clone(), len);
-                return len;
-            }
-        }
-    }
-
     fn resolve(&self, id: &Id) -> DeBruijn {
-        let num_envs = self.0.len();
-
         for (up, env) in self.0.iter().rev().enumerate() {
             if let Some(offset) = env.get(id) {
                 return DeBruijn {
@@ -88,9 +68,6 @@ struct BBB {
     blocks: Vec<Vec<Instruction>>,
     // Index of the currently active block.
     current: BBId,
-    // Index of the block to which a `break` statement should jump.
-    // This has nothing to do with an *actual breakpoint*, but you can't stop me!
-    breakpoint: BBId,
     // Index of the block to which a trap instruction should jump.
     trap_handler: BBId,
 }
@@ -100,7 +77,6 @@ impl BBB {
         BBB {
             blocks: vec![vec![]],
             current: 0,
-            breakpoint: BB_RETURN,
             trap_handler: BB_RETURN,
         }
     }
@@ -293,29 +269,6 @@ fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
                         Args::Destructured(all) => Some(all.len()),
                     }));
                 }
-
-                Ok(Some(SpecialForm::LetFn(defs, cont))) => {
-                    s.push_scope();
-
-                    let mut dbs = BTreeMap::new();
-                    for name in defs.keys() {
-                        dbs.insert(name, DeBruijn { up: 0, id: s.add(name) });
-                    }
-
-                    for (name, (args, _)) in defs.iter() {
-                        bbb.append(FunLiteral(
-                            Rc::new(compile_letfn(&defs, name, s)),
-                            match args {
-                                Args::All(..) => None,
-                                Args::Destructured(all) => Some(all.len()),
-                            }
-                        ));
-                        bbb.append(Pop(Addr::env(dbs[name])));
-                    }
-
-                    val_to_ir(cont, push, bbb, tail, s);
-                    s.pop_scope();
-                }
             }
         }
     }
@@ -335,38 +288,6 @@ fn compile_lambda(args: &Args, body: &Value, s: &mut Stack) -> IrChunk {
             }
         }
     }
-
-    val_to_ir(body, true, &mut bbb, true, s);
-    s.pop_scope();
-
-    return bbb.into_ir();
-}
-
-fn compile_letfn(
-    defs: &BTreeMap<&Id, (Args, &Value)>,
-    this: &Id,
-    s: &mut Stack,
-) -> IrChunk {
-    let names: Vec<&Id> = defs.keys().map(Clone::clone).collect();
-    let mut bbb = BBB::new();
-    s.push_scope();
-
-    let (args, body) = defs.get(this).unwrap();
-
-    match args {
-        Args::All(_, binder) => {
-            s.add(binder);
-        }
-        Args::Destructured(ids) => {
-            for (_, binder) in ids {
-                s.add(binder);
-            }
-        }
-    }
-    //
-    // for id in names.iter() {
-    //     s.add_dont_overwrite(id);
-    // }
 
     val_to_ir(body, true, &mut bbb, true, s);
     s.pop_scope();

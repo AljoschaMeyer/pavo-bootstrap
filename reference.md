@@ -148,27 +148,6 @@ Pavo guarantees tail-call optimization, (mutually) recursive function calls in t
 - the `then` and `else` expressions of an `sf-if` form that is in tail position
 - the `caught-exp` of an `sf-try` form that is in tail position
 
-#### `(sf-letfn <fns> exp)`
-
-Defines some functions via `<fns>`, then evaluates to `exp` in an environment in which these functions are immutably bound to some names. `<fns>` is a map from identifiers to applications that contain the `[<args>]` and `body` like a regular `sf-lambda` definition. When evaluating one of those function bodies, all the functions defined by the `sf-letfn` form are immutably bound to their respective identifier.
-
-```pavo
-(assert-eq (sf-letfn {
-    even? ([n] (
-        sf-if
-            (= n 0)
-            true
-            (odd? (- n 1))
-        )),
-    odd? ([n] (
-        sf-if
-            (= n 0)
-            false
-            (even? (- n 1))
-        ))
-} [(even? 10000) (odd? 10000)]) [true false])
-```
-
 ## Macro Expansion
 
 ## Toplevel Macros
@@ -2485,3 +2464,24 @@ Macros:
 
 - `dotimes` ?
 - `case`, `loop` ?
+
+letfn:
+
+Defines some functions via `<fns>`, then evaluates to `exp` in an environment in which these functions are immutably bound to some names. `<fns>` is a map from identifiers to applications that contain the `[<args>]` and `body` like a regular `sf-lambda` definition. When evaluating one of those function bodies, all the functions defined by the `sf-letfn` form are immutably bound to their respective identifier.
+
+```pavo
+(assert-eq (sf-letfn {
+    even? ([n] (
+        sf-if
+            (= n 0)
+            true
+            (odd? (- n 1))
+        )),
+    odd? ([n] (
+        sf-if
+            (= n 0)
+            false
+            (even? (- n 1))
+        ))
+} [(even? 10000) (odd? 10000)]) [true false])
+```

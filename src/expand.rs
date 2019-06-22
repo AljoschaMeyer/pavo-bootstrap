@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use im_rc::{OrdMap as ImOrdMap, Vector as ImVector};
 
 use crate::context::Context;
-use crate::gc_foreign::{OrdMap, Vector};
-use crate::value::{Value, Id, Fun, Builtin};
+use crate::gc_foreign::Vector;
+use crate::value::{Value, Id};
 use crate::{exval, E};
 
 #[derive(PartialEq, Eq, Debug, Clone)]

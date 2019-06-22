@@ -2,10 +2,7 @@
 
 use std::{
     cmp::Ordering,
-    collections::BTreeMap,
-    fmt,
     num::FpCategory,
-    iter::FromIterator
 };
 
 use gc::GcCell;

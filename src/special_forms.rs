@@ -1,12 +1,11 @@
 // Static typing for special forms to help implementing them. This doesn't actually *do*
 // anything, its just a convenient/checked way of accessing special forms. The first
 // attempt at implementing pavo without this layer very quickly turned into spaghetti.
-use std::collections::BTreeMap;
 
 use im_rc::Vector as ImVector;
 
 use crate::gc_foreign::Vector;
-use crate::value::{Value, Atomic, Id};
+use crate::value::{Value, Id};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub enum SpecialForm<'a> {
@@ -17,7 +16,6 @@ pub enum SpecialForm<'a> {
     Throw(&'a Value),
     Try(&'a Value, bool, &'a Id, &'a Value),
     Lambda(Args<'a>, &'a Value),
-    LetFn(BTreeMap<&'a Id, (Args<'a>, &'a Value)>, &'a Value),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
@@ -35,7 +33,6 @@ pub enum FormType {
     Throw,
     Try,
     Lambda,
-    LetFn,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
@@ -43,9 +40,6 @@ pub enum SpecialFormSyntaxError {
     Arity(FormType, usize),
     Id(FormType, Value),
     SetBangId(Value),
-    LetFnMap(Value),
-    LetFnName(Value),
-    LetFnApp(Value),
 }
 
 pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, SpecialFormSyntaxError> {
@@ -124,37 +118,6 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
 
             let (args, body) = fun_def(&v.0, 1, FormType::Lambda)?;
             return Ok(Some(SpecialForm::Lambda(args, body)));
-        }
-
-        Some("sf-letfn") => {
-            let total = v.0.len();
-            if total != 3 {
-                return Err(SpecialFormSyntaxError::Arity(FormType::LetFn, v.0.len()));
-            }
-
-            match v.0[1].as_map() {
-                None => return Err(SpecialFormSyntaxError::LetFnMap(v.0[1].clone())),
-                Some(map) => {
-                    let mut funs = BTreeMap::new();
-
-                    for (key, value) in map.0.iter() {
-                        match key.as_id() {
-                            None => return Err(SpecialFormSyntaxError::LetFnName(key.clone())),
-                            Some(id) => {
-                                match value.as_app() {
-                                    None => return Err(SpecialFormSyntaxError::LetFnApp(value.clone())),
-                                    Some(fn_def) => {
-                                        let (args, body) = fun_def(&fn_def.0, 0, FormType::LetFn)?;
-                                        funs.insert(id, (args, body));
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    return Ok(Some(SpecialForm::LetFn(funs, &v.0[2])));
-                }
-            }
         }
 
         _ => return Ok(None),
