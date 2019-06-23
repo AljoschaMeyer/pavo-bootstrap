@@ -1,10 +1,130 @@
 # The Pavo Language Reference
 
-TODO: Introduction. Clarify role of this document: A reference to look stuff up, *not* a guided introduction to the language.
+This document serves as the reference description of the pavo programming language. Reading it is *not* the recommended way to *learn* the language, since it aims to be exhaustive rather than pedagocical, and it primarily deals with the *what* and *how* of pavo, not the *why*. Still, care has been taken to write it such that all aspects of the language are introduced before they are being referred to.
+
+Pavo is a [homoiconic](https://en.wikipedia.org/wiki/Homoiconicity), [dynamically typed](https://en.wikipedia.org/wiki/Type_system#Dynamic_type_checking_and_runtime_type_information) but otherwise rather static [lisp](https://en.wikipedia.org/wiki/Lisp_(programming_language)) in the tradition of [scheme](https://en.wikipedia.org/wiki/Scheme_(programming_language)) and [clojure](https://clojure.org/), with [deterministic semantics](https://en.wikipedia.org/wiki/Deterministic_algorithm). Running a program consists of the following steps:
+
+1. The source code is *parsed* into a value.
+2. Macro *expansion* is performed on that value.
+3. A number of *static checks* guarantees that the obtained value is a valid pavo program.
+4. The program value is *evaluated* into the final result.
+
+## Values
+
+Values are the entities that the pavo programming language manipulates. Programming is about telling the machine how to derive new values from old ones. While hardware typically only knows about zeros and ones, pavo presents a more high-level interface to the programmer. The set of pavo values consists of the following things:
+
+- *nil*: the [unit type](https://en.wikipedia.org/wiki/Unit_type)
+- *booleans*: [truth values](https://en.wikipedia.org/wiki/Boolean_data_type) `true` and `false`
+- *ints*: [signed 64 bit integers](https://en.wikipedia.org/wiki/Integer_(computer_science))
+- *floats*: [64 bit IEEE 754 floating point numbers](https://en.wikipedia.org/wiki/IEEE_754), excluding negative zero, not-a-number and the infinities
+- *characters*: [unicode scalar values](http://www.unicode.org/glossary/#unicode_scalar_value)
+- *strings*: [sequences](https://en.wikipedia.org/wiki/Sequence) of characters whose utf-8 encoding does not exceed 2^63 - 1 bytes
+- *bytes*: sequences of unsigned bytes whose length does not exceed 2^63 - 1 bytes
+- *arrays*: sequences of up to 2^63 - 1 values
+- *sets*: [sets](https://en.wikipedia.org/wiki/Set_(mathematics)) of up to 2^63 - 1 values
+- *maps*: [maps](https://en.wikipedia.org/wiki/Map_(mathematics)) (relations that are total functions) from values to values, containing up to 2^63 - 1 entry pairs
+- *keywords*: a set of values that denote themselves and that can be created from and turned into strings
+- *identifiers*: another set of values that denote theselves and that can be created from and turned into strings
+- *symbols*: a set of values whose core property is that a symbol is equal to nothing but itself
+- *functions*: a value that tells the computer how to perform a computation
+- *cells*: storage locations that contain exactly one value that may change across time
+- *opaques*: values with no observable properties, but usually they come with functions that can operate on them
+
+Most of these become clearer through the defintion of their corresponding expressions and the operations that are available to manipulate them.
 
 ## Syntax
 
-## Values
+The [syntax](https://en.wikipedia.org/wiki/Syntax_(programming_languages)) of pavo consists of only two categories: Whitespace and expressions.
+
+Whitespace serves to separate expressions and to aid readability, but has no effect on the semantics of a program. The following tokens are considered whitespace:
+
+- unicode code point 0x20 space
+- unicode code point 0x09 horizontal tab (\\t)
+- unicode code point 0x0A line feed (\\n)
+- unicode code point 0x0D carriage return (\\r)
+- `,` (comma)
+- a sequence of characters beginning with `#` up until a line feed or the end of the source code, called a comment
+
+Expressions are parsed into values. Some values have exactly one corresponding expression, some have multiple, and some have none at all. A pavo file consists of any amount of whitespace followed by exactly one expression, followed by any amount of whitespace.
+
+The expressions are:
+
+### Nil
+
+`nil`, parses into the `nil` value
+
+### Bool
+
+`true` and `false`, the literals for the `bool` values
+
+### Identifier
+
+Identifiers, a sequence of at least one and at most 255 of the following characters: `!*+-_?~<>=` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error. Additionally, that sequence may not match the syntax of any other expression (such as `nil`, `true`, `false`, valid or overflowing integers, valid or overflowing floats).
+
+```pavo
+!
+=P
+-_-
+abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg
+# too long: abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh
+```
+
+### Keyword
+
+A keyword consists of a colon (`:`) followed by at least one and at most 255 of the following characters: `!*+-_?~<>=` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error.
+
+```pavo
+:!
+:nil # while not an identifier, this is ok for a keyword
+:abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg
+# too long: abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh
+```
+
+### Int
+
+Integer literals, either decimal or hexadecimal. They consist of an optional sign (`+` or `-`), followed by an optional hex indicator `0x`, followed by at one or more digits (`0-9`, also `a-fA-F` if the hex indicator was present). The digits must form a number in the range from `-(2^63)` to `(2^63) - 1`, otherwise it is a parse error (e.g. `-9999999999999999999999` is *not* a valid expression even though it matches the syntax of an identifier).
+
+```pavo
+0
+-0
++0
+00
+01
+-9223372036854775808
+# too small: -9223372036854775809 (must *not* parse as an identifier)
+9223372036854775807
+# too large: 9223372036854775808
+(assert-eq 0xa 10)
+(assert-eq -0xF -15)
+```
+
+### Float
+
+Float literals denote pavo floats. A literal is parsed as if it were a true rational number, and is then [rounded](https://en.wikipedia.org/wiki/IEEE_754#Rounding_rules) to the nearest IEEE 754 64 bit float ([round to nearest, ties to even](https://en.wikipedia.org/wiki/Rounding#Round_half_to_even)), except that negative zero becomes positive zero. A float literal that rounds to an infinity is a parse error (e.g. `-999E999` is *not* a valid expression even though it matches the syntax of an identifier).
+
+A float literal consists of an an optional sign (`+` or `-`), followed by one or more decimal digits, followed by a dot (`.`), followed by one or more decimal digits. This sequence may then be optionally followed by an exponent indicator (`e` or `E`), an optional sign (`+` or `-`) and one or more decimal digits.
+
+The exponent indicator expresses [scientific notation](https://en.wikipedia.org/wiki/Scientific_notation), the leading floating point number is multiplied with ten to the power of the exponent. E.g. `5E-3` is the rational number `5 * (10 ^ -3) = 0.005`.
+
+```pavo
+0.0
+-0.0
++0.0
+00.00
+(assert-eq -0.3e2 -30.0)
+(assert-eq 0.3E+2 30.0)
+(assert-eq 10.0e-2 0.1)
+(assert-eq 0.0e99999999 0.0)
+(assert-eq 9007199254740992.0 9007199254740993.0) # both round to the same float
+# too small: -999E999 (must *not* parse as an identifier)
+# too large: 999E999
+```
+
+TODO char, string, bytes, app, arr, set, map
+
+### Syntactic Sugar
+
+TODO
 
 ## Static Checks
 
@@ -17,6 +137,10 @@ Evaluation takes an input value and an environment of mutable and immutable name
 The following values evaluate to themselves: nil, bools, ints, floats, chars, strings, bytes, keywords, functions, cells and opaques.
 
 Evaluation of an array consists of evaluating the contained values in iteration order. If the evaluation of an inner value throws an error, the evaluation of the array stops by throwing that same error. If no inner evaluation errors, the overall evaluation yields the array containing the evaluation results in the same order.
+
+```pavo
+(assert-throw [(sf-throw :b) (sf-throw :a)] :b)
+```
 
 Evaluation of a set consists of evaluating the contained values in iteration order. If the evaluation of an inner value throws an error, the evaluation of the set stops by throwing that same error. If no inner evaluation errors, the overall evaluation yields the set containing the evaluation results.
 
@@ -38,6 +162,12 @@ Note that the iteration order of a map might not be the same as the order in whi
 Names (identifiers and symbols) evaluate to the value to which they are bound in the current environment. Unbound names never get evaluated, the static checks prevent evaluation in such a case.
 
 Applications are where the magic happens. If the application contains zero items, the evaluation stops immediately by throwing `{:tag :err-lookup :got 0}`. If the first item of an application is the identifier of a special form, application proceeds as described in the section on that particular special form. Otherwise, the contained values are evaluated in iteration order. If the evaluation of an inner value throws an error, the evaluation of the application stops by throwing that same error. If no inner evaluation errors, the type of the evaluation result of the first item is checked. If it is not a function, the evaluation stops by throwing `{:tag :err-type, :expected :function, :got <the_actual_type_as_a_keyword>}`. Otherwise, the function is applied to the remaining results.
+
+```pavo
+(assert-throw ((sf-throw :b) (sf-throw :a)) :b)
+(assert-throw () {:tag :err-lookup :got 0})
+(assert-throw (42) {:tag :err-type, :expected :function, :got :int})
+```
 
 ### Special Forms
 
@@ -153,6 +283,8 @@ Pavo guarantees tail-call optimization, (mutually) recursive function calls in t
 ## Toplevel Macros
 
 ## Toplevel Values
+
+TODO rewrite?
 
 These are all the values that are bound to an identifier in the toplevel environment in which code is executed by default. All of these bindings are immutable.
 
@@ -2154,6 +2286,8 @@ Returns a fresh symbol that is only equal to itself.
 ```
 
 ### Cells
+
+TODO max number, ordering
 
 #### `(cell x)`
 

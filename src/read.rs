@@ -1,9 +1,8 @@
-
 //! A parser that turns a string of source code into a pavo value.
 
 use failure_derive::Fail;
 use nom::{
-    {line_ending, not_line_ending, multispace1, eof},
+    {is_a, one_of, eof},
     {value, tag, take_while1},
     {do_parse, alt, many0, opt, preceded},
     {delimited, terminated},
@@ -13,8 +12,12 @@ use nom::{
     types::CompleteStr,
     hex_digit,
 };
+use strtod::strtod;
 
 use crate::value::Value;
+
+named!(line_ending(CompleteStr) -> (), value!((), one_of!("\n\r")));
+named!(not_line_ending(CompleteStr) -> (), value!((), none_of!("\n\r")));
 
 named!(linecomment(CompleteStr) -> (), do_parse!(
     tag!("#") >>
@@ -25,8 +28,7 @@ named!(linecomment(CompleteStr) -> (), do_parse!(
 
 named!(ws(CompleteStr) -> (), alt!(
     value!((), linecomment) |
-    value!((), multispace1) |
-    value!((), tag!(","))
+    value!((), is_a!(",\n\t\r "))
 ));
 
 named!(ws0(CompleteStr) -> (), do_parse!(
@@ -53,7 +55,7 @@ fn id_str(i: CompleteStr) -> IResult<CompleteStr, CompleteStr> {
     let (i, id) = try_parse!(i, take_while1!(is_id_char));
 
     if id.len() > 255 {
-        Err(Err::Error(Context::Code(i, ErrorKind::Custom(0))))
+        Err(Err::Failure(Context::Code(i, ErrorKind::Custom(0))))
     } else {
         Ok((i, id))
     }
@@ -61,34 +63,64 @@ fn id_str(i: CompleteStr) -> IResult<CompleteStr, CompleteStr> {
 
 named!(kw_str(CompleteStr) -> CompleteStr, preceded!(tag!(":"), id_str));
 
-fn num(i: CompleteStr) -> IResult<CompleteStr, i64> {
+fn num(i: CompleteStr) -> IResult<CompleteStr, Value> {
     let start = i;
-    let (i, has_sign) = try_parse!(i, map!(opt!(alt!(tag!("+") | tag!("-"))), |opt| opt.is_some()));
+    let (i, has_sign) = try_parse!(i, map!(opt!(one_of!("+-")), |opt| opt.is_some()));
     let (i, is_hex) = try_parse!(i, map!(opt!(tag!("0x")), |opt| opt.is_some()));
     let (i, _) = if is_hex {
         try_parse!(i, take_while1!(|c: char| c.is_ascii_hexdigit()))
     } else {
         try_parse!(i, take_while1!(|c: char| c.is_ascii_digit()))
     };
-    let end = i;
-    let (i, _) = try_parse!(i, not!(take_while1!(is_id_char)));
-    let (i, _) = try_parse!(i, ws0);
 
-    let raw = if is_hex {
-        if has_sign {
-            let mut buf = start[..1].to_string();
-            buf.push_str(&start[3..end.len() - start.len()]);
-            buf
-        } else {
-            start[2..start.len() - end.len()].to_string()
+    if is_hex {
+        let end = i;
+        let (i, _) = try_parse!(i, ws0);
+
+        let raw = if has_sign {
+                let mut buf = start[..1].to_string();
+                buf.push_str(&start[3..start.len() - end.len()]);
+                buf
+            } else {
+                start[2..start.len() - end.len()].to_string()
+            };
+
+        match i64::from_str_radix(&raw, 16) {
+            Ok(n) => return Ok((i, Value::int(n))),
+            Err(_) => return Err(Err::Failure(Context::Code(i, ErrorKind::Custom(1)))),
         }
     } else {
-        start[..start.len() - end.len()].to_string()
-    };
+        let (i, is_float) = try_parse!(i, map!(opt!(tag!(".")), |opt| opt.is_some()));
 
-    match i64::from_str_radix(&raw, if is_hex { 16 } else { 10 }) {
-        Ok(n) => Ok((i, n)),
-        Err(_) => Err(Err::Error(Context::Code(i, ErrorKind::Custom(1)))),
+        if is_float {
+            let (i, _) = try_parse!(i, take_while1!(|c: char| c.is_ascii_digit()));
+            let (i, _) = try_parse!(i, opt!(do_parse!(
+                one_of!("eE") >>
+                opt!(one_of!("+-")) >>
+                take_while1!(|c: char| c.is_ascii_digit()) >>
+                (())
+            )));
+            let end = i;
+            let (i, _) = try_parse!(i, ws0);
+
+            let raw = &start[..start.len() - end.len()];
+            let f = strtod(raw).unwrap();
+            if f.is_finite() {
+                return Ok((i, Value::float(f)));
+            } else {
+                return Err(Err::Failure(Context::Code(i, ErrorKind::Custom(2))));
+            }
+        } else {
+            let end = i;
+            let (i, _) = try_parse!(i, ws0);
+
+            let raw = &start[..start.len() - end.len()];
+
+            match i64::from_str_radix(raw, 10) {
+                Ok(n) => return Ok((i, Value::int(n))),
+                Err(_) => return Err(Err::Failure(Context::Code(i, ErrorKind::Custom(1)))),
+            }
+        }
     }
 }
 
@@ -101,7 +133,6 @@ fn byte(i: CompleteStr) -> IResult<CompleteStr, u8> {
         try_parse!(i, take_while1!(|c: char| c.is_ascii_digit()))
     };
     let end = i;
-    let (i, _) = try_parse!(i, not!(take_while1!(is_id_char)));
     let (i, _) = try_parse!(i, ws0);
 
     let raw = if is_hex {
@@ -112,7 +143,7 @@ fn byte(i: CompleteStr) -> IResult<CompleteStr, u8> {
 
     match u8::from_str_radix(&raw, if is_hex { 16 } else { 10 }) {
         Ok(n) => Ok((i, n)),
-        Err(_) => Err(Err::Error(Context::Code(i, ErrorKind::Custom(2)))),
+        Err(_) => Err(Err::Failure(Context::Code(i, ErrorKind::Custom(2)))),
     }
 }
 
@@ -203,7 +234,7 @@ named!(obj(CompleteStr) -> Value, terminated!(alt!(
     bytes |
     char_ |
     string |
-    map!(num, |n| Value::int(n)) |
+    num |
     map!(kw_str, |kw| Value::kw_str(kw.0)) |
     id
 ), ws0));

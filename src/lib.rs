@@ -125,21 +125,81 @@ mod tests {
         }
     }
 
+    fn assert_any_parse_error(src: &str) {
+        match execute(src) {
+            Err(ExecuteError::Parse(err)) => {},
+            Err(err) => panic!("Unexpected non-parse error: {:?}", err),
+            Ok(v) => panic!("Expected a syntax error, but got value: {:?}", v),
+        }
+    }
+
+    // ## Syntax
+
     #[test]
-    fn test_nil() {
+    fn test_syntax() {
         assert_ok("nil", Value::nil());
+        assert_ok(" nil", Value::nil());
+        assert_ok("nil ", Value::nil());
         assert_ok(" nil ", Value::nil());
         assert_ok("# com#ment\n nil #this comment ends with eof", Value::nil());
         assert_ok("nil#", Value::nil());
+
+        assert_ok("true", Value::bool_(true));
+        assert_ok("false", Value::bool_(false));
+
+        assert_ok("(sf-quote =P)", Value::id_str("=P"));
+        assert_ok("(sf-quote abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg)", Value::id_str("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg"));
+        assert_any_parse_error("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh");
+        assert_any_parse_error("[abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh]");
+
+        assert_ok(":!", Value::kw_str("!"));
+        assert_ok(":nil", Value::kw_str("nil"));
+        assert_ok(":abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg", Value::kw_str("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg"));
+        assert_any_parse_error(":");
+        assert_any_parse_error(":abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh");
+        assert_any_parse_error("[:abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh]");
+
+        assert_ok("0", Value::int(0));
+        assert_ok("+0", Value::int(0));
+        assert_ok("-0", Value::int(0));
+        assert_ok("00", Value::int(0));
+        assert_ok("01", Value::int(1));
+        assert_ok("-9223372036854775808", Value::int(-9223372036854775808));
+        assert_any_parse_error("-9223372036854775809");
+        assert_ok("9223372036854775807", Value::int(9223372036854775807));
+        assert_any_parse_error("9223372036854775808");
+        assert_ok("0xa", Value::int(10));
+        assert_ok("-0xF", Value::int(-15));
+
+        assert_ok("0.0", Value::float(0.0));
+        assert_ok("+0.0", Value::float(0.0));
+        assert_ok("-0.0", Value::float(0.0));
+        assert_ok("00.00", Value::float(0.0));
+        assert_ok("-0.3e2", Value::float(-30.0));
+        assert_ok("0.3E+2", Value::float(30.0));
+        assert_ok("10.0e-2", Value::float(0.1));
+        assert_ok("0.0e99999999", Value::float(0.0));
+        assert_ok("9007199254740992.0", Value::float(9007199254740993.0));
+        assert_ok("9007199254740993.0", Value::float(9007199254740992.0));
+        assert_any_parse_error("-999E999");
+        assert_any_parse_error("999E999");
     }
 
     // ## Evaluation
 
     #[test]
     fn test_evaluation_order() {
+        assert_throw("[(sf-throw :b) (sf-throw :a)]", Value::kw_str("b"));
         assert_throw("@{(sf-throw :b) (sf-throw :a)}", Value::kw_str("a"));
         assert_throw("{:b (sf-throw 1), :a (sf-throw 0)}", Value::int(0));
         assert_throw("{(sf-throw :b) 42, (sf-throw :a) 42}", Value::kw_str("a"));
+        assert_throw("((sf-throw :b) (sf-throw :a))", Value::kw_str("b"));
+    }
+
+    #[test]
+    fn test_application_errors() {
+        assert_throw("()", execute("{:tag :err-lookup :got 0}").unwrap());
+        assert_throw("(42)", execute("{:tag :err-type, :expected :function, :got :int}").unwrap());
     }
 
     // ### Special Forms
