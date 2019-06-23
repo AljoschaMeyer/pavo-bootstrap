@@ -34,6 +34,8 @@ Most of these become clearer through the defintion of their corresponding expres
 
 ## Syntax
 
+Pavo input must be valid utf8.
+
 The [syntax](https://en.wikipedia.org/wiki/Syntax_(programming_languages)) of pavo consists of only two categories: Whitespace and expressions.
 
 Whitespace serves to separate expressions and to aid readability, but has no effect on the semantics of a program. The following tokens are considered whitespace:
@@ -59,23 +61,25 @@ The expressions are:
 
 ### Identifier
 
-Identifiers, a sequence of at least one and at most 255 of the following characters: `!*+-_?~<>=` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error. Additionally, that sequence may not match the syntax of any other expression (such as `nil`, `true`, `false`, valid or overflowing integers, valid or overflowing floats).
+Identifiers, a sequence of at least one and at most 255 of the following characters: `!*+-_?~<>=/\&|` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error. Additionally, that sequence may not match the syntax of any other expression (such as `nil`, `true`, `false`, valid or overflowing integers, valid or overflowing floats).
 
 ```pavo
 !
 =P
 -_-
+!*+-_?~<>=/\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
 abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg
 # too long: abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh
 ```
 
 ### Keyword
 
-A keyword consists of a colon (`:`) followed by at least one and at most 255 of the following characters: `!*+-_?~<>=` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error.
+A keyword consists of a colon (`:`) followed by at least one and at most 255 of the following characters: `!*+-_?~<>=/\&|` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error.
 
 ```pavo
 :!
 :nil # while not an identifier, this is ok for a keyword
+:!*+-_?~<>=/\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
 :abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg
 # too long: abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh
 ```
@@ -120,11 +124,188 @@ The exponent indicator expresses [scientific notation](https://en.wikipedia.org/
 # too large: 999E999
 ```
 
-TODO char, string, bytes, app, arr, set, map
+### Character
+
+Character literals denote [unicode scalar values](http://www.unicode.org/glossary/#unicode_scalar_value). For all characters other than `'` (`0x27`) and `\` (`0x5c`), a `'` followed by the character followed by another `'` denotes that character. In addition, there are escape sequences:
+
+- `\'` for the char `'` (`0x27`)
+- `\\` for the char `\` (`0x5c`)
+- `\t` for the char `horizontal tab` (`0x09`)
+- `\n` for the char `new line` (`0x0a`)
+- `\{DIGITS}`, where `DIGITS` is the ASCII hexadecimal (`0-9a-fA-F`) representation of any unicode scalar value (one to six digits).
+
+Literals or escape sequences that do not correspond to a Unicode scalar value are a parse error.
+
+```pavo
+'a'
+'⚗'
+'\{10FFFF}'
+(assert-eq '\{61}' 'a')
+(assert-eq '\{000061}' 'a')
+(assert-eq '\{2697}' '⚗')
+(assert-eq '"' '\{22}')
+(assert-eq '\'' '\{27}')
+(assert-eq '\\' '\{5c}')
+(assert-eq '\t' '\{09}')
+(assert-eq '\n' '\{0a}')
+# surrogates are not scalar values: '\{D800}' to '\{DBFF}' and '\{DC00}' to '\{DFFF}' are parse errors
+# as are escape sequences that are larger than the highest code point: '\{110000}' is a parse error
+# escape sequences can not be too short or long: '\{}' and '\{1234567}' are parse errors
+# ''' and '\' don't work, they must be escaped
+# '\r' is not a valid escape sequence, so it's a parse error
+```
+
+### String
+
+String literals denote sequences of up to 2^63 - 1 [unicode scalar values](http://www.unicode.org/glossary/#unicode_scalar_value). The syntax for a string literal consists of a `"` (`0x22`), followed by any number of character encodings (see next paragraph), followed by another `"` (`0x22`).
+
+ach character can either be encoded literally or through an escape sequence. The literal encoding can be used for all scalar values other than `"` (`0x22`) and `\` (`0x5c`) and consists of the utf-8 encoding of the scalar value. Alternatively, any of the following escape sequences can be used:
+
+- `\"` for the character `"` (`0x22`)
+- `\\` for the character `\` (`0x5c`)
+- `\t` for the character `horizontal tab` (`0x09`)
+- `\n` for the character `new line` (`0x0a`)
+- `\{DIGITS}`, where `DIGITS` is the ASCII hexadecimal (`0-9a-fA-F`) representation of any unicode scalar value (one to six digits).
+
+Strings that contain a literal or an escape sequence that does not correspond to a unicode scalar value are a parse error. In particular, unicode code points that are not scalar values are not allowed, even when they form valid surrogate pairs.
+
+```pavo
+""
+"a"
+"abc"
+"⚗"
+"⚗\{10FFFF}\{10FFFF} \\foo"
+"\{10FFFF}"
+(assert-eq "\{61}" "a")
+(assert-eq "\{000061}" "a")
+(assert-eq "\{2697}" "⚗")
+(assert-eq "'" '\{27}')
+(assert-eq "\"" "\{22}")
+(assert-eq "\\" "\{5c}")
+(assert-eq "\t" "\{09}")
+(assert-eq "\n" "\{0a}")
+# surrogates are not scalar values: "\{D800}" to "\{DBFF}" and "\{DC00}" to "\{DFFF}" are parse errors
+# as are escape sequences that are larger than the highest code point: "\{110000}" is a parse error
+# escape sequences can not be too short or long: "\{}" and "\{1234567}"" are parse errors
+# """ and "\" don't work, they must be escaped
+# "\r" is not a valid escape sequence, so it's a parse error
+```
+
+If the size of the resulting string in utf-8 bytes exceeds 2^63-1, it is a parse error. Also you are doing some really weird stuff and should probably use a different tool for the job than pavo.
+
+### Bytes
+
+Bytes denote a string of arbitrary bytes. A byte literal consists of `@[`, followed by zero or more whitespace tokens, followed by any number of byte tokens (see next paragraph) that are separated by at least one whitespace token, followed by zero or more whitespace tokens, followed by `]`.
+
+A byte token is either a sequence of one to three decimal digits of numeric value below 256, or `0x` followed by one or two hexadecimal digits (`0-9a-fA-F`).
+
+```pavo
+@[]
+@[0]
+@[0,0]
+@[0xF]
+@[   ,, 0xfE   ]
+@[0, 001, 255]
+@[1 0x1]
+# @[1111] is too long, so a parse error, as is @[0001]
+# @[256] is too large, so a parse error
+# @[0x] is too short, @[0xddd] is too long
+# @[10x1] is a parse error and distinct from @[1 0x1]
+```
+
+If the number of bytes exceeds 2^63-1, it is a parse error. Also you are doing some really weird stuff and should probably use a different tool for the job than pavo.
+
+### Array
+
+An array literal consists of `[`, followed by zero or more whitespace tokens, followed by any number of expressions that are separated by at least one whitespace token, followed by zero or more whitespace tokens, followed by `]`. It parses to the array value containing the values to which the inner expression parsed in sequence.
+
+```pavo
+[]
+[0]
+[0,1]
+[ 0, 1  ,,2 ]
+[[0],1,]
+[1 :a]
+[[] []]
+# [1a], [1:a] and [[][]] are parse errors, the inner expressions must be separated by whitespace
+```
+
+If the number of inner expressions exceeds 2^63-1, it is a parse error. Also you are doing some really weird stuff and should probably use a different tool for the job than pavo.
+
+### Application
+
+An application literal consists of `(`, followed by zero or more whitespace tokens, followed by any number of expressions that are separated by at least one whitespace token, followed by zero or more whitespace tokens, followed by `)`. It parses to the application value containing the values to which the inner expression parsed in sequence.
+
+```pavo
+()
+(0)
+(0,1)
+( 0, 1  ,,2 )
+((0),1,)
+(1 :a)
+(() ())
+# (1a), (1:a) and (()()) are parse errors, the inner expressions must be separated by whitespace
+```
+
+If the number of inner expressions exceeds 2^63-1, it is a parse error. Also you are doing some really weird stuff and should probably use a different tool for the job than pavo.
+
+### Set
+
+A set literal consists of `@{`, followed by zero or more whitespace tokens, followed by any number of expressions that are separated by at least one whitespace token, followed by zero or more whitespace tokens, followed by `}`. It parses to the set value containing the values to which the inner expression parsed (duplicates are thrown away).
+
+```pavo
+@{}
+@{0}
+@{0,1}
+@{ 0, 1  ,,2 }
+@{@{0},1,}
+@{1 :a}
+@{@{} @{}}
+(assert-eq @{0 1} @{1 0})
+(assert-eq @{0} @{0 0})
+(assert-eq @{0} @{0 0x0})
+# @{1a}, @{1:a} and @{@{}@{}} are parse errors, the inner expressions must be separated by whitespace
+```
+
+If the number of inner expressions exceeds 2^63-1 (before eliminating duplicates), it is a parse error. Also you are doing some really weird stuff and should probably use a different tool for the job than pavo.
+
+### Map
+
+A map literal consists of `{`, followed by zero or more whitespace tokens, followed by any number of entries (two values separated by at least one whitespace token) that are separated by at least one whitespace token, followed by zero or more whitespace tokens, followed by `}`. It parses to the map value containing the values to which the inner entries parsed. The first value of an entry is the key, and the second value the associated value. In case of duplicate keys, the rightmost entry is used.
+
+```pavo
+{}
+{0 0}
+{ 0,1 ,2 3 }
+(assert-eq {0 1 2 3} {2 3 0 1})
+(assert-eq {0 1 0 2 1 3 0 4} {0 4 1 3})
+# {1a}, {1:a} and {{}{}} are parse errors, the inner expressions must be separated by whitespace
+# {1} and {1 2 3} are parse errors, the number of inner expressions must be even
+```
+
+If the number of inner entries exceeds 2^63-1 (before eliminating entries with duplicate keys), it is a parse error. Also you are doing some really weird stuff and should probably use a different tool for the job than pavo.
 
 ### Syntactic Sugar
 
-TODO
+The previous expressions have all been *literals*. There are five more expressions that serve as shorthands for commonly used literals:
+
+- A dollar sign `$` followed by an expression `exp` is parsed to the same value as `(quote exp)`
+- A backtick `\`` followed by an expression `exp` is parsed to the same value as `(quasiquote exp)`
+- A semicolon `;` followed by an expression `exp` is parsed to the same value as `(unquote exp)`
+- A percent sign `%` followed by an expression `exp` is parsed to the same value as `(unquote-splice exp)`
+- An at sign `@` followed by an identifier `id` is parsed to the same value as `(fresh-name id)`
+
+```pavo
+(assert-eq (sf-quote $a) (sf-quote (quote a)))
+(assert-eq (sf-quote `a) (sf-quote (quasiquote a)))
+(assert-eq (sf-quote ;a) (sf-quote (unquote a)))
+(assert-eq (sf-quote %a) (sf-quote (unquote-splice a)))
+(assert-eq (sf-quote @a) (sf-quote (fresh-name a)))
+(assert-eq (sf-quote $$a) (sf-quote (quote (quote a))))
+# $ by itself is aa parse error (same for the other shorthands)
+# $ 0 is a parse error, no whitespace allowed (same for the other shorthands)
+# @0, @:a, @nil, @true, @false and @0a are parse errors, @ can only precede an identifier
+```
 
 ## Static Checks
 

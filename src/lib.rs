@@ -148,12 +148,14 @@ mod tests {
         assert_ok("false", Value::bool_(false));
 
         assert_ok("(sf-quote =P)", Value::id_str("=P"));
+        assert_ok("(sf-quote !*+-_?~<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ)", Value::id_str("!*+-_?~<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
         assert_ok("(sf-quote abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg)", Value::id_str("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg"));
         assert_any_parse_error("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh");
         assert_any_parse_error("[abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh]");
 
         assert_ok(":!", Value::kw_str("!"));
         assert_ok(":nil", Value::kw_str("nil"));
+        assert_ok(":!*+-_?~<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", Value::kw_str("!*+-_?~<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
         assert_ok(":abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg", Value::kw_str("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg"));
         assert_any_parse_error(":");
         assert_any_parse_error(":abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh");
@@ -183,6 +185,136 @@ mod tests {
         assert_ok("9007199254740993.0", Value::float(9007199254740992.0));
         assert_any_parse_error("-999E999");
         assert_any_parse_error("999E999");
+
+        assert_ok("'a'", Value::char_('a'));
+        assert_ok("'⚗'", Value::char_('⚗'));
+        assert_ok("'\\{61}'", Value::char_('a'));
+        assert_ok("'\\{000061}'", Value::char_('a'));
+        assert_ok("'\\{2697}'", Value::char_('⚗'));
+        assert_ok("'\\{10FFFF}'", Value::char_('\u{10FFFF}'));
+        assert_ok("'\"'", Value::char_('"'));
+        assert_ok("'\\''", Value::char_('\''));
+        assert_ok("'\\\\'", Value::char_('\\'));
+        assert_ok("'\\t'", Value::char_('\t'));
+        assert_ok("'\\n'", Value::char_('\n'));
+        assert_any_parse_error("'\\{D800}'");
+        assert_any_parse_error("'\\{DBFF}'");
+        assert_any_parse_error("'\\{DC00}'");
+        assert_any_parse_error("'\\{DFFF}'");
+        assert_any_parse_error("'\\{110000}'");
+        assert_any_parse_error("'\\{}'");
+        assert_any_parse_error("'\\{1234567}'");
+        assert_any_parse_error("'''");
+        assert_any_parse_error("'\\'");
+        assert_any_parse_error("'\\r'");
+
+        assert_ok("\"\"", Value::string_from_str(""));
+        assert_ok("\"a\"", Value::string_from_str("a"));
+        assert_ok("\"abc\"", Value::string_from_str("abc"));
+        assert_ok("\"⚗\"", Value::string_from_str("⚗"));
+        assert_ok("\"⚗\\{10FFFF}\\{10FFFF} \\\\foo\"", Value::string_from_str("⚗\u{10FFFF}\u{10FFFF} \\foo"));
+        assert_ok("\"\\{61}\"", Value::string_from_str("a"));
+        assert_ok("\"\\{000061}\"", Value::string_from_str("a"));
+        assert_ok("\"\\{2697}\"", Value::string_from_str("⚗"));
+        assert_ok("\"\\{10FFFF}\"", Value::string_from_str("\u{10FFFF}"));
+        assert_ok("\"'\"", Value::string_from_str("'"));
+        assert_ok("\"\\\"\"", Value::string_from_str("\""));
+        assert_ok("\"\\\\\"", Value::string_from_str("\\"));
+        assert_ok("\"\\t\"", Value::string_from_str("\t"));
+        assert_ok("\"\\n\"", Value::string_from_str("\n"));
+        assert_any_parse_error("\"\\{D800}\"");
+        assert_any_parse_error("\"\\{DBFF}\"");
+        assert_any_parse_error("\"\\{DC00}\"");
+        assert_any_parse_error("\"\\{DFFF}\"");
+        assert_any_parse_error("\"\\{110000}\"");
+        assert_any_parse_error("\"\\{}\"");
+        assert_any_parse_error("\"\\{1234567}\"");
+        assert_any_parse_error("\"\"\"");
+        assert_any_parse_error("\"\\\"");
+        assert_any_parse_error("\"\\r\"");
+
+        assert_ok("@[]", Value::bytes_from_vec(vec![]));
+        assert_ok("@[0]", Value::bytes_from_vec(vec![0]));
+        assert_ok("@[0,0]", Value::bytes_from_vec(vec![0, 0]));
+        assert_ok("@[0xF]", Value::bytes_from_vec(vec![15]));
+        assert_ok("@[   ,, 0xfE   ]", Value::bytes_from_vec(vec![254]));
+        assert_ok("@[0, 001, 255]", Value::bytes_from_vec(vec![0, 1, 255]));
+        assert_ok("@[1 0x1]", Value::bytes_from_vec(vec![1, 1]));
+        assert_any_parse_error("@[1111]");
+        assert_any_parse_error("@[256]");
+        assert_any_parse_error("@[0x]");
+        assert_any_parse_error("@[0xddd]");
+        assert_any_parse_error("@[10x1]");
+
+        assert_ok("[]", Value::arr_from_vec(vec![]));
+        assert_ok("[0]", Value::arr_from_vec(vec![Value::int(0)]));
+        assert_ok("[0,1]", Value::arr_from_vec(vec![Value::int(0), Value::int(1)]));
+        assert_ok("[ 0, 1  ,,2 ]", Value::arr_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)]));
+        assert_ok("[[0],1,]", Value::arr_from_vec(vec![Value::arr_from_vec(vec![Value::int(0)]), Value::int(1)]));
+        assert_ok("[1 :a]", Value::arr_from_vec(vec![Value::int(1), Value::kw_str("a")]));
+        assert_ok("[[] []]", Value::arr_from_vec(vec![Value::arr_from_vec(vec![]), Value::arr_from_vec(vec![])]));
+        assert_any_parse_error("[1a]");
+        assert_any_parse_error("[1:a]");
+        assert_any_parse_error("[[][]]");
+
+        assert_ok("(sf-quote ())", Value::app_from_vec(vec![]));
+        assert_ok("(sf-quote (0))", Value::app_from_vec(vec![Value::int(0)]));
+        assert_ok("(sf-quote (0,1))", Value::app_from_vec(vec![Value::int(0), Value::int(1)]));
+        assert_ok("(sf-quote ( 0, 1  ,,2 ))", Value::app_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)]));
+        assert_ok("(sf-quote ((0),1,))", Value::app_from_vec(vec![Value::app_from_vec(vec![Value::int(0)]), Value::int(1)]));
+        assert_ok("(sf-quote (1 :a))", Value::app_from_vec(vec![Value::int(1), Value::kw_str("a")]));
+        assert_ok("(sf-quote (() ()))", Value::app_from_vec(vec![Value::app_from_vec(vec![]), Value::app_from_vec(vec![])]));
+        assert_any_parse_error("(1a)");
+        assert_any_parse_error("(1:a)");
+        assert_any_parse_error("(()())");
+
+        assert_ok("@{}", Value::set_from_vec(vec![]));
+        assert_ok("@{0}", Value::set_from_vec(vec![Value::int(0)]));
+        assert_ok("@{0,1}", Value::set_from_vec(vec![Value::int(0), Value::int(1)]));
+        assert_ok("@{1,0}", Value::set_from_vec(vec![Value::int(0), Value::int(1)]));
+        assert_ok("@{ 0, 1  ,,2 }", Value::set_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)]));
+        assert_ok("@{@{0},1,}", Value::set_from_vec(vec![Value::set_from_vec(vec![Value::int(0)]), Value::int(1)]));
+        assert_ok("@{1 :a}", Value::set_from_vec(vec![Value::int(1), Value::kw_str("a")]));
+        assert_ok("@{@{} @{}}", Value::set_from_vec(vec![Value::set_from_vec(vec![]), Value::set_from_vec(vec![])]));
+        assert_ok("@{0 0}", Value::set_from_vec(vec![Value::int(0)]));
+        assert_ok("@{0 0x0}", Value::set_from_vec(vec![Value::int(0)]));
+        assert_any_parse_error("@{1a}");
+        assert_any_parse_error("@{1:a}");
+        assert_any_parse_error("@{@{}@{}}");
+
+        assert_ok("{}", Value::map_from_vec(vec![]));
+        assert_ok("{0 0}", Value::map_from_vec(vec![(Value::int(0), Value::int(0))]));
+        assert_ok("{ 0,1 ,2 3 }", Value::map_from_vec(vec![(Value::int(0), Value::int(1)), (Value::int(2), Value::int(3))]));
+        assert_ok("{2 3 0 1}", Value::map_from_vec(vec![(Value::int(0), Value::int(1)), (Value::int(2), Value::int(3))]));
+        assert_ok("{0 1 0 2 1 3 0 4}", Value::map_from_vec(vec![(Value::int(0), Value::int(4)), (Value::int(1), Value::int(3))]));
+        assert_any_parse_error("{1a}");
+        assert_any_parse_error("{1:a}");
+        assert_any_parse_error("{{}{}}");
+        assert_any_parse_error("{1}");
+        assert_any_parse_error("{1 2 3}");
+
+        assert_ok("(sf-quote $a)", Value::app_from_vec(vec![Value::id_str("quote"), Value::id_str("a")]));
+        assert_ok("(sf-quote `a)", Value::app_from_vec(vec![Value::id_str("quasiquote"), Value::id_str("a")]));
+        assert_ok("(sf-quote ;a)", Value::app_from_vec(vec![Value::id_str("unquote"), Value::id_str("a")]));
+        assert_ok("(sf-quote %a)", Value::app_from_vec(vec![Value::id_str("unquote-splice"), Value::id_str("a")]));
+        assert_ok("(sf-quote @a)", Value::app_from_vec(vec![Value::id_str("fresh-name"), Value::id_str("a")]));
+        assert_ok("(sf-quote $$a)", Value::app_from_vec(vec![Value::id_str("quote"), Value::app_from_vec(vec![Value::id_str("quote"), Value::id_str("a")])]));
+        assert_any_parse_error("$");
+        assert_any_parse_error("`");
+        assert_any_parse_error(";");
+        assert_any_parse_error("%");
+        assert_any_parse_error("@");
+        assert_any_parse_error("$ a");
+        assert_any_parse_error("` a");
+        assert_any_parse_error("; a");
+        assert_any_parse_error("% a");
+        assert_any_parse_error("@ a");
+        assert_any_parse_error("@0");
+        assert_any_parse_error("@:a");
+        assert_any_parse_error("@nil");
+        assert_any_parse_error("@true");
+        assert_any_parse_error("@false");
+        assert_any_parse_error("@0a");
     }
 
     // ## Evaluation

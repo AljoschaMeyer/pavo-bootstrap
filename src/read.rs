@@ -4,9 +4,9 @@ use failure_derive::Fail;
 use nom::{
     {is_a, one_of, eof},
     {value, tag, take_while1},
-    {do_parse, alt, many0, opt, preceded},
+    {do_parse, alt, many0, many1, opt, preceded},
     {delimited, terminated},
-    {named, not, map, try_parse},
+    {named, not, map, try_parse, separated_list},
     none_of, many_m_n,
     IResult, Err, Context, ErrorKind,
     types::CompleteStr,
@@ -36,19 +36,25 @@ named!(ws0(CompleteStr) -> (), do_parse!(
     (())
 ));
 
-named!(lbrace(CompleteStr) -> (), do_parse!(tag!("{") >> ws0 >> (())));
-named!(rbrace(CompleteStr) -> (), do_parse!(tag!("}") >> ws0 >> (())));
-named!(lbracket(CompleteStr) -> (), do_parse!(tag!("[") >> ws0 >> (())));
-named!(rbracket(CompleteStr) -> (), do_parse!(tag!("]") >> ws0 >> (())));
-named!(lparen(CompleteStr) -> (), do_parse!(tag!("(") >> ws0 >> (())));
-named!(rparen(CompleteStr) -> (), do_parse!(tag!(")") >> ws0 >> (())));
-named!(at_lbrace(CompleteStr) -> (), do_parse!(tag!("@{") >> ws0 >> (())));
-named!(at_lbracket(CompleteStr) -> (), do_parse!(tag!("@[") >> ws0 >> (())));
+named!(ws1(CompleteStr) -> (), do_parse!(
+    many1!(ws) >>
+    (())
+));
+
+named!(lbrace(CompleteStr) -> (), do_parse!(tag!("{") >> (())));
+named!(rbrace(CompleteStr) -> (), do_parse!(tag!("}") >> (())));
+named!(lbracket(CompleteStr) -> (), do_parse!(tag!("[") >> (())));
+named!(rbracket(CompleteStr) -> (), do_parse!(tag!("]") >> (())));
+named!(lparen(CompleteStr) -> (), do_parse!(tag!("(") >> (())));
+named!(rparen(CompleteStr) -> (), do_parse!(tag!(")") >> (())));
+named!(at_lbrace(CompleteStr) -> (), do_parse!(tag!("@{") >> (())));
+named!(at_lbracket(CompleteStr) -> (), do_parse!(tag!("@[") >> (())));
 
 pub fn is_id_char(c: char) -> bool {
     return c.is_ascii_alphanumeric() || c == '!' || c == '*' || c == '+'
         || c == '-' || c == '_' || c == '?' || c == '~' || c == '<'
-        || c == '>' || c == '=';
+        || c == '>' || c == '=' || c == '/' || c == '\\'
+        || c == '|' || c == '&';
 }
 
 fn id_str(i: CompleteStr) -> IResult<CompleteStr, CompleteStr> {
@@ -75,7 +81,6 @@ fn num(i: CompleteStr) -> IResult<CompleteStr, Value> {
 
     if is_hex {
         let end = i;
-        let (i, _) = try_parse!(i, ws0);
 
         let raw = if has_sign {
                 let mut buf = start[..1].to_string();
@@ -101,7 +106,6 @@ fn num(i: CompleteStr) -> IResult<CompleteStr, Value> {
                 (())
             )));
             let end = i;
-            let (i, _) = try_parse!(i, ws0);
 
             let raw = &start[..start.len() - end.len()];
             let f = strtod(raw).unwrap();
@@ -112,7 +116,6 @@ fn num(i: CompleteStr) -> IResult<CompleteStr, Value> {
             }
         } else {
             let end = i;
-            let (i, _) = try_parse!(i, ws0);
 
             let raw = &start[..start.len() - end.len()];
 
@@ -133,7 +136,6 @@ fn byte(i: CompleteStr) -> IResult<CompleteStr, u8> {
         try_parse!(i, take_while1!(|c: char| c.is_ascii_digit()))
     };
     let end = i;
-    let (i, _) = try_parse!(i, ws0);
 
     let raw = if is_hex {
         start[2..start.len() - end.len()].to_string()
@@ -143,7 +145,7 @@ fn byte(i: CompleteStr) -> IResult<CompleteStr, u8> {
 
     match u8::from_str_radix(&raw, if is_hex { 16 } else { 10 }) {
         Ok(n) => Ok((i, n)),
-        Err(_) => Err(Err::Failure(Context::Code(i, ErrorKind::Custom(2)))),
+        Err(_) => Err(Err::Failure(Context::Code(i, ErrorKind::Custom(5)))),
     }
 }
 
@@ -153,17 +155,29 @@ fn unicode(i: CompleteStr) -> IResult<CompleteStr, char> {
     let end = i;
 
     let raw = start[..start.len() - end.len()].to_string();
-    let numeric = u32::from_str_radix(&raw, 10).unwrap();
+    let numeric = u32::from_str_radix(&raw, 16).unwrap();
 
     match std::char::from_u32(numeric) {
         Some(c) => Ok((i, c)),
-        None => Err(Err::Error(Context::Code(i, ErrorKind::Custom(3)))),
+        None => Err(Err::Failure(Context::Code(i, ErrorKind::Custom(4)))),
     }
 }
 
-named!(char__(CompleteStr) -> char, alt!(
+named!(char_char(CompleteStr) -> char, alt!(
     value!('\\', tag!("\\\\")) |
     value!('\'', tag!("\\'")) |
+    value!('\t', tag!("\\t")) |
+    value!('\n', tag!("\\n")) |
+    delimited!(
+        tag!("\\{"),
+        unicode,
+        tag!("}")
+    ) |
+    none_of!("\\'")
+));
+
+named!(char_str(CompleteStr) -> char, alt!(
+    value!('\\', tag!("\\\\")) |
     value!('\"', tag!("\\\"")) |
     value!('\t', tag!("\\t")) |
     value!('\n', tag!("\\n")) |
@@ -172,47 +186,69 @@ named!(char__(CompleteStr) -> char, alt!(
         unicode,
         tag!("}")
     ) |
-    none_of!("")
+    none_of!("\"\\")
 ));
 
 named!(char_(CompleteStr) -> Value, delimited!(
     tag!("'"),
-    map!(char__, Value::char_),
-    do_parse!(tag!("'") >> ws0 >> (()))
+    map!(char_char, Value::char_),
+    do_parse!(tag!("'") >> (()))
 ));
 
 named!(string(CompleteStr) -> Value, delimited!(
     tag!("\""),
-    map!(many0!(char__), Value::string_from_vec),
-    do_parse!(tag!("\"") >> ws0 >> (()))
+    // value!(Value::string_from_str("")),
+    map!(many0!(char_str), Value::string_from_vec),
+    do_parse!(tag!("\"") >> (()))
 ));
 
 named!(bytes(CompleteStr) -> Value, map!(
-    delimited!(at_lbracket, many0!(byte), rbracket),
+    delimited!(
+        terminated!(at_lbracket, ws0),
+        separated_list!(ws1, byte),
+        preceded!(ws0, rbracket)
+    ),
     |byte_vec| Value::bytes_from_vec(byte_vec)
 ));
 
 named!(app(CompleteStr) -> Value, map!(
-    delimited!(lparen, many0!(obj), rparen),
+    delimited!(
+        terminated!(lparen, ws0),
+        separated_list!(ws1, obj),
+        preceded!(ws0, rparen)
+    ),
     |objs| Value::app_from_vec(objs)
 ));
 
 named!(arr(CompleteStr) -> Value, map!(
-    delimited!(lbracket, many0!(obj), rbracket),
+    delimited!(
+        terminated!(lbracket, ws0),
+        separated_list!(ws1, obj),
+        preceded!(ws0, rbracket)
+    ),
     |objs| Value::arr_from_vec(objs)
 ));
 
 named!(map_(CompleteStr) -> Value, map!(
-    delimited!(lbrace, many0!(do_parse!(
-        key: obj >>
-        val: obj >>
-        ((key, val))
-    )), rbrace),
+    delimited!(
+        terminated!(lbrace, ws0),
+        separated_list!(ws1, do_parse!(
+            key: obj >>
+            ws1 >>
+            val: obj >>
+            ((key, val))
+        )),
+        preceded!(ws0, rbrace)
+    ),
     |entries| Value::map_from_vec(entries)
 ));
 
 named!(set(CompleteStr) -> Value, map!(
-    delimited!(at_lbrace, many0!(obj), rbrace),
+    delimited!(
+        terminated!(at_lbrace, ws0),
+        separated_list!(ws1, obj),
+        preceded!(ws0, rbrace)
+    ),
     |objs| Value::set_from_vec(objs)
 ));
 
@@ -226,7 +262,45 @@ named!(id(CompleteStr) -> Value, map!(id_str, |id| if id.0 == "nil" {
     Value::id_str(id.0)
 }));
 
-named!(obj(CompleteStr) -> Value, terminated!(alt!(
+named!(quote(CompleteStr) -> Value, do_parse!(
+    tag!("$") >>
+    inner: obj >>
+    (Value::app_from_vec(vec![Value::id_str("quote"), inner]))
+));
+
+named!(quasiquote(CompleteStr) -> Value, do_parse!(
+    tag!("`") >>
+    inner: obj >>
+    (Value::app_from_vec(vec![Value::id_str("quasiquote"), inner]))
+));
+
+named!(unquote(CompleteStr) -> Value, do_parse!(
+    tag!(";") >>
+    inner: obj >>
+    (Value::app_from_vec(vec![Value::id_str("unquote"), inner]))
+));
+
+named!(unquote_splice(CompleteStr) -> Value, do_parse!(
+    tag!("%") >>
+    inner: obj >>
+    (Value::app_from_vec(vec![Value::id_str("unquote-splice"), inner]))
+));
+
+fn fresh_name(i: CompleteStr) -> IResult<CompleteStr, Value> {
+    let (i, _) = try_parse!(i, tag!("@"));
+    let (i, inner) = try_parse!(i, obj);
+
+    match inner.as_user_id() {
+        Some(_) => return Ok((i, Value::app_from_vec(vec![Value::id_str("fresh-name"), inner]))),
+        None => return Err(Err::Failure(Context::Code(i, ErrorKind::Custom(6)))),
+    }
+}
+
+named!(obj(CompleteStr) -> Value, alt!(
+    quote |
+    quasiquote |
+    unquote |
+    unquote_splice |
     app |
     arr |
     map_ |
@@ -236,12 +310,14 @@ named!(obj(CompleteStr) -> Value, terminated!(alt!(
     string |
     num |
     map!(kw_str, |kw| Value::kw_str(kw.0)) |
+    fresh_name |
     id
-), ws0));
+));
 
 named!(read_(CompleteStr) -> Value, do_parse!(
     ws0 >>
     o: obj >>
+    ws0 >>
     eof!() >>
     (o)
 ));
