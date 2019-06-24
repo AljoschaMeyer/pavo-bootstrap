@@ -291,16 +291,16 @@ The previous expressions have all been *literals*. There are five more expressio
 
 - A dollar sign `$` followed by an expression `exp` is parsed to the same value as `(quote exp)`
 - A backtick `\`` followed by an expression `exp` is parsed to the same value as `(quasiquote exp)`
-- A semicolon `;` followed by an expression `exp` is parsed to the same value as `(unquote exp)`
-- A percent sign `%` followed by an expression `exp` is parsed to the same value as `(unquote-splice exp)`
-- An at sign `@` followed by an identifier `id` is parsed to the same value as `(fresh-name id)`
+- A semicolon `;` followed by an expression `exp` is parsed to the same value as `(:unquote exp)`
+- A percent sign `%` followed by an expression `exp` is parsed to the same value as `(:unquote-splice exp)`
+- An at sign `@` followed by an identifier `id` is parsed to the same value as `(:fresh-name id)`
 
 ```pavo
 (assert-eq (sf-quote $a) (sf-quote (quote a)))
 (assert-eq (sf-quote `a) (sf-quote (quasiquote a)))
-(assert-eq (sf-quote ;a) (sf-quote (unquote a)))
-(assert-eq (sf-quote %a) (sf-quote (unquote-splice a)))
-(assert-eq (sf-quote @a) (sf-quote (fresh-name a)))
+(assert-eq (sf-quote ;a) (sf-quote (:unquote a)))
+(assert-eq (sf-quote %a) (sf-quote (:unquote-splice a)))
+(assert-eq (sf-quote @a) (sf-quote (:fresh-name a)))
 (assert-eq (sf-quote $$a) (sf-quote (quote (quote a))))
 # $ by itself is aa parse error (same for the other shorthands)
 # $ 0 is a parse error, no whitespace allowed (same for the other shorthands)

@@ -295,9 +295,9 @@ mod tests {
 
         assert_ok("(sf-quote $a)", Value::app_from_vec(vec![Value::id_str("quote"), Value::id_str("a")]));
         assert_ok("(sf-quote `a)", Value::app_from_vec(vec![Value::id_str("quasiquote"), Value::id_str("a")]));
-        assert_ok("(sf-quote ;a)", Value::app_from_vec(vec![Value::id_str("unquote"), Value::id_str("a")]));
-        assert_ok("(sf-quote %a)", Value::app_from_vec(vec![Value::id_str("unquote-splice"), Value::id_str("a")]));
-        assert_ok("(sf-quote @a)", Value::app_from_vec(vec![Value::id_str("fresh-name"), Value::id_str("a")]));
+        assert_ok("(sf-quote ;a)", Value::app_from_vec(vec![Value::kw_str("unquote"), Value::id_str("a")]));
+        assert_ok("(sf-quote %a)", Value::app_from_vec(vec![Value::kw_str("unquote-splice"), Value::id_str("a")]));
+        assert_ok("(sf-quote @a)", Value::app_from_vec(vec![Value::kw_str("fresh-name"), Value::id_str("a")]));
         assert_ok("(sf-quote $$a)", Value::app_from_vec(vec![Value::id_str("quote"), Value::app_from_vec(vec![Value::id_str("quote"), Value::id_str("a")])]));
         assert_any_parse_error("$");
         assert_any_parse_error("`");

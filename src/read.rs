@@ -277,13 +277,13 @@ named!(quasiquote(CompleteStr) -> Value, do_parse!(
 named!(unquote(CompleteStr) -> Value, do_parse!(
     tag!(";") >>
     inner: obj >>
-    (Value::app_from_vec(vec![Value::id_str("unquote"), inner]))
+    (Value::app_from_vec(vec![Value::kw_str("unquote"), inner]))
 ));
 
 named!(unquote_splice(CompleteStr) -> Value, do_parse!(
     tag!("%") >>
     inner: obj >>
-    (Value::app_from_vec(vec![Value::id_str("unquote-splice"), inner]))
+    (Value::app_from_vec(vec![Value::kw_str("unquote-splice"), inner]))
 ));
 
 fn fresh_name(i: CompleteStr) -> IResult<CompleteStr, Value> {
@@ -291,7 +291,7 @@ fn fresh_name(i: CompleteStr) -> IResult<CompleteStr, Value> {
     let (i, inner) = try_parse!(i, obj);
 
     match inner.as_user_id() {
-        Some(_) => return Ok((i, Value::app_from_vec(vec![Value::id_str("fresh-name"), inner]))),
+        Some(_) => return Ok((i, Value::app_from_vec(vec![Value::kw_str("fresh-name"), inner]))),
         None => return Err(Err::Failure(Context::Code(i, ErrorKind::Custom(6)))),
     }
 }
