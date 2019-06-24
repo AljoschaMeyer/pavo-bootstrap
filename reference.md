@@ -302,14 +302,131 @@ The previous expressions have all been *literals*. There are five more expressio
 (assert-eq (sf-quote %a) (sf-quote (:unquote-splice a)))
 (assert-eq (sf-quote @a) (sf-quote (:fresh-name a)))
 (assert-eq (sf-quote $$a) (sf-quote (quote (quote a))))
-# $ by itself is aa parse error (same for the other shorthands)
+# $ by itself is a parse error (same for the other shorthands)
 # $ 0 is a parse error, no whitespace allowed (same for the other shorthands)
 # @0, @:a, @nil, @true, @false and @0a are parse errors, @ can only precede an identifier
 ```
 
 ## Static Checks
 
-Before evaluating any pavo value in an environment, some static checks are performed first. TODO
+Before evaluating any pavo value in an environment, some static checks are performed first. This can be done in batch: Even though the evaluation of a value is defined in terms of the values it contains, only a single run of static checks on the initial value needs to be performed up-front. Unlike evaluation, the static checks are decidable.
+
+There are two classes of static checks: Those enforcing the syntactic well-formedness of special forms, and those enforcing that all binding usages are correct. If a value to be evaluated violates any of these constraints, it can not be evaluated (a pavo compiler would signal a compile error, an interpreter would refuse to interpret the program).
+
+### Special Form Syntax
+
+Special forms are application literals whose first item is one of the following identifiers: `sf-quote`, `sf-do`, `sf-if`, `sf-set!`, `sf-throw`, `sf-try`, and `sf-lambda`. Checking special form syntax of a value proceeds recursively.
+
+If the value is an identifier, symbol, nil, boolean, int, float, char, string, bytes, keyword, function, cell or opaque, the check finishes successfully. To check an array, set, or map in an environment `E`, all inner values are checked. When checking an application, if it is a special form, it must satisfy the criteria outlined below. Then, if it is not a `sf-quote` form, all inner values are checked.
+
+```pavo
+(sf-quote (sf-if)) # this is ok - the sf-if is malformed, but that's ok because it is quoted
+```
+
+#### `sf-quote`
+
+An application literal whose first item is `sf-quote` must have exactly two items.
+
+```pavo
+(sf-quote :quoted)
+# (sf-quote) and (sf-quote foo bar) are static errors
+```
+
+#### `sf-do`
+
+Any application literal whose first item is `sf-do` is well-formed.
+
+#### `sf-if`
+
+An application literal whose first item is `sf-quote` must have exactly two items.
+
+```pavo
+(sf-if :cond :then :else)
+# (sf-if), (sf-if :cond), (sf-if :cond :then) and (sf-if :cond :then :else :wut?) are static errors
+```
+
+#### `sf-set!`
+
+An application literal whose first item is `sf-set!` must have exactly three items, and the middle one must be a name (an identifier or symbol).
+
+```pavo
+(sf-lambda [:mut a] (sf-set! a 42))
+# (sf-set! a 42) is syntactically valid, but a static error due to binding problems
+# (sf-set! 42 43) is a static error because the second item must be a name
+# (sf-set!), (sf-set! a) and (sf-set! a 42 foo) are static errors
+```
+
+#### `sf-throw`
+
+An application literal whose first item is `sf-throw` must have exactly two items.
+
+```pavo
+(sf-throw :thrown)
+# (sf-throw) and (sf-throw foo bar) are static errors
+```
+
+#### `sf-try`
+
+An application literal whose first item is `(sf-try)` must either have exactly five items, the third of which is the keyword `:mut` and the fourth of which is a name (an identifier or symbol), or it must have exactly four items, the third of which is a name.
+
+```pavo
+(sf-try 0 a 1)
+(sf-try 0 :mut a 1)
+# (sf-try 0 1 2) is a static error because the third item must be a name or :mut
+# (sf-try 0 :mut 1 2) is a static error because the fourth item must be a name
+# (sf-try 0 :mut a) is a static error because the form must have five items iff the third one is :mut
+# (sf-try), (sf-try 0), (sf-try 0 a), (sf-try) and (sf-try 0 a 1 2) are static errors
+```
+
+#### `sf-lambda`
+
+An application literal whose first item is `(sf-lambda)` must either have exactly four items, the second of which is the keyword `:mut` and the third of which is a name (an identifier or symbol), or it must have exactly three items, the second of which is a name or an array.
+
+If the second item is an array, it may only contain identifiers, each of them optionally preceded by the keyword `:mut`.
+
+```pavo
+(sf-lambda a 0)
+(sf-lambda :mut a 0)
+(sf-lambda [] 0)
+(sf-lambda [a] 0)
+(sf-lambda [:mut a] 0)
+(sf-lambda [a b] 0)
+(sf-lambda [:mut a b] 0)
+(sf-lambda [a :mut b] 0)
+(sf-lambda [:mut a :mut b] 0)
+# (sf-lambda 0 1) is a static error because the second item must be a name, array or :mut
+# (sf-lambda :mut 0 1) is a static error because the third item must be a name
+# (sf-lambda [0] 1) is a static error because the array may not contain arbitrary values
+# (sf-lambda [:mut] 0) is a static error because each :mut must correspond to an identifier
+# (sf-lambda [a :mut] 0) is a static error because each :mut must precede its identifier
+# (sf-lambda), (sf-lambda a), (sf-lambda a 0 1), (sf-lambda :mut), (sf-lambda :mut a), (sf-lambda :mut a 0 1), (sf-lambda []) and (sf-lambda [] 0 1) are static errors
+```
+
+### Binding Correctness
+
+Binding rules govern the usage of names (identifiers and symbols). The static checking of a value occurs in the context of a *check-environment*. A check-environment is a [partial function](https://en.wikipedia.org/wiki/Partial_function) (mathematically, not a pavo function) from names to booleans. A name that is mapped to false is called an *immutable binding*, a name that is mapped to true is called a *mutable binding*, and a name that is not mapped to anything is called a *free name*. By default, the initial check-environment used for checking a value contains exactly the values listed in section `Toplevel Values`, all of them mapped to false.
+
+Checking bindings for a value proceeds recursively. If the value is a name (identifier or symbol), and that name is free in the check-environment, that is a static error. Bound names, nil, booleans, ints, floats, chars, strings, bytes, keywords, functions, cells and opaques are always ok. To check an array, set, or map in a check-environment `E`, all inner values are checked in the check-environment `E`. The interesting case is checking an application in a check-environment `E`. The exact behavior depends on the application:
+
+- `(sf-quote <quoted-exp>)`: always results in a successful check.
+- `(sf-set! <target-name> <rvalue-exp>)`: Is a static error if the `<target-name>` is not a mutable binding, otherwise `<rvalue-exp>` is checked in the check-environment `E`.
+- `(sf-try <try-exp> <binder-name> <caught-exp>)`: Check `<try-exp>` in the check-environment `E`. If successful, check `<caught-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
+- `(sf-try <try-exp> <binder-name> <caught-exp>)`: Check `<try-exp>` in the check-environment `E`. If successful, check `<caught-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
+- `(sf-lambda <binder-name> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
+- `(sf-lambda :mut <binder-name> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to true.
+- `(sf-lambda <args-array> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that all names in the `<args-array>` without a preceeding `:mut` to false and the others to `true`.
+- Otherwise, all inner values are checked in the environment `E`.
+
+```pavo
+(sf-quote a)
+(sf-try 0 a a)
+(sf-try 0 :mut a (sf-set! a 42))
+(sf-lambda a a)
+(sf-lambda :mut a (sf-set! a 42))
+(sf-lambda a (sf-lambda :mut a (sf-set! a 0)))
+# some-id, [some-id] and (sf-set! some-id 0) are static errors because the name is not bound
+# (sf-set! int-max-val 42), (sf-try 0 a (sf-set! a 42)) and (sf-lambda a (sf-set! a 42)) are static errors because the name is bound immutably
+```
 
 ## Evaluation
 
@@ -461,15 +578,17 @@ Pavo guarantees tail-call optimization, (mutually) recursive function calls in t
 
 ## Macro Expansion
 
+TODO
+
 ## Toplevel Macros
+
+TODO
 
 ## Toplevel Values
 
-TODO rewrite?
+These are all the values that are bound to an identifier in the default toplevel environment. All of these bindings are immutable.
 
-These are all the values that are bound to an identifier in the toplevel environment in which code is executed by default. All of these bindings are immutable.
-
-The given time complexities are the minimum that a pavo implementation must provide. An implementation is of course free to provide *better* complexity bounds than those required. In particular, any amortized complexity bound can be implemented as non-amortized. The converse is not true: If a complexity requirement is unamortized, then implementations are not allowed to provide only amortized bounds.
+The given time complexities on functions are the minimum that a pavo implementation must provide. An implementation is free to guarantee *better* complexity bounds than those required. In particular, any amortized complexity bound can be implemented as non-amortized. The converse is not true: If a complexity requirement is unamortized, then implementations are not allowed to provide only amortized bounds.
 
 Whenever a function is described to "throw a type error", it throws a map `{ :tag :err-type, :expected <expected>, :got <got>}` where `<expected>` and `<got>` are the keywords denoting the respective types (see `(typeof x)`). Type errors are also trown when an argument is described as having a certain type, but an argument of a different type is supplied. For example "Do foo to the int `n`" throws a type error with `:expected :int` if `n` is not an int.
 

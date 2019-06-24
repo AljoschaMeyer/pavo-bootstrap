@@ -103,7 +103,10 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
 
             let to_try = &v.0[1];
             let (mutable, id) = mut_id(&v.0, 2, FormType::Try)?;
-            if !mutable && v.0.len() == 5 {
+            if mutable && v.0.len() != 5 {
+                return Err(SpecialFormSyntaxError::Arity(FormType::Try, v.0.len()));
+            }
+            if !mutable && v.0.len() != 4 {
                 return Err(SpecialFormSyntaxError::Arity(FormType::Try, v.0.len()));
             }
             let cont = &v.0[if mutable { 4 } else { 3 }];
@@ -164,8 +167,11 @@ fn fun_def<'a>(v: &'a ImVector<Value>, start_at: usize, ft: FormType) -> Result<
 }
 
 fn mut_id<'a>(v: &'a ImVector<Value>, start_at: usize, ft: FormType) -> Result<(bool, &'a Id), SpecialFormSyntaxError> {
-    // println!("{:?}", (v, start_at));
     if v[start_at].is_kw("mut") {
+        if v.len() <= start_at + 1 {
+            return Err(SpecialFormSyntaxError::Arity(FormType::Lambda, v.len()));
+        }
+
         match v[start_at + 1].as_id() {
             Some(id) => Ok((true, id)),
             None => Err(SpecialFormSyntaxError::Id(ft, v[start_at + 1].clone()))

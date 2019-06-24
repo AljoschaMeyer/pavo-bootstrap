@@ -133,6 +133,14 @@ mod tests {
         }
     }
 
+    fn assert_any_static_error(src: &str) {
+        match execute(src) {
+            Err(ExecuteError::E(E::Static(err))) => {},
+            Err(err) => panic!("Unexpected non-static error: {:?}", err),
+            Ok(v) => panic!("Expected a static error, but got value: {:?}", v),
+        }
+    }
+
     // ## Syntax
 
     #[test]
@@ -317,6 +325,89 @@ mod tests {
         assert_any_parse_error("@0a");
     }
 
+    // ## Static Checks
+
+    // ### Special Form Syntax
+
+    #[test]
+    fn test_static_sf_quote() {
+        assert_any_static_error("(sf-quote)");
+        assert_any_static_error("(sf-quote foo bar)");
+    }
+
+    #[test]
+    fn test_static_sf_do() {
+        // no-op, nothing to test here
+    }
+
+    #[test]
+    fn test_static_sf_if() {
+        assert_any_static_error("(sf-if)");
+        assert_any_static_error("(sf-if :cond)");
+        assert_any_static_error("(sf-if :cond :then)");
+        assert_any_static_error("(sf-if :cond :then :else :wut?)");
+    }
+
+    #[test]
+    fn test_static_sf_set_bang() {
+        assert_any_static_error("(sf-set! 42 43)");
+        assert_any_static_error("(sf-set!)");
+        assert_any_static_error("(sf-set! a)");
+        assert_any_static_error("(sf-set! a 42 foo)");
+    }
+
+    #[test]
+    fn test_static_sf_throw() {
+        assert_any_static_error("(sf-throw)");
+        assert_any_static_error("(sf-throw foo bar)");
+    }
+
+    #[test]
+    fn test_static_sf_try() {
+        assert_any_static_error("(sf-try 0 1 2)");
+        assert_any_static_error("(sf-try 0 :mut 1 2)");
+        assert_any_static_error("(sf-try 0 :mut a)");
+        assert_any_static_error("(sf-try)");
+        assert_any_static_error("(sf-try 0)");
+        assert_any_static_error("(sf-try 0 a)");
+        assert_any_static_error("(sf-try 0 a 1 2)");
+    }
+
+    #[test]
+    fn test_static_sf_lambda() {
+        assert_any_static_error("(sf-lambda 0 1)");
+        assert_any_static_error("(sf-lambda :mut 0 1)");
+        assert_any_static_error("(sf-lambda [0] 1)");
+        assert_any_static_error("(sf-lambda [:mut] 0)");
+        assert_any_static_error("(sf-lambda [a :mut] 0)");
+        assert_any_static_error("(sf-lambda)");
+        assert_any_static_error("(sf-lambda a)");
+        assert_any_static_error("(sf-lambda a 0 1)");
+        assert_any_static_error("(sf-lambda :mut)");
+        assert_any_static_error("(sf-lambda :mut a)");
+        assert_any_static_error("(sf-lambda :mut a 0 1)");
+        assert_any_static_error("(sf-lambda [])");
+        assert_any_static_error("(sf-lambda [] 0 1)");
+    }
+
+    // ### Binding Correctness
+
+    #[test]
+    fn test_static_bindings() {
+        assert_ok("(sf-quote a)", Value::id_str("a"));
+        assert_ok("(sf-try 0 a a)", Value::int(0));
+        assert_ok("(sf-try 0 :mut a (sf-set! a 42))", Value::int(0));
+        assert_ok("((sf-lambda [a] a) 0)", Value::int(0));
+        assert_ok("((sf-lambda :mut a (sf-set! a 42)) 0)", Value::nil());
+        assert_ok("(((sf-lambda a (sf-lambda :mut a (sf-set! a 0))) 0) 0)", Value::nil());
+        assert_any_static_error("some-id");
+        assert_any_static_error("[some-id]");
+        assert_any_static_error("(sf-set! some-id 42)");
+        assert_any_static_error("(sf-set! int-max-val 42)");
+        assert_any_static_error("(sf-try 0 a (sf-set! a 42))");
+        assert_any_static_error("(sf-lambda a (sf-set! a 42))");
+    }
+
     // ## Evaluation
 
     #[test]
@@ -341,6 +432,7 @@ mod tests {
         assert_ok("(sf-quote 42)", Value::int(42));
         assert_ok("(sf-quote foo)", Value::id_str("foo"));
         assert_ok("(sf-quote ())", Value::app_from_vec(vec![]));
+        assert_ok("(sf-quote (sf-if))", Value::app_from_vec(vec![Value::id_str("sf-if")]));
     }
 
     #[test]
