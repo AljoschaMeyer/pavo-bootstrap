@@ -14,7 +14,7 @@ Pavo is a [homoiconic](https://en.wikipedia.org/wiki/Homoiconicity), [dynamicall
 Values are the entities that the pavo programming language manipulates. Programming is about telling the machine how to derive new values from old ones. While hardware typically only knows about zeros and ones, pavo presents a more high-level interface to the programmer. The set of pavo values consists of the following things:
 
 - *nil*: the [unit type](https://en.wikipedia.org/wiki/Unit_type)
-- *booleans*: [truth values](https://en.wikipedia.org/wiki/Boolean_data_type) `true` and `false`
+- *bools*: [truth values](https://en.wikipedia.org/wiki/Boolean_data_type) `true` and `false`
 - *ints*: [signed 64 bit integers](https://en.wikipedia.org/wiki/Integer_(computer_science))
 - *floats*: [64 bit IEEE 754 floating point numbers](https://en.wikipedia.org/wiki/IEEE_754), excluding negative zero, not-a-number and the infinities
 - *characters*: [unicode scalar values](http://www.unicode.org/glossary/#unicode_scalar_value)
@@ -317,7 +317,7 @@ There are two classes of static checks: Those enforcing the syntactic well-forme
 
 Special forms are application literals whose first item is one of the following identifiers: `sf-quote`, `sf-do`, `sf-if`, `sf-set!`, `sf-throw`, `sf-try`, and `sf-lambda`. Checking special form syntax of a value proceeds recursively.
 
-If the value is an identifier, symbol, nil, boolean, int, float, char, string, bytes, keyword, function, cell or opaque, the check finishes successfully. To check an array, set, or map in an environment `E`, all inner values are checked. When checking an application, if it is a special form, it must satisfy the criteria outlined below. Then, if it is not a `sf-quote` form, all inner values are checked.
+If the value is an identifier, symbol, nil, bool, int, float, char, string, bytes, keyword, function, cell or opaque, the check finishes successfully. To check an array, set, or map in an environment `E`, all inner values are checked. When checking an application, if it is a special form, it must satisfy the criteria outlined below. Then, if it is not a `sf-quote` form, all inner values are checked.
 
 ```pavo
 (sf-quote (sf-if)) # this is ok - the sf-if is malformed, but that's ok because it is quoted
@@ -406,7 +406,7 @@ If the second item is an array, it may only contain identifiers, each of them op
 
 Binding rules govern the usage of names (identifiers and symbols). The static checking of a value occurs in the context of a *check-environment*. A check-environment is a [partial function](https://en.wikipedia.org/wiki/Partial_function) (mathematically, not a pavo function) from names to booleans. A name that is mapped to false is called an *immutable binding*, a name that is mapped to true is called a *mutable binding*, and a name that is not mapped to anything is called a *free name*. By default, the initial check-environment used for checking a value contains exactly the values listed in section `Toplevel Values`, all of them mapped to false.
 
-Checking bindings for a value proceeds recursively. If the value is a name (identifier or symbol), and that name is free in the check-environment, that is a static error. Bound names, nil, booleans, ints, floats, chars, strings, bytes, keywords, functions, cells and opaques are always ok. To check an array, set, or map in a check-environment `E`, all inner values are checked in the check-environment `E`. The interesting case is checking an application in a check-environment `E`. The exact behavior depends on the application:
+Checking bindings for a value proceeds recursively. If the value is a name (identifier or symbol), and that name is free in the check-environment, that is a static error. Bound names, nil, bools, ints, floats, chars, strings, bytes, keywords, functions, cells and opaques are always ok. To check an array, set, or map in a check-environment `E`, all inner values are checked in the check-environment `E`. The interesting case is checking an application in a check-environment `E`. The exact behavior depends on the application:
 
 - `(sf-quote <quoted-exp>)`: always results in a successful check.
 - `(sf-set! <target-name> <rvalue-exp>)`: Is a static error if the `<target-name>` is not a mutable binding, otherwise `<rvalue-exp>` is checked in the check-environment `E`.
@@ -578,6 +578,8 @@ Pavo guarantees tail-call optimization, (mutually) recursive function calls in t
 
 ## Macro Expansion
 
+Macro expansion turns a value into a different value, usually before it is checked and evaluated.
+
 TODO
 
 ## Toplevel Macros
@@ -594,9 +596,18 @@ Whenever a function is described to "throw a type error", it throws a map `{ :ta
 
 Whenever an argument is referred to as a "positive int", but an int less than zero is supplied, the function throws `{ :tag :err-negative, :got <got>}`, where `<got>` is the supplied, negative int.
 
-TODO Specify errors that are thrown on incorrect number of args
-TODO specify in which order all errors apply.
-TODO add examples for errors (type, negative, precedences)
+If a function is invoked with an incorrect number of args, it throws a map `{ :tag :err-num-args, expected: <expected>, :got <got>}`, where `<expected>` is the number of arguments the function expected to take, and `got` is the number of arguments that were supplied.
+
+The precedence of errors is as follows: First, the number of arguments is checked, then the supplied arguments are checked in sequence. Checking an argument means first checking the type, and then any additional properties (such as non-negativity).
+
+```pavo
+(assert-throw (bool-not) { :tag :err-num-args, :expected 1, :got 0 })
+(assert-throw (bool-not 42 43) { :tag :err-num-args, :expected 1, :got 2 })
+(assert-throw (bool-not 42) { :tag :err-type, :expected :bool, :got :int })
+(assert-throw (int-pow-wrap :nope "nope") { :tag :err-type, :expected :int, :got :keyword})
+(assert-throw (int-pow-wrap 2 :nope) { :tag :err-type, :expected :int, :got :keyword})
+(assert-throw (int-pow-wrap 2 -2) { :tag :err-negative, :got -2})
+```
 
 ### Bool
 
@@ -722,7 +733,7 @@ The largest integer, `2^63 - 1`.
 
 ```pavo
 (assert-eq int-max-val 9223372036854775807)
-(assert-throw (+ int-max-val 1) { :tag :err-wrap-int })
+(assert-throw (int-add int-max-val 1) { :tag :err-wrap-int })
 ```
 
 #### `int-min-val`
@@ -731,7 +742,7 @@ The smallest integer, `- 2^63`.
 
 ```pavo
 (assert-eq int-min-val -9223372036854775808)
-(assert-throw (- int-min-val 1) { :tag :err-wrap-int })
+(assert-throw (int-sub int-min-val 1) { :tag :err-wrap-int })
 ```
 
 #### `(int-count-ones n)`
@@ -755,7 +766,7 @@ Returns the number of zeros in the binary representation of the int `n`.
 Returns the number of leading ones in the binary representation of the int `n`.
 
 ```pavo
-(assert-eq (int-leading-ones 13) 2)
+(assert-eq (int-leading-ones -4611686018427387904) 2)
 ```
 
 #### `(int-leading-zeros n)`
@@ -763,7 +774,7 @@ Returns the number of leading ones in the binary representation of the int `n`.
 Returns the number of leading zeros in the binary representation of the int `n`.
 
 ```pavo
-(assert-eq (int-leading-ones 13) 60)
+(assert-eq (int-leading-zeros 13) 60)
 ```
 
 #### `(int-trailing-ones n)`
@@ -771,7 +782,7 @@ Returns the number of leading zeros in the binary representation of the int `n`.
 Returns the number of trailing ones in the binary representation of the int `n`.
 
 ```pavo
-(assert-eq (int-leading-ones 3) 2)
+(assert-eq (int-trailing-ones 3) 2)
 ```
 
 #### `(int-trailing-zeros n)`
@@ -779,7 +790,7 @@ Returns the number of trailing ones in the binary representation of the int `n`.
 Returns the number of trailing zeros in the binary representation of the int `n`.
 
 ```pavo
-(assert-eq (int-leading-zeros 4) 2)
+(assert-eq (int-trailing-zeros 4) 2)
 ```
 
 #### `(int-rotate-left n by)`
@@ -787,7 +798,7 @@ Returns the number of trailing zeros in the binary representation of the int `n`
 Shifts the bits of the int `n` to the left by the amount `by`, wrapping the truncated bits to the end of the resulting int.
 
 ```pavo
-(assert-eq (int-rotate-left 12 0xaa00000000006e1) 0x6e10aa)
+(assert-eq (int-rotate-left 0xaa00000000006e1 12) 0x6e10aa)
 ```
 
 #### `(int-rotate-right n by)`
@@ -795,7 +806,7 @@ Shifts the bits of the int `n` to the left by the amount `by`, wrapping the trun
 Shifts the bits of the int `n` to the right by the positive int `by`, wrapping the truncated bits to the beginning of the resulting int.
 
 ```pavo
-(assert-eq (int-rotate-left 12 0x6e10aa) 0xaa00000000006e1)
+(assert-eq (int-rotate-right 0x6e10aa 12) 0xaa00000000006e1)
 ```
 
 #### `(int-reverse-bytes n)`
@@ -926,7 +937,7 @@ Negates the int `n`.Throws `{ :tag :err-wrap-int }` in case of an overflow.
 Performs a [logical left shift](https://en.wikipedia.org/wiki/Logical_shift) of the int `n` by the positive int `m` many bits. This always results in `0` if `m` is greater than `63`.
 
 ```pavo
-(assert-eq (int-shl 5 1) 13)
+(assert-eq (int-shl 5 1) 10)
 (assert-eq (int-shl 42 64) 0)
 ```
 
@@ -1005,13 +1016,13 @@ Multiplies the int `n` with the int `m`, saturating at the numeric bounds instea
 Computes the int `n` to the power of the positive int `m`, saturating at the numeric bounds instead of overflowing.
 
 ```pavo
-(assert-eq (int-pow 2 3) 8)
-(assert-eq (int-pow 2 0) 1)
-(assert-eq (int-pow 0 999) 0)
-(assert-eq (int-pow 1 999) 1)
-(assert-eq (int-pow -1 999) -1)
-(assert-eq (int-pow 99 99) int-max-val)
-(assert-eq (int-pow -99 99) int-min-val)
+(assert-eq (int-pow-sat 2 3) 8)
+(assert-eq (int-pow-sat 2 0) 1)
+(assert-eq (int-pow-sat 0 999) 0)
+(assert-eq (int-pow-sat 1 999) 1)
+(assert-eq (int-pow-sat -1 999) -1)
+(assert-eq (int-pow-sat 99 99) int-max-val)
+(assert-eq (int-pow-sat -99 99) int-min-val)
 ```
 
 #### `(int-add-wrap n m)`
@@ -1040,7 +1051,7 @@ Muliplies the int `n` with the int `m`, wrapping around the numeric bounds inste
 
 ```pavo
 (assert-eq (int-mul-wrap 2 3) 6)
-(assert-eq (int-mul-wrap int-max-val 2) 2)
+(assert-eq (int-mul-wrap int-max-val 2) -2)
 (assert-eq (int-mul-wrap int-max-val -2) 2)
 (assert-eq (int-mul-wrap int-min-val 2) 0)
 (assert-eq (int-mul-wrap int-min-val -2) 0)
@@ -1111,10 +1122,10 @@ This computes the remainder of [truncating division](https://en.wikipedia.org/w/
 Negates the int `n`, wrapping around the numeric bounds instead of overflowing.
 
 ```pavo
-(assert-eq (int-neg 42) -42)
-(assert-eq (int-neg -42) 42)
-(assert-eq (int-neg 0) 0)
-(assert-eq (int-neg int-min-val) int-min-val)
+(assert-eq (int-neg-wrap 42) -42)
+(assert-eq (int-neg-wrap -42) 42)
+(assert-eq (int-neg-wrap 0) 0)
+(assert-eq (int-neg-wrap int-min-val) int-min-val)
 ```
 
 #### `(int-abs-wrap n)`
@@ -1133,12 +1144,13 @@ Returns the absolute value of the int `n`, wrapping around the numeric bounds in
 Computes the int `n` to the power of the positive int `m`, wrapping around the numeric bounds instead of overflowing.
 
 ```pavo
-(assert-eq (int-pow 2 3) 8)
-(assert-eq (int-pow 2 0) 1)
-(assert-eq (int-pow 0 999) 0)
-(assert-eq (int-pow 1 999) 1)
-(assert-eq (int-pow -1 999) -1)
-(assert-eq (int-pow 99 99) -7394533151961528133)
+(assert-eq (int-pow-wrap 2 3) 8)
+(assert-eq (int-pow-wrap 2 0) 1)
+(assert-eq (int-pow-wrap 0 999) 0)
+(assert-eq (int-pow-wrap 1 999) 1)
+(assert-eq (int-pow-wrap -1 999) -1)
+(assert-eq (int-pow-wrap 99 99) -7394533151961528133)
+(assert-throw (int-pow-wrap 2 -1) {:tag :err-negative :got -1 })
 ```
 
 #### `(int-signum n)`
@@ -2759,9 +2771,23 @@ Equivalent to `(if x true false)`.
 (assert (truthy? truthy?))
 ```
 
-#### `(diverge)` `(diverge v)`
+#### `(falsey? x)`
 
-Immediately and abnormally terminates the execution of the program. Semantically you can think of this as going into an infinite loop, but telling the outside world about it to save resources and give feedback to the programmer. In the pavo semantics, passing a value `v` does nothing whatsoever, but the runtime should somehow pass this value to the outside world for additional context.
+Returns `true` if `x` is `nil` or `false`, and `false` otherwise.
+
+Equivalent to `(if x false true)`.
+
+```pavo
+(assert (falsey? nil))
+(assert (falsey? false))
+(assert-not (falsey? true)
+(assert-not (falsey? 0))
+(assert-not (falsey? falsey?))
+```
+
+#### `(diverge v)`
+
+Immediately and abnormally terminates the execution of the program. Semantically you can think of this as going into an infinite loop, but telling the outside world about it to save resources and give feedback to the programmer. In the pavo semantics, passing the value `v` does nothing whatsoever, but the runtime should somehow pass this value to the outside world for additional context.
 
 Note that this is different from a program terminating through an uncaught throw and you should almost always throw instead of deliberately calling `diverge` (just as there are very few situations where you'd deliberately go into an effect-free infinite loop).
 

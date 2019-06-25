@@ -286,10 +286,59 @@ impl Fun {
     pub fn compute(&self, args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
         match self {
             Fun::Closure(c, _) => c.compute(args, cx),
+
+            Fun::Builtin(Builtin::BoolNot) => builtins::bool_not(args, cx),
+            Fun::Builtin(Builtin::BoolAnd) => builtins::bool_and(args, cx),
+            Fun::Builtin(Builtin::BoolOr) => builtins::bool_or(args, cx),
+            Fun::Builtin(Builtin::BoolIf) => builtins::bool_if(args, cx),
+            Fun::Builtin(Builtin::BoolIff) => builtins::bool_iff(args, cx),
+            Fun::Builtin(Builtin::BoolXor) => builtins::bool_xor(args, cx),
+
+            Fun::Builtin(Builtin::IntCountOnes) => builtins::int_count_ones(args, cx),
+            Fun::Builtin(Builtin::IntCountZeros) => builtins::int_count_zeros(args, cx),
+            Fun::Builtin(Builtin::IntLeadingOnes) => builtins::int_leading_ones(args, cx),
+            Fun::Builtin(Builtin::IntLeadingZeros) => builtins::int_leading_zeros(args, cx),
+            Fun::Builtin(Builtin::IntTrailingOnes) => builtins::int_trailing_ones(args, cx),
+            Fun::Builtin(Builtin::IntTrailingZeros) => builtins::int_trailing_zeros(args, cx),
+            Fun::Builtin(Builtin::IntRotateLeft) => builtins::int_rotate_left(args, cx),
+            Fun::Builtin(Builtin::IntRotateRight) => builtins::int_rotate_right(args, cx),
+            Fun::Builtin(Builtin::IntReverseBytes) => builtins::int_reverse_bytes(args, cx),
+            Fun::Builtin(Builtin::IntReverseBits) => builtins::int_reverse_bits(args, cx),
             Fun::Builtin(Builtin::IntAdd) => builtins::int_add(args, cx),
             Fun::Builtin(Builtin::IntSub) => builtins::int_sub(args, cx),
+            Fun::Builtin(Builtin::IntMul) => builtins::int_mul(args, cx),
+            Fun::Builtin(Builtin::IntDiv) => builtins::int_div(args, cx),
+            Fun::Builtin(Builtin::IntDivTrunc) => builtins::int_div_trunc(args, cx),
+            Fun::Builtin(Builtin::IntMod) => builtins::int_mod(args, cx),
+            Fun::Builtin(Builtin::IntModTrunc) => builtins::int_mod_trunc(args, cx),
+            Fun::Builtin(Builtin::IntNeg) => builtins::int_neg(args, cx),
+            Fun::Builtin(Builtin::IntShl) => builtins::int_shl(args, cx),
+            Fun::Builtin(Builtin::IntShr) => builtins::int_shr(args, cx),
+            Fun::Builtin(Builtin::IntAbs) => builtins::int_abs(args, cx),
+            Fun::Builtin(Builtin::IntPow) => builtins::int_pow(args, cx),
+            Fun::Builtin(Builtin::IntAddSat) => builtins::int_add_sat(args, cx),
+            Fun::Builtin(Builtin::IntSubSat) => builtins::int_sub_sat(args, cx),
+            Fun::Builtin(Builtin::IntMulSat) => builtins::int_mul_sat(args, cx),
+            Fun::Builtin(Builtin::IntPowSat) => builtins::int_pow_sat(args, cx),
+            Fun::Builtin(Builtin::IntAddWrap) => builtins::int_add_wrap(args, cx),
+            Fun::Builtin(Builtin::IntSubWrap) => builtins::int_sub_wrap(args, cx),
+            Fun::Builtin(Builtin::IntMulWrap) => builtins::int_mul_wrap(args, cx),
+            Fun::Builtin(Builtin::IntDivWrap) => builtins::int_div_wrap(args, cx),
+            Fun::Builtin(Builtin::IntDivTruncWrap) => builtins::int_div_trunc_wrap(args, cx),
+            Fun::Builtin(Builtin::IntModWrap) => builtins::int_mod_wrap(args, cx),
+            Fun::Builtin(Builtin::IntModTruncWrap) => builtins::int_mod_trunc_wrap(args, cx),
+            Fun::Builtin(Builtin::IntNegWrap) => builtins::int_neg_wrap(args, cx),
+            Fun::Builtin(Builtin::IntAbsWrap) => builtins::int_abs_wrap(args, cx),
+            Fun::Builtin(Builtin::IntPowWrap) => builtins::int_pow_wrap(args, cx),
+            Fun::Builtin(Builtin::IntSignum) => builtins::int_signum(args, cx),
+
+
+            Fun::Builtin(Builtin::AppInsert) => builtins::app_insert(args, cx),
+
             Fun::Builtin(Builtin::Eq) => builtins::pavo_eq(args, cx),
+
             Fun::Builtin(Builtin::Typeof) => builtins::typeof_(args, cx),
+
             _ => unimplemented!(),
         }
     }
@@ -505,6 +554,7 @@ pub enum Builtin {
 
     Typeof,
     Truthy,
+    Falsey,
     Diverge,
 
     Require,

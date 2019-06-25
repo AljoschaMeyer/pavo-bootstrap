@@ -226,15 +226,20 @@ fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
                 Ok(Some(SpecialForm::If(cond, then, else_))) => {
                     let bb_then = bbb.new_block();
                     let bb_else = bbb.new_block();
+                    let bb_cont = bbb.new_block();
 
                     val_to_ir(cond, true, bbb, false, s);
                     bbb.append(CondJump(bb_then, bb_else));
 
                     bbb.set_active_block(bb_then);
                     val_to_ir(then, push, bbb, tail, s);
+                    bbb.append(Jump(bb_cont));
 
                     bbb.set_active_block(bb_else);
                     val_to_ir(else_, push, bbb, tail, s);
+                    bbb.append(Jump(bb_cont));
+
+                    bbb.set_active_block(bb_cont);
                 }
 
                 Ok(Some(SpecialForm::Throw(exception))) => {
@@ -243,23 +248,25 @@ fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
                 }
 
                 Ok(Some(SpecialForm::Try(yay, _, binder, nay))) => {
-                    let bb_try = bbb.new_block();
                     let bb_catch = bbb.new_block();
+                    let bb_cont = bbb.new_block();
 
-                    bbb.append(Jump(bb_try));
                     let prev_trap_handler = bbb.trap_handler;
-                    bbb.set_active_block(bb_try);
                     bbb.trap_handler = bb_catch;
-                    bbb.append(SetCatchHandler(bbb.trap_handler));
+                    bbb.append(SetCatchHandler(bb_catch));
                     val_to_ir(yay, push, bbb, false, s);
                     bbb.trap_handler = prev_trap_handler;
-                    bbb.append(SetCatchHandler(bbb.trap_handler));
+                    bbb.append(SetCatchHandler(prev_trap_handler));
+                    bbb.append(Jump(bb_cont));
 
                     bbb.set_active_block(bb_catch);
-                    bbb.append(SetCatchHandler(bbb.trap_handler));
+                    bbb.append(SetCatchHandler(prev_trap_handler));
                     let db = DeBruijn { up: 0, id: s.add(binder) };
                     bbb.append(Pop(Addr::env(db)));
                     val_to_ir(nay, push, bbb, tail, s);
+                    bbb.append(Jump(bb_cont));
+
+                    bbb.set_active_block(bb_cont);
                 }
 
                 Ok(Some(SpecialForm::Lambda(args, body))) => {

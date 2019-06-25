@@ -112,7 +112,7 @@ pub fn negative_error(got: i64) -> Value {
 
 pub fn wrap_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
-        (Value::kw_str("tag"), Value::kw_str("err-wrap")),
+        (Value::kw_str("tag"), Value::kw_str("err-wrap-int")),
         ])))
 }
 
@@ -129,8 +129,20 @@ pub fn unwritable_error() -> Value {
 }
 
 fn int_to_u64(n: i64) -> Result<u64, Value> {
-    if n > 0 {
+    if n >= 0 {
         Ok(n as u64)
+    } else {
+        Err(negative_error(n))
+    }
+}
+
+fn int_to_u32(n: i64) -> Result<u32, Value> {
+    if n >= 0 {
+        if n > (std::u32::MAX as i64) {
+            Ok(std::u32::MAX)
+        } else {
+            Ok(n as u32)
+        }
     } else {
         Err(negative_error(n))
     }
@@ -325,93 +337,109 @@ pub fn bool_not(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> 
     Ok(Value::bool_(!b))
 }
 
-// pub fn bool_and(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b0 = bool_!(arg!(args, 0));
-//     let b1 = bool_!(arg!(args, 1));
-//
-//     Ok(Value::bool_(b0 && b1))
-// }
-//
-// pub fn bool_or(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b0 = bool_!(arg!(args, 0));
-//     let b1 = bool_!(arg!(args, 1));
-//
-//     Ok(Value::bool_(b0 || b1))
-// }
-//
-// pub fn bool_if(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b0 = bool_!(arg!(args, 0));
-//     let b1 = bool_!(arg!(args, 1));
-//
-//     Ok(Value::bool_(if b0 { b1 } else { true }))
-// }
-//
-// pub fn bool_xor(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b0 = bool_!(arg!(args, 0));
-//     let b1 = bool_!(arg!(args, 1));
-//
-//     Ok(Value::bool_(b0 != b1))
-// }
-//
-// pub fn bool_iff(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b0 = bool_!(arg!(args, 0));
-//     let b1 = bool_!(arg!(args, 1));
-//
-//     Ok(Value::bool_(b0 == b1))
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
-//
-// pub fn int_count_ones(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::int(int!(arg!(args, 0)).count_ones() as i64))
-// }
-//
-// pub fn int_count_zeros(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::int(int!(arg!(args, 0)).count_zeros() as i64))
-// }
-//
-// pub fn int_leading_ones(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     Ok(Value::int((!n as u64).leading_zeros() as i64))
-// }
-//
-// pub fn int_leading_zeros(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::int(int!(arg!(args, 0)).leading_zeros() as i64))
-// }
-//
-// pub fn int_trailing_ones(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     Ok(Value::int((!n as u64).trailing_zeros() as i64))
-// }
-//
-// pub fn int_trailing_zeros(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::int(int!(arg!(args, 0)).trailing_zeros() as i64))
-// }
-//
-// pub fn int_rotate_left(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let by = int_to_u64(int!(arg!(args, 1)))?;
-//     Ok(Value::int(n.rotate_left(by as u32)))
-// }
-//
-// pub fn int_rotate_right(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let by = int_to_u64(int!(arg!(args, 1)))?;
-//     Ok(Value::int(n.rotate_right(by as u32)))
-// }
-//
-// pub fn int_reverse_bytes(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::int(int!(arg!(args, 0)).swap_bytes() as i64))
-// }
-//
-// pub fn int_reverse_bits(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::int(int!(arg!(args, 0)).reverse_bits() as i64))
-// }
+pub fn bool_and(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let b0 = bool_!(args.0[0]);
+    let b1 = bool_!(args.0[1]);
+
+    Ok(Value::bool_(b0 && b1))
+}
+
+pub fn bool_or(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let b0 = bool_!(args.0[0]);
+    let b1 = bool_!(args.0[1]);
+
+    Ok(Value::bool_(b0 || b1))
+}
+
+pub fn bool_if(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let b0 = bool_!(args.0[0]);
+    let b1 = bool_!(args.0[1]);
+
+    Ok(Value::bool_(if b0 { b1 } else { true }))
+}
+
+pub fn bool_xor(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let b0 = bool_!(args.0[0]);
+    let b1 = bool_!(args.0[1]);
+
+    Ok(Value::bool_(b0 != b1))
+}
+
+pub fn bool_iff(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let b0 = bool_!(args.0[0]);
+    let b1 = bool_!(args.0[1]);
+
+    Ok(Value::bool_(b0 == b1))
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn int_count_ones(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    Ok(Value::int(int!(args.0[0]).count_ones() as i64))
+}
+
+pub fn int_count_zeros(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    Ok(Value::int(int!(args.0[0]).count_zeros() as i64))
+}
+
+pub fn int_leading_ones(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = int!(args.0[0]);
+    Ok(Value::int((!n as u64).leading_zeros() as i64))
+}
+
+pub fn int_leading_zeros(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    Ok(Value::int(int!(args.0[0]).leading_zeros() as i64))
+}
+
+pub fn int_trailing_ones(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = int!(args.0[0]);
+    Ok(Value::int((!n as u64).trailing_zeros() as i64))
+}
+
+pub fn int_trailing_zeros(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    Ok(Value::int(int!(args.0[0]).trailing_zeros() as i64))
+}
+
+pub fn int_rotate_left(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let by = int_to_u64(int!(args.0[1]))?;
+    Ok(Value::int(n.rotate_left(by as u32)))
+}
+
+pub fn int_rotate_right(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let by = int_to_u64(int!(args.0[1]))?;
+    Ok(Value::int(n.rotate_right(by as u32)))
+}
+
+pub fn int_reverse_bytes(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    Ok(Value::int(int!(args.0[0]).swap_bytes() as i64))
+}
+
+pub fn int_reverse_bits(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    Ok(Value::int(int!(args.0[0]).reverse_bits() as i64))
+}
 
 pub fn int_add(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
     let n = int!(args.0[0]);
     let m = int!(args.0[1]);
+
     match n.checked_add(m) {
         Some(yay) => Ok(Value::int(yay)),
         None => Err(wrap_error()),
@@ -422,220 +450,258 @@ pub fn int_sub(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
     let n = int!(args.0[0]);
     let m = int!(args.0[1]);
+
     match n.checked_sub(m) {
         Some(yay) => Ok(Value::int(yay)),
         None => Err(wrap_error()),
     }
 }
 
-// pub fn int_mul(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//     match n.checked_mul(m) {
-//         Some(yay) => Ok(Value::int(yay)),
-//         None => Err(wrap_error()),
-//     }
-// }
-//
-// pub fn int_div(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//
-//     match n.checked_div_euclid(m) {
-//         Some(yay) => Ok(Value::int(yay)),
-//         None => Err(if m == 0 { zero_error() } else { wrap_error() }),
-//     }
-// }
-//
-// pub fn int_div_trunc(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//
-//     match n.checked_div(m) {
-//         Some(yay) => Ok(Value::int(yay)),
-//         None => Err(if m == 0 { zero_error() } else { wrap_error() }),
-//     }
-// }
-//
-// pub fn int_mod(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//
-//     match n.checked_rem_euclid(m) {
-//         Some(yay) => Ok(Value::int(yay)),
-//         None => Err(if m == 0 { zero_error() } else { wrap_error() }),
-//     }
-// }
-//
-// pub fn int_mod_trunc(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//
-//     match n.checked_rem(m) {
-//         Some(yay) => Ok(Value::int(yay)),
-//         None => Err(if m == 0 { zero_error() } else { wrap_error() }),
-//     }
-// }
-//
-// pub fn int_neg(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//
-//     match n.checked_neg() {
-//         Some(yay) => Ok(Value::int(yay)),
-//         None => Err(wrap_error()),
-//     }
-// }
-//
-// pub fn int_shl(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int_to_u64(int!(arg!(args, 1)))?;
-//
-//     if m >= 64 {
-//         Ok(Value::int(0))
-//     } else {
-//         Ok(Value::int(n << m))
-//     }
-// }
-//
-// pub fn int_shr(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int_to_u64(int!(arg!(args, 1)))?;
-//
-//     if m >= 64 {
-//         Ok(Value::int(0))
-//     } else {
-//         Ok(Value::int(n >> m))
-//     }
-// }
-//
-// pub fn int_abs(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//
-//     match n.checked_abs() {
-//         Some(yay) => Ok(Value::int(yay)),
-//         None => Err(wrap_error()),
-//     }
-// }
-//
-// pub fn int_pow(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int_to_u64(int!(arg!(args, 1)))?;
-//
-//     match n.checked_pow(m as u32) {
-//         Some(yay) => Ok(Value::int(yay)),
-//         None => Err(wrap_error()),
-//     }
-// }
-//
-// pub fn int_add_sat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//     Ok(Value::int(n.saturating_add(m)))
-// }
-//
-// pub fn int_sub_sat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//     Ok(Value::int(n.saturating_sub(m)))
-// }
-//
-// pub fn int_mul_sat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//     Ok(Value::int(n.saturating_mul(m)))
-// }
-//
-// pub fn int_pow_sat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//     Ok(Value::int(n.saturating_pow(m as u32)))
-// }
-//
-// pub fn int_add_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//     Ok(Value::int(n.wrapping_add(m)))
-// }
-//
-// pub fn int_sub_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//     Ok(Value::int(n.wrapping_sub(m)))
-// }
-//
-// pub fn int_mul_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//     Ok(Value::int(n.wrapping_mul(m)))
-// }
-//
-// pub fn int_div_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//
-//     if m == 0 {
-//         Err(zero_error())
-//     } else {
-//         Ok(Value::int(n.wrapping_div_euclid(m)))
-//     }
-// }
-//
-// pub fn int_div_trunc_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//
-//     if m == 0 {
-//         Err(zero_error())
-//     } else {
-//         Ok(Value::int(n.wrapping_div(m)))
-//     }
-// }
-//
-// pub fn int_mod_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//
-//     if m == 0 {
-//         Err(zero_error())
-//     } else {
-//         Ok(Value::int(n.wrapping_rem_euclid(m)))
-//     }
-// }
-//
-// pub fn int_mod_trunc_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//
-//     if m == 0 {
-//         Err(zero_error())
-//     } else {
-//         Ok(Value::int(n.wrapping_rem(m)))
-//     }
-// }
-//
-// pub fn int_neg_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     Ok(Value::int(n.wrapping_neg()))
-// }
-//
-// pub fn int_abs_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     Ok(Value::int(n.wrapping_abs()))
-// }
-//
-// pub fn int_pow_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     let m = int!(arg!(args, 1));
-//     Ok(Value::int(n.wrapping_pow(m as u32)))
-// }
-//
-// pub fn int_signum(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let n = int!(arg!(args, 0));
-//     Ok(Value::int(n.signum()))
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
-//
+pub fn int_mul(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    match n.checked_mul(m) {
+        Some(yay) => Ok(Value::int(yay)),
+        None => Err(wrap_error()),
+    }
+}
+
+pub fn int_div(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    match n.checked_div_euclid(m) {
+        Some(yay) => Ok(Value::int(yay)),
+        None => Err(if m == 0 { zero_error() } else { wrap_error() }),
+    }
+}
+
+pub fn int_div_trunc(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    match n.checked_div(m) {
+        Some(yay) => Ok(Value::int(yay)),
+        None => Err(if m == 0 { zero_error() } else { wrap_error() }),
+    }
+}
+
+pub fn int_mod(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    match n.checked_rem_euclid(m) {
+        Some(yay) => Ok(Value::int(yay)),
+        None => Err(if m == 0 { zero_error() } else { wrap_error() }),
+    }
+}
+
+pub fn int_mod_trunc(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    match n.checked_rem(m) {
+        Some(yay) => Ok(Value::int(yay)),
+        None => Err(if m == 0 { zero_error() } else { wrap_error() }),
+    }
+}
+
+pub fn int_neg(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = int!(args.0[0]);
+
+    match n.checked_neg() {
+        Some(yay) => Ok(Value::int(yay)),
+        None => Err(wrap_error()),
+    }
+}
+
+pub fn int_shl(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int_to_u64(int!(args.0[1]))?;
+
+    if m >= 64 {
+        Ok(Value::int(0))
+    } else {
+        Ok(Value::int(n << m))
+    }
+}
+
+pub fn int_shr(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int_to_u64(int!(args.0[1]))?;
+
+    if m >= 64 {
+        Ok(Value::int(0))
+    } else {
+        Ok(Value::int(n >> m))
+    }
+}
+
+pub fn int_abs(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = int!(args.0[0]);
+
+    match n.checked_abs() {
+        Some(yay) => Ok(Value::int(yay)),
+        None => Err(wrap_error()),
+    }
+}
+
+pub fn int_pow(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int_to_u64(int!(args.0[1]))?;
+
+    match n.checked_pow(m as u32) {
+        Some(yay) => Ok(Value::int(yay)),
+        None => Err(wrap_error()),
+    }
+}
+
+pub fn int_add_sat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    Ok(Value::int(n.saturating_add(m)))
+}
+
+pub fn int_sub_sat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    Ok(Value::int(n.saturating_sub(m)))
+}
+
+pub fn int_mul_sat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    Ok(Value::int(n.saturating_mul(m)))
+}
+
+pub fn int_pow_sat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    Ok(Value::int(n.saturating_pow(m as u32)))
+}
+
+pub fn int_add_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    Ok(Value::int(n.wrapping_add(m)))
+}
+
+pub fn int_sub_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    Ok(Value::int(n.wrapping_sub(m)))
+}
+
+pub fn int_mul_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    Ok(Value::int(n.wrapping_mul(m)))
+}
+
+pub fn int_div_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    if m == 0 {
+        Err(zero_error())
+    } else {
+        Ok(Value::int(n.wrapping_div_euclid(m)))
+    }
+}
+
+pub fn int_div_trunc_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    if m == 0 {
+        Err(zero_error())
+    } else {
+        Ok(Value::int(n.wrapping_div(m)))
+    }
+}
+
+pub fn int_mod_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    if m == 0 {
+        Err(zero_error())
+    } else {
+        Ok(Value::int(n.wrapping_rem_euclid(m)))
+    }
+}
+
+pub fn int_mod_trunc_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int!(args.0[1]);
+
+    if m == 0 {
+        Err(zero_error())
+    } else {
+        Ok(Value::int(n.wrapping_rem(m)))
+    }
+}
+
+pub fn int_neg_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = int!(args.0[0]);
+
+    Ok(Value::int(n.wrapping_neg()))
+}
+
+pub fn int_abs_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = int!(args.0[0]);
+
+    Ok(Value::int(n.wrapping_abs()))
+}
+
+pub fn int_pow_wrap(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = int!(args.0[0]);
+    let m = int_to_u32(int!(args.0[1]))?;
+
+    Ok(Value::int(n.wrapping_pow(m as u32)))
+}
+
+pub fn int_signum(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = int!(args.0[0]);
+
+    Ok(Value::int(n.signum()))
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
 // pub fn bytes_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
 //     let b = bytes!(arg!(args, 0));
 //     Ok(Value::int(b.0.len() as i64))
@@ -1124,20 +1190,21 @@ pub fn int_sub(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
 //     Ok(app.0[index].clone())
 // }
 //
-// pub fn app_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let app = app!(arg!(args, 0));
-//     let index = index_incl!(&app, int!(arg!(args, 1)));
-//     let elem = arg!(args, 2);
-//
-//     if app.0.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     let mut new = app.0.clone();
-//     new.insert(index, elem.clone());
-//     Ok(Value::app(Vector(new)))
-// }
-//
+pub fn app_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let app = app!(args.0[0]);
+    let index = index_incl!(&app, int!(args.0[1]));
+    let elem = args.0[2].clone();
+
+    if app.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    let mut new = app.0.clone();
+    new.insert(index, elem);
+    Ok(Value::app(Vector(new)))
+}
+
 // pub fn app_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
 //     let app = app!(arg!(args, 0));
 //     let index = index!(&app, int!(arg!(args, 1)));
@@ -1602,101 +1669,101 @@ pub fn typeof_(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
 // }
 //
 // /////////////////////////////////////////////////////////////////////////////
-//
-// fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
-//     match v {
-//         Value::Atomic(Atomic::Nil) => Ok(out.push_str("nil")),
-//         Value::Atomic(Atomic::Bool(true)) => Ok(out.push_str("true")),
-//         Value::Atomic(Atomic::Bool(false)) => Ok(out.push_str("false")),
-//         Value::Atomic(Atomic::Int(n)) => Ok(out.push_str(&n.to_string())),
-//         Value::Atomic(Atomic::Float(n)) => unimplemented!(),
-//         Value::Atomic(Atomic::Char('\\')) => Ok(out.push_str("'\\\\'")),
-//         Value::Atomic(Atomic::Char('\'')) => Ok(out.push_str("'\\''")),
-//         Value::Atomic(Atomic::Char('\t')) => Ok(out.push_str("'\\t'")),
-//         Value::Atomic(Atomic::Char('\n')) => Ok(out.push_str("'\\n'")),
-//         Value::Atomic(Atomic::Char(other)) => {
-//             out.push('\'');
-//             out.push(*other);
-//             out.push('\'');
-//             Ok(())
-//         }
-//         Value::Atomic(Atomic::String(chars)) => {
-//             out.push('"');
-//             for c in chars.0.chars() {
-//                 match c {
-//                     '\\' => out.push_str("\\"),
-//                     '\"' => out.push_str("\""),
-//                     '\n' => out.push_str("\\"),
-//                     '\t' => out.push_str("\\"),
-//                     _ => out.push(c),
-//                 }
-//             }
-//             out.push('"');
-//             Ok(())
-//         }
-//         Value::Atomic(Atomic::Bytes(bytes)) => {
-//             out.push_str("@[");
-//             for (i, b) in bytes.0.iter().enumerate() {
-//                 out.push_str(&b.to_string());
-//                 if i + 1 < bytes.0.len() {
-//                     out.push(' ');
-//                 }
-//             }
-//             out.push(']');
-//             Ok(())
-//         }
-//         Value::Atomic(Atomic::Keyword(kw)) => {
-//             out.push(':');
-//             out.push_str(kw);
-//             Ok(())
-//         }
-//         Value::Id(Id::User(id)) => Ok(out.push_str(id)),
-//         Value::Arr(arr) => {
-//             out.push_str("[");
-//             for (i, v) in arr.0.iter().enumerate() {
-//                 let _ = write_(v, out)?;
-//                 if i + 1 < arr.0.len() {
-//                     out.push(' ');
-//                 }
-//             }
-//             out.push_str("]");
-//             Ok(())
-//         }
-//         Value::App(app) => {
-//             out.push_str("(");
-//             for (i, v) in app.0.iter().enumerate() {
-//                 let _ = write_(v, out)?;
-//                 if i + 1 < app.0.len() {
-//                     out.push(' ');
-//                 }
-//             }
-//             out.push_str(")");
-//             Ok(())
-//         }
-//         Value::Set(s) => {
-//             out.push_str("@{");
-//             for (i, v) in s.0.iter().enumerate() {
-//                 let _ = write_(v, out)?;
-//                 if i + 1 < s.0.len() {
-//                     out.push(' ');
-//                 }
-//             }
-//             out.push_str("}");
-//             Ok(())
-//         }
-//         Value::Map(m) => {
-//             out.push_str("[");
-//             for (i, v) in m.0.iter().enumerate() {
-//                 let _ = write_(&v.0, out)?;
-//                 out.push(' ');
-//                 let _ = write_(&v.1, out)?;
-//                 if i + 1 < m.0.len() {
-//                     out.push(' ');
-//                 }
-//             }
-//             out.push_str("]");
-//             Ok(())
-//         }
-//         Value::Id(Id::Symbol(..)) | Value::Fun(..) | Value::Cell(..) => Err(unwritable_error()),
-//     }
-// }
+
+pub fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
+    match v {
+        Value::Atomic(Atomic::Nil) => Ok(out.push_str("nil")),
+        Value::Atomic(Atomic::Bool(true)) => Ok(out.push_str("true")),
+        Value::Atomic(Atomic::Bool(false)) => Ok(out.push_str("false")),
+        Value::Atomic(Atomic::Int(n)) => Ok(out.push_str(&n.to_string())),
+        Value::Atomic(Atomic::Float(n)) => unimplemented!(),
+        Value::Atomic(Atomic::Char('\\')) => Ok(out.push_str("'\\\\'")),
+        Value::Atomic(Atomic::Char('\'')) => Ok(out.push_str("'\\''")),
+        Value::Atomic(Atomic::Char('\t')) => Ok(out.push_str("'\\t'")),
+        Value::Atomic(Atomic::Char('\n')) => Ok(out.push_str("'\\n'")),
+        Value::Atomic(Atomic::Char(other)) => {
+            out.push('\'');
+            out.push(*other);
+            out.push('\'');
+            Ok(())
+        }
+        Value::Atomic(Atomic::String(chars)) => {
+            out.push('"');
+            for c in chars.0.chars() {
+                match c {
+                    '\\' => out.push_str("\\"),
+                    '\"' => out.push_str("\""),
+                    '\n' => out.push_str("\\"),
+                    '\t' => out.push_str("\\"),
+                    _ => out.push(c),
+                }
+            }
+            out.push('"');
+            Ok(())
+        }
+        Value::Atomic(Atomic::Bytes(bytes)) => {
+            out.push_str("@[");
+            for (i, b) in bytes.0.iter().enumerate() {
+                out.push_str(&b.to_string());
+                if i + 1 < bytes.0.len() {
+                    out.push(' ');
+                }
+            }
+            out.push(']');
+            Ok(())
+        }
+        Value::Atomic(Atomic::Keyword(kw)) => {
+            out.push(':');
+            out.push_str(kw);
+            Ok(())
+        }
+        Value::Id(Id::User(id)) => Ok(out.push_str(id)),
+        Value::Arr(arr) => {
+            out.push_str("[");
+            for (i, v) in arr.0.iter().enumerate() {
+                let _ = write_(v, out)?;
+                if i + 1 < arr.0.len() {
+                    out.push(' ');
+                }
+            }
+            out.push_str("]");
+            Ok(())
+        }
+        Value::App(app) => {
+            out.push_str("(");
+            for (i, v) in app.0.iter().enumerate() {
+                let _ = write_(v, out)?;
+                if i + 1 < app.0.len() {
+                    out.push(' ');
+                }
+            }
+            out.push_str(")");
+            Ok(())
+        }
+        Value::Set(s) => {
+            out.push_str("@{");
+            for (i, v) in s.0.iter().enumerate() {
+                let _ = write_(v, out)?;
+                if i + 1 < s.0.len() {
+                    out.push(' ');
+                }
+            }
+            out.push_str("}");
+            Ok(())
+        }
+        Value::Map(m) => {
+            out.push_str("{");
+            for (i, v) in m.0.iter().enumerate() {
+                let _ = write_(&v.0, out)?;
+                out.push(' ');
+                let _ = write_(&v.1, out)?;
+                if i + 1 < m.0.len() {
+                    out.push(' ');
+                }
+            }
+            out.push_str("}");
+            Ok(())
+        }
+        Value::Id(Id::Symbol(..)) | Value::Fun(..) | Value::Cell(..) => Err(unwritable_error()),
+    }
+}

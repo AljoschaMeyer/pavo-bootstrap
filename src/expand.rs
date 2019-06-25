@@ -121,24 +121,6 @@ fn match_macro(body: &Value, pattern: &Value, macros: &ImOrdMap<Id, Value>) -> R
     match pattern {
         Value::Id(id) => Ok(macros.update(id.clone(), body.clone())),
 
-        Value::Arr(pattern_arr) => {
-            match body.as_arr() {
-                Some(body_arr) => {
-                    if pattern_arr.0.len() != body_arr.0.len() {
-                        return Err(ExpandError::Pattern { pattern: pattern.clone(), body: body.clone()});
-                    }
-
-                    let mut ret = macros.clone();
-                    for i in 0..pattern_arr.0.len() {
-                        ret = match_macro(&body_arr.0[i], &pattern_arr.0[i], &ret)?;
-                    }
-
-                    return Ok(ret);
-                }
-                None => return Err(ExpandError::Pattern { pattern: pattern.clone(), body: body.clone()}),
-            }
-        }
-
         Value::Map(pattern_map) => {
             match body.as_map() {
                 Some(body_map) => {

@@ -74,6 +74,9 @@ pub fn exval(
     cx: &mut Context,
 ) -> Result<Value, E> {
     let expanded = expand::expand(v, m_env, macros, cx)?;
+    // let mut tmp = String::new();
+    // builtins::write_(&expanded, &mut tmp);
+    // println!("{}\n", tmp);
     let c = compile::compile(&expanded, env)?;
     c.compute(gc_foreign::Vector(im_rc::Vector::new()), cx).map_err(|nay| E::Eval(nay))
 }
@@ -139,6 +142,46 @@ mod tests {
             Err(err) => panic!("Unexpected non-static error: {:?}", err),
             Ok(v) => panic!("Expected a static error, but got value: {:?}", v),
         }
+    }
+
+    fn test_example(src: &str) {
+        let mut src_in_context = "
+        (macro assert-throw (sf-lambda [try exception]
+            (app-insert
+                (app-insert
+                    (sf-quote (sf-try e))
+                    1
+                    (app-insert
+                        (sf-quote (sf-do (sf-throw :assert-throw)))
+                        1
+                        try
+                    )
+                )
+                3
+                (app-insert
+                    (sf-quote (sf-if nil (sf-throw :assert-eq-throw)))
+                    1
+                    (app-insert
+                        (sf-quote (= e))
+                        2
+                        exception
+                    )
+                )
+            )
+        )
+
+        ((sf-lambda [assert assert-not assert-eq] (sf-do ".to_string();
+        src_in_context.push_str(src);
+        src_in_context.push_str("
+            ))
+        (sf-lambda [v] (sf-if (= v true) nil (sf-throw :assert)))
+        (sf-lambda [v] (sf-if (= v false) nil (sf-throw :assert-not)))
+        (sf-lambda [v w] (sf-if (= v w) nil (sf-throw v)))
+        )
+
+        )");
+
+        assert_ok(&src_in_context, Value::nil())
     }
 
     // ## Syntax
@@ -491,5 +534,321 @@ mod tests {
         );
         assert_ok("((sf-lambda [a b] (int-add a b)) 1 2)", Value::int(3));
         assert_ok("((sf-lambda [a :mut b] (sf-do (sf-set! b 3) (int-add a b))) 1 2)", Value::int(4));
+    }
+
+    // ## Toplevel Values
+
+    #[test]
+    fn test_function_argument_errors() {
+        test_example("
+        (assert-throw (bool-not) { :tag :err-num-args, :expected 1, :got 0 })
+        nil
+
+        #(assert-throw (bool-not) { :tag :err-num-args, :expected 1, :got 0 })
+        #(assert-throw (bool-not 42 43) { :tag :err-num-args, :expected 1, :got 2 })
+        #(assert-throw (bool-not 42) { :tag :err-type, :expected :bool, :got :int })
+        #(assert-throw (int-pow-wrap :nope \"nope\") { :tag :err-type, :expected :int, :got :keyword})
+        #(assert-throw (int-pow-wrap 2 :nope) { :tag :err-type, :expected :int, :got :keyword})
+        #(assert-throw (int-pow-wrap 2 -2) { :tag :err-negative, :got -2})
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_bool() {
+        test_example("
+        (assert (bool-not false))
+        (assert-not (bool-not true))
+        (assert-throw (bool-not 0) {
+            :tag :err-type,
+            :expected :bool,
+            :got :int,
+        })
+        ");
+
+        test_example("
+        (assert-not (bool-and false false))
+        (assert-not (bool-and false true))
+        (assert-not (bool-and true false))
+        (assert (bool-and true true))
+
+        (assert-throw (bool-and false 0) {
+            :tag :err-type,
+            :expected :bool,
+            :got :int,
+        })
+        ");
+
+        test_example("
+        (assert-not (bool-or false false))
+        (assert (bool-or false true))
+        (assert (bool-or true false))
+        (assert (bool-or true true))
+
+        (assert-throw (bool-or true 1) {
+            :tag :err-type,
+            :expected :bool,
+            :got :int,
+        })
+        ");
+
+        test_example("
+        (assert (bool-if false false))
+        (assert (bool-if false true))
+        (assert-not (bool-if true false))
+        (assert (bool-if true true))
+
+        (assert-throw (bool-if false 1) {
+            :tag :err-type,
+            :expected :bool,
+            :got :int,
+        })
+        ");
+
+        test_example("
+        (assert (bool-iff false false))
+        (assert-not (bool-iff false true))
+        (assert-not (bool-iff true false))
+        (assert (bool-iff true true))
+
+        (assert-throw (bool-iff false 1) {
+            :tag :err-type,
+            :expected :bool,
+            :got :int,
+        })
+        ");
+
+        test_example("
+        (assert-not (bool-xor false false))
+        (assert (bool-xor false true))
+        (assert (bool-xor true false))
+        (assert-not (bool-xor true true))
+
+        (assert-throw (bool-xor false 1) {
+            :tag :err-type,
+            :expected :bool,
+            :got :int,
+        })
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_int() {
+        test_example("
+        (assert-eq int-max-val 9223372036854775807)
+        (assert-throw (int-add int-max-val 1) { :tag :err-wrap-int })
+        ");
+
+        test_example("
+        (assert-eq int-min-val -9223372036854775808)
+        (assert-throw (int-sub int-min-val 1) { :tag :err-wrap-int })
+        ");
+
+        test_example("(assert-eq (int-count-ones 126) 6)");
+
+        test_example("(assert-eq (int-count-zeros 126) 58)");
+
+        test_example("(assert-eq (int-leading-ones -4611686018427387904) 2)");
+
+        test_example("(assert-eq (int-leading-zeros 13) 60)");
+
+        test_example("(assert-eq (int-trailing-ones 3) 2)");
+
+        test_example("(assert-eq (int-trailing-zeros 4) 2)");
+
+        test_example("(assert-eq (int-rotate-left 0xaa00000000006e1 12) 0x6e10aa)");
+
+        test_example("(assert-eq (int-rotate-right 0x6e10aa 12) 0xaa00000000006e1)");
+
+        test_example("(assert-eq (int-reverse-bytes 0x1234567890123456) 0x5634129078563412)");
+
+        test_example("(assert-eq (int-reverse-bits 0x1234567890123456) 0x6a2c48091e6a2c48)");
+
+        test_example("
+        (assert-eq (int-add 1 2) 3)
+        (assert-eq (int-add 1 -2) -1)
+        (assert-throw (int-add int-max-val 1) { :tag :err-wrap-int })
+        ");
+
+        test_example("
+        (assert-eq (int-sub 1 2) -1)
+        (assert-eq (int-sub 1 -2) 3)
+        (assert-throw (int-sub int-min-val 1) { :tag :err-wrap-int })
+        ");
+
+        test_example("
+        (assert-eq (int-mul 2 3) 6)
+        (assert-eq (int-mul 2 -3) -6)
+        (assert-throw (int-mul int-max-val 2) { :tag :err-wrap-int })
+        ");
+
+        test_example("
+        (assert-eq (int-div 8 3) 2)
+        (assert-eq (int-div -8 3) -3)
+        (assert-throw (int-div int-min-val -1) { :tag :err-wrap-int })
+        (assert-throw (int-div 1 0) { :tag :err-zero })
+        ");
+
+        test_example("
+        (assert-eq (int-div-trunc 8 3) 2)
+        (assert-eq (int-div-trunc -8 3) -2)
+        (assert-throw (int-div-trunc int-min-val -1) { :tag :err-wrap-int })
+        (assert-throw (int-div-trunc 1 0) { :tag :err-zero })
+        ");
+
+        test_example("
+        (assert-eq (int-mod 8 3) 2)
+        (assert-eq (int-mod -8 3) 1)
+        (assert-throw (int-mod int-min-val -1) { :tag :err-wrap-int })
+        (assert-throw (int-mod 1 0) { :tag :err-zero })
+        ");
+
+        test_example("
+        (assert-eq (int-mod-trunc 8 3) 2)
+        (assert-eq (int-mod-trunc -8 3) -2)
+        (assert-throw (int-mod-trunc int-min-val -1) { :tag :err-wrap-int })
+        (assert-throw (int-mod-trunc 1 0) { :tag :err-zero })
+        ");
+
+        test_example("
+        (assert-eq (int-neg 42) -42)
+        (assert-eq (int-neg -42) 42)
+        (assert-eq (int-neg 0) 0)
+        (assert-throw (int-neg int-min-val) { :tag :err-wrap-int })
+        ");
+
+        test_example("
+        (assert-eq (int-shl 5 1) 10)
+        (assert-eq (int-shl 42 64) 0)
+        ");
+
+        test_example("
+        (assert-eq (int-shr 5 1) 2)
+        (assert-eq (int-shr 42 64) 0)
+        ");
+
+        test_example("
+        (assert-eq (int-abs 42) 42)
+        (assert-eq (int-abs -42) 42)
+        (assert-eq (int-abs 0) 0)
+        (assert-throw (int-abs int-min-val) { :tag :err-wrap-int })
+        ");
+
+        test_example("
+        (assert-eq (int-pow 2 3) 8)
+        (assert-eq (int-pow 2 0) 1)
+        (assert-eq (int-pow 0 999) 0)
+        (assert-eq (int-pow 1 999) 1)
+        (assert-eq (int-pow -1 999) -1)
+        (assert-throw (int-pow 99 99) { :tag :err-wrap-int })
+        ");
+
+        test_example("
+        (assert-eq (int-add-sat 1 2) 3)
+        (assert-eq (int-add-sat 1 -2) -1)
+        (assert-eq (int-add-sat int-max-val 1) int-max-val)
+        (assert-eq (int-add-sat int-min-val -1) int-min-val)
+        ");
+
+        test_example("
+        (assert-eq (int-sub-sat 1 2) -1)
+        (assert-eq (int-sub-sat 1 -2) 3)
+        (assert-eq (int-sub-sat int-min-val 1) int-min-val)
+        (assert-eq (int-sub-sat int-max-val -1) int-max-val)
+        ");
+
+        test_example("
+        (assert-eq (int-mul-sat 2 3) 6)
+        (assert-eq (int-mul-sat 2 -3) -6)
+        (assert-eq (int-mul-sat int-max-val 2) int-max-val)
+        (assert-eq (int-mul-sat int-min-val 2) int-min-val)
+        ");
+
+        test_example("
+        (assert-eq (int-pow-sat 2 3) 8)
+        (assert-eq (int-pow-sat 2 0) 1)
+        (assert-eq (int-pow-sat 0 999) 0)
+        (assert-eq (int-pow-sat 1 999) 1)
+        (assert-eq (int-pow-sat -1 999) -1)
+        (assert-eq (int-pow-sat 99 99) int-max-val)
+        (assert-eq (int-pow-sat -99 99) int-min-val)
+        ");
+
+        test_example("
+        (assert-eq (int-add-wrap 1 2) 3)
+        (assert-eq (int-add-wrap int-max-val 1) int-min-val)
+        (assert-eq (int-add-wrap int-min-val -1) int-max-val)
+        ");
+
+        test_example("
+        (assert-eq (int-sub-wrap 1 2) -1)
+        (assert-eq (int-sub-wrap int-min-val 1) int-max-val)
+        (assert-eq (int-sub-wrap int-max-val -1) int-min-val)
+        ");
+
+        test_example("
+        (assert-eq (int-mul-wrap 2 3) 6)
+        (assert-eq (int-mul-wrap int-max-val 2) -2)
+        (assert-eq (int-mul-wrap int-max-val -2) 2)
+        #(assert-eq (int-mul-wrap int-min-val 2) 0)
+        #(assert-eq (int-mul-wrap int-min-val -2) 0)
+        ");
+
+        test_example("
+        (assert-eq (int-div-wrap 8 3) 2)
+        (assert-eq (int-div-wrap -8 3) -3)
+        (assert-eq (int-div-wrap int-min-val -1) int-min-val)
+        (assert-throw (int-div-wrap 1 0) { :tag :err-zero })
+        ");
+
+        test_example("
+        (assert-eq (int-div-trunc-wrap 8 3) 2)
+        (assert-eq (int-div-trunc-wrap -8 3) -2)
+        (assert-eq (int-div-trunc-wrap int-min-val -1) int-min-val)
+        (assert-throw (int-div-trunc-wrap 1 0) { :tag :err-zero })
+        ");
+
+        test_example("
+        (assert-eq (int-mod-wrap 8 3) 2)
+        (assert-eq (int-mod-wrap -8 3) 1)
+        (assert-eq (int-mod-wrap int-min-val -1) 0)
+        (assert-throw (int-mod-wrap 1 0) { :tag :err-zero })
+        ");
+
+        test_example("
+        (assert-eq (int-mod-trunc-wrap 8 3) 2)
+        (assert-eq (int-mod-trunc-wrap -8 3) -2)
+        (assert-eq (int-mod-trunc-wrap int-min-val -1) 0)
+        (assert-throw (int-mod-trunc-wrap 1 0) { :tag :err-zero })
+        ");
+
+        test_example("
+        (assert-eq (int-neg-wrap 42) -42)
+        (assert-eq (int-neg-wrap -42) 42)
+        (assert-eq (int-neg-wrap 0) 0)
+        (assert-eq (int-neg-wrap int-min-val) int-min-val)
+        ");
+
+        test_example("
+        (assert-eq (int-abs-wrap 42) 42)
+        (assert-eq (int-abs-wrap -42) 42)
+        (assert-eq (int-abs-wrap 0) 0)
+        (assert-eq (int-abs-wrap int-min-val) int-min-val)
+        ");
+
+        test_example("
+        (assert-eq (int-pow-wrap 2 3) 8)
+        (assert-eq (int-pow-wrap 2 0) 1)
+        (assert-eq (int-pow-wrap 0 999) 0)
+        (assert-eq (int-pow-wrap 1 999) 1)
+        (assert-eq (int-pow-wrap -1 999) -1)
+        (assert-eq (int-pow-wrap 99 99) -7394533151961528133)
+        (assert-throw (int-pow-wrap 2 -1) {:tag :err-negative :got -1 })
+        ");
+
+        test_example("
+        (assert-eq (int-signum -42) -1)
+        (assert-eq (int-signum 0) 0)
+        (assert-eq (int-signum 42) 1)
+        ");
     }
 }
