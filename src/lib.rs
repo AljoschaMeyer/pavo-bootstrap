@@ -12,6 +12,7 @@ mod context;
 mod env;
 mod expand;
 mod gc_foreign;
+mod macros;
 mod special_forms;
 mod value;
 mod read;
@@ -84,7 +85,7 @@ pub fn exval(
 pub fn execute(src: &str) -> Result<Value, ExecuteError> {
     let mut default_cx = Context::default();
     let default_env = env::default();
-    let default_macros = ImOrdMap::new(); // TODO
+    let default_macros = macros::default();
 
     let v = read(CompleteStr(src))?;
     let yay = exval(&v, &default_env, &default_macros, &default_env, &mut default_cx)?;
@@ -913,21 +914,34 @@ mod tests {
         (assert-eq (bytes-concat @[0 1] @[]) @[0 1])
         ");
 
-        // test_example("
-        // (let :mut product 1 (do
-        //     (bytes-iter @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
-        //     (assert-eq product 24)
-        // ))
-        // (let :mut product 1 (do
-        //     (bytes-iter @[1 2 3 4] (fn [elem] (sf-if
-        //             (= elem 3) true
-        //             (set! product (int-mul product elem))
-        //         )))
-        //     (assert-eq product 2)
-        // ))
-        // ");
+        test_example("
+        (let (:mut product) 1 (do
+            (bytes-iter @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
+            (assert-eq product 24)
+        ))
+        (let (:mut product) 1 (do
+            (bytes-iter @[1 2 3 4] (fn [elem] (sf-if
+                    (= elem 3) true
+                    (set! product (int-mul product elem))
+                )))
+            (assert-eq product 2)
+        ))
+        (assert-throw (bytes-iter @[0 1] (fn [b] (throw b))) 0)
+        ");
 
         test_example("
+        (let (:mut product) 1 (do
+            (bytes-iter-back @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
+            (assert-eq product 24)
+        ))
+        (let (:mut product) 1 (do
+            (bytes-iter-back @[1 2 3 4] (fn [elem] (if
+                    (= elem 3) true
+                    (set! product (int-mul product elem))
+                )))
+            (assert-eq product 4)
+        ))
+        (assert-throw (bytes-iter-back @[0 1] (fn [b] (throw b))) 1)
         ");
     }
 }

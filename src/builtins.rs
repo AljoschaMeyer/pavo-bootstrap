@@ -815,26 +815,27 @@ pub fn bytes_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value>
     Ok(Value::nil())
 }
 
-// pub fn bytes_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     let b = bytes!(arg!(args, 0));
-//     let fun = fun!(arg!(args, 1));
-//
-//     for elem in b.0.iter().rev() {
-//         match fun.compute(Vector(ImVector::from(vec![Value::int(*elem as i64)])), cx) {
-//             Ok(yay) => {
-//                 if yay.truthy() {
-//                     return Ok(Value::nil());
-//                 }
-//             }
-//             Err(thrown) => return Err(thrown),
-//         }
-//     }
-//
-//     Ok(Value::nil())
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
-//
+pub fn bytes_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let b = bytes!(args.0[0]);
+    let fun = fun!(args.0[1]);
+
+    for elem in b.0.iter().rev() {
+        match fun.compute(Vector(ImVector::from(vec![Value::int(*elem as i64)])), cx) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
 // pub fn int_to_char(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
 //     let n = int!(arg!(args, 0));
 //     match std::char::from_u32(n as u32) {
@@ -1678,6 +1679,62 @@ pub fn typeof_(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
 // }
 //
 // /////////////////////////////////////////////////////////////////////////////
+
+pub fn macro_quote(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+
+    Ok(Value::app_from_vec(vec![Value::id_str("sf-quote"), args.0[0].clone()]))
+}
+
+pub fn macro_do(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    let mut tmp = args.clone();
+    tmp.0.push_front(Value::id_str("sf-do"));
+    Ok(Value::app(tmp))
+}
+
+pub fn macro_set_bang(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    let mut tmp = args.clone();
+    tmp.0.push_front(Value::id_str("sf-set!"));
+    Ok(Value::app(tmp))
+}
+
+pub fn macro_throw(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    if args.0.len() == 0 {
+        Ok(Value::app_from_vec(vec![Value::id_str("sf-throw"), Value::nil()]))
+    } else {
+        num_args(&args, 1)?;
+        Ok(Value::app_from_vec(vec![Value::id_str("sf-throw"), args.0[0].clone()]))
+    }
+}
+
+// TODO proper implementation (if-else like, inserting nil as final else)
+pub fn macro_if(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    let mut tmp = args.clone();
+    tmp.0.push_front(Value::id_str("sf-if"));
+    Ok(Value::app(tmp))
+}
+
+pub fn macro_let(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+
+    Ok(Value::app_from_vec(vec![
+            Value::app_from_vec(vec![
+                    Value::id_str("fn"),
+                    Value::arr_from_vec(vec![args.0[0].clone()]),
+                    args.0[2].clone(),
+                ]),
+            args.0[1].clone(),
+        ]))
+}
+
+// TODO: proper implementation (named recursion, pattern matching)
+pub fn macro_fn(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+
+    Ok(Value::app_from_vec(vec![Value::id_str("sf-lambda"), args.0[0].clone(), args.0[1].clone()]))
+}
+
+//////////////////////////////////////////////////////////////////////////////
 
 pub fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
     match v {

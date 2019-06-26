@@ -63,6 +63,10 @@ pub fn expand(v: &Value, env: &HashMap<Id, Value>, macros: &ImOrdMap<Id, Value>,
             let fst = &vals.0[0];
 
             match fst {
+                Value::Id(Id::User(id)) if id == "sf-quote" => {
+                    Ok(v.clone())
+                }
+
                 Value::Id(Id::User(id)) if id == "macro" => {
                     if vals.0.len() != 4 {
                         return Err(ExpandError::Arity(v.clone()));

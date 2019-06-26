@@ -1313,11 +1313,11 @@ Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
 TODO resume unit testing here
 
 ```pavo
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (bytes-iter @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (bytes-iter @[1 2 3 4] (fn [elem] (sf-if
             (= elem 3) true
             (set! product (int-mul product elem))
@@ -1334,18 +1334,18 @@ Starting from the back of the bytes `b`, applies the function `fun` to the eleme
 Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
 
 ```pavo
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (bytes-iter-back @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (bytes-iter-back @[1 2 3 4] (fn [elem] (if
             (= elem 3) true
             (set! product (int-mul product elem))
         )))
     (assert-eq product 4)
 ))
-(assert-throw (bytes-ite-back @[0 1] (fn [b] (throw b))) 1)
+(assert-throw (bytes-iter-back @[0 1] (fn [b] (throw b))) 1)
 ```
 
 ### Chars
@@ -1545,11 +1545,11 @@ Starting from the beginning of the string `s`, applies the function `fun` to the
 Time: Iteration takes amortized O(n), where n is `(str-count s)`.
 
 ```pavo
-(let :mut out "z" (do
+(let (:mut out) "z" (do
     (str-iter "abcd" (fn [elem] (set! out (str-insert out 0 elem))))
     (assert-eq out "dcbaz")
 ))
-(let :mut out "z" (do
+(let (:mut out) "z" (do
     (str-iter "abcd" (fn [elem] (if
             (= elem 'c') true
             (set! out (str-insert out 0 elem))
@@ -1566,11 +1566,11 @@ Starting from the back of the string `s`, applies the function `fun` to the char
 Time: Iteration takes amortized O(n), where n is `(str-count s)`.
 
 ```pavo
-(let :mut out "z" (do
+(let (:mut out) "z" (do
     (str-iter-back "abcd" (fn [elem] (set! out (str-insert out 0 elem))))
     (assert-eq out "abcdz")
 ))
-(let :mut out "z" (do
+(let (:mut out) "z" (do
     (str-iter-back "abcd" (fn [elem] (if
             (= elem 'c') true
             (set! out (str-insert out 0 elem))
@@ -1996,11 +1996,11 @@ Starting from the beginning of the array `arr`, applies the function `fun` to th
 Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
 
 ```pavo
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (arr-iter [1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (arr-iter [1 2 3 4] (fn [elem] (if
             (= elem 3) true
             (set! product (int-mul product elem))
@@ -2017,11 +2017,11 @@ Starting from the back of the array `arr`, applies the function `fun` to the ele
 Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
 
 ```pavo
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (arr-iter-back [1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (arr-iter-back [1 2 3 4] (fn [elem] (if
             (= elem 3) true
             (set! product (int-mul product elem))
@@ -2159,11 +2159,11 @@ Starting from the beginning of the application `app`, applies the function `fun`
 Time: Iteration takes amortized O(n), where n is `(app-count app)`.
 
 ```pavo
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (app-iter $(1 2 3 4) (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (app-iter $(1 2 3 4) (fn [elem] (if
             (= elem 3) true
             (set! product (int-mul product elem))
@@ -2180,11 +2180,11 @@ Starting from the back of the application `app`, applies the function `fun` to t
 Time: Iteration takes amortized O(n), where n is `(app-count app)`.
 
 ```pavo
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (app-iter-back $(1 2 3 4) (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (app-iter-back $(1 2 3 4) (fn [elem] (if
             (= elem 3) true
             (set! product (int-mul product elem))
@@ -2338,11 +2338,11 @@ Starting from the minimal element of the set `set`, applies the function `fun` t
 Time: Iteration takes amortized O(n), where n is `(set-count set)`.
 
 ```pavo
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (set-iter @{4 2 3 1} (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (set-iter @{4 2 3 1} (fn [elem] (if
             (= elem 3) true
             (set! product (int-mul product elem))
@@ -2359,11 +2359,11 @@ Starting from the maximal element of the set `set`, applies the function `fun` t
 Time: Iteration takes amortized O(n), where n is `(set-count set)`.
 
 ```pavo
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (set-iter-back @{4 2 3 1} (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (set-iter-back @{4 2 3 1} (fn [elem] (if
             (= elem 3) true
             (set! product (int-mul product elem))
@@ -2577,11 +2577,11 @@ Fun is passed the key first and the value second.
 Time: Iteration takes amortized O(n), where n is `(map-count map)`.
 
 ```pavo
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (map-iter {4 2, 3 1} (fn [key value] (set! product (int-mul product (int-mul key value)))))
     (assert-eq product 24)
 ))
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (map-iter {4 2, 3 1} (fn [key value] (if
             (= key 3) true
             (set! product (int-mul product (int-mul key value)))
@@ -2600,11 +2600,11 @@ Fun is passed the key first and the value second.
 Time: Iteration takes amortized O(n), where n is `(map-count map)`.
 
 ```pavo
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (map-iter-back {4 2, 3 1} (fn [key value] (set! product (int-mul product (int-mul key value)))))
     (assert-eq product 24)
 ))
-(let :mut product 1 (do
+(let (:mut product) 1 (do
     (map-iter-back {4 2, 3 1} (fn [key value] (if
             (= key 3) true
             (set! product (int-mul product (int-mul key value)))

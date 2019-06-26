@@ -341,12 +341,21 @@ impl Fun {
             Fun::Builtin(Builtin::BytesSplice) => builtins::bytes_splice(args, cx),
             Fun::Builtin(Builtin::BytesConcat) => builtins::bytes_concat(args, cx),
             Fun::Builtin(Builtin::BytesIter) => builtins::bytes_iter(args, cx),
+            Fun::Builtin(Builtin::BytesIterBack) => builtins::bytes_iter_back(args, cx),
 
             Fun::Builtin(Builtin::AppInsert) => builtins::app_insert(args, cx),
 
             Fun::Builtin(Builtin::Eq) => builtins::pavo_eq(args, cx),
 
             Fun::Builtin(Builtin::Typeof) => builtins::typeof_(args, cx),
+
+            Fun::Builtin(Builtin::MacroQuote) => builtins::macro_quote(args, cx),
+            Fun::Builtin(Builtin::MacroDo) => builtins::macro_do(args, cx),
+            Fun::Builtin(Builtin::MacroSetBang) => builtins::macro_set_bang(args, cx),
+            Fun::Builtin(Builtin::MacroThrow) => builtins::macro_throw(args, cx),
+            Fun::Builtin(Builtin::MacroIf) => builtins::macro_if(args, cx),
+            Fun::Builtin(Builtin::MacroLet) => builtins::macro_let(args, cx),
+            Fun::Builtin(Builtin::MacroFn) => builtins::macro_fn(args, cx),
 
             _ => unimplemented!(),
         }
@@ -567,6 +576,14 @@ pub enum Builtin {
     Diverge,
 
     Require,
+
+    MacroQuote,
+    MacroDo,
+    MacroSetBang,
+    MacroThrow,
+    MacroIf,
+    MacroLet,
+    MacroFn,
 
     // TODO macros as functions
 }
