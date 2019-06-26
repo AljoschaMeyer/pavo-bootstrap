@@ -350,7 +350,7 @@ An application literal whose first item is `sf-quote` must have exactly two item
 An application literal whose first item is `sf-set!` must have exactly three items, and the middle one must be a name (an identifier or symbol).
 
 ```pavo
-(sf-lambda [:mut a] (sf-set! a 42))
+(sf-lambda [(:mut a)] (sf-set! a 42))
 # (sf-set! a 42) is syntactically valid, but a static error due to binding problems
 # (sf-set! 42 43) is a static error because the second item must be a name
 # (sf-set!), (sf-set! a) and (sf-set! a 42 foo) are static errors
@@ -367,38 +367,40 @@ An application literal whose first item is `sf-throw` must have exactly two item
 
 #### `sf-try`
 
-An application literal whose first item is `(sf-try)` must either have exactly five items, the third of which is the keyword `:mut` and the fourth of which is a name (an identifier or symbol), or it must have exactly four items, the third of which is a name.
+An application literal whose first item is `(sf-try)` must have exactly four items, the third of which is either a name or a two-element application containing the keyword `:mut` followed by a name.
+
 
 ```pavo
 (sf-try 0 a 1)
-(sf-try 0 :mut a 1)
-# (sf-try 0 1 2) is a static error because the third item must be a name or :mut
-# (sf-try 0 :mut 1 2) is a static error because the fourth item must be a name
-# (sf-try 0 :mut a) is a static error because the form must have five items iff the third one is :mut
+(sf-try 0 (:mut a) 1)
+# (sf-try 0 1 2) is a static error because the third item must be a name or application
+# (sf-try 0 (:mut 1) 2)
+# (sf-try 0 (:foo b) 2)
+# (sf-try 0 (:mut a))
 # (sf-try), (sf-try 0), (sf-try 0 a), (sf-try) and (sf-try 0 a 1 2) are static errors
 ```
 
 #### `sf-lambda`
 
-An application literal whose first item is `(sf-lambda)` must either have exactly four items, the second of which is the keyword `:mut` and the third of which is a name (an identifier or symbol), or it must have exactly three items, the second of which is a name or an array.
-
-If the second item is an array, it may only contain identifiers, each of them optionally preceded by the keyword `:mut`.
+An application literal whose first item is `(sf-lambda)` must have exactly three items, the second of which is either a name, a two-element application containing the keyword `:mut` followed by a name, or an array that contains any number of either names or such two-element applications. In the case of an array, all names contained in it must be pairwaise unequal.
 
 ```pavo
 (sf-lambda a 0)
-(sf-lambda :mut a 0)
+(sf-lambda (:mut a) 0)
 (sf-lambda [] 0)
 (sf-lambda [a] 0)
-(sf-lambda [:mut a] 0)
+(sf-lambda [(:mut a)] 0)
 (sf-lambda [a b] 0)
-(sf-lambda [:mut a b] 0)
-(sf-lambda [a :mut b] 0)
-(sf-lambda [:mut a :mut b] 0)
+(sf-lambda [(:mut a) b] 0)
+(sf-lambda [a (:mut b)] 0)
+(sf-lambda [(:mut a) (:mut b)] 0)
+# (sf-lambda [a a] 0) is a static error because the argument names must be distinct
 # (sf-lambda 0 1) is a static error because the second item must be a name, array or :mut
-# (sf-lambda :mut 0 1) is a static error because the third item must be a name
+# (sf-lambda (:mut 0) 1) is a static error because the third item must be a name
 # (sf-lambda [0] 1) is a static error because the array may not contain arbitrary values
-# (sf-lambda [:mut] 0) is a static error because each :mut must correspond to an identifier
-# (sf-lambda [a :mut] 0) is a static error because each :mut must precede its identifier
+# (sf-lambda [(:mut)] 0) is a static error because each :mut must correspond to an identifier
+# (sf-lambda [(:mut a b)] 0)
+# (sf-lambda [(a :mut)] 0) is a static error because each :mut must precede its identifier
 # (sf-lambda), (sf-lambda a), (sf-lambda a 0 1), (sf-lambda :mut), (sf-lambda :mut a), (sf-lambda :mut a 0 1), (sf-lambda []) and (sf-lambda [] 0 1) are static errors
 ```
 
@@ -411,19 +413,19 @@ Checking bindings for a value proceeds recursively. If the value is a name (iden
 - `(sf-quote <quoted-exp>)`: always results in a successful check.
 - `(sf-set! <target-name> <rvalue-exp>)`: Is a static error if the `<target-name>` is not a mutable binding, otherwise `<rvalue-exp>` is checked in the check-environment `E`.
 - `(sf-try <try-exp> <binder-name> <caught-exp>)`: Check `<try-exp>` in the check-environment `E`. If successful, check `<caught-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
-- `(sf-try <try-exp> <binder-name> <caught-exp>)`: Check `<try-exp>` in the check-environment `E`. If successful, check `<caught-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
+- `(sf-try <try-exp> (:mut <binder-name>) <caught-exp>)`: Check `<try-exp>` in the check-environment `E`. If successful, check `<caught-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to true.
 - `(sf-lambda <binder-name> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
-- `(sf-lambda :mut <binder-name> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to true.
-- `(sf-lambda <args-array> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that all names in the `<args-array>` without a preceeding `:mut` to false and the others to `true`.
+- `(sf-lambda (:mut <binder-name>) <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to true.
+- `(sf-lambda <args-array> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that all names directly contained in the `<args-array>` map to false, and those inside an application with the `:mut` keyword map to `true`.
 - Otherwise, all inner values are checked in the environment `E`.
 
 ```pavo
 (sf-quote a)
 (sf-try 0 a a)
-(sf-try 0 :mut a (sf-set! a 42))
+(sf-try 0 (:mut a) (sf-set! a 42))
 (sf-lambda a a)
-(sf-lambda :mut a (sf-set! a 42))
-(sf-lambda a (sf-lambda :mut a (sf-set! a 0)))
+(sf-lambda (:mut a) (sf-set! a 42))
+(sf-lambda a (sf-lambda (:mut a) (sf-set! a 0)))
 # some-id, [some-id] and (sf-set! some-id 0) are static errors because the name is not bound
 # (sf-set! int-max-val 42), (sf-try 0 a (sf-set! a 42)) and (sf-lambda a (sf-set! a 42)) are static errors because the name is bound immutably
 ```
@@ -512,8 +514,8 @@ Evaluates the `condition`. If it evaluated to `nil` or `false`, evaluates to the
 Evaluates `exp` and rebinds identifier `id` to the value. `id` must refer to a mutable binding in scope. The form itself evaluates to `nil`. If evaluating `exp` throws, the identifier is not rebound.
 
 ```pavo
-(assert-eq ((sf-lambda [:mut a] (sf-do (sf-set! a 42) a)) 17) 42)
-(assert-eq ((sf-lambda [:mut a] (sf-set! a 42)) 17) nil)
+(assert-eq ((sf-lambda [(:mut a)] (sf-do (sf-set! a 42) a)) 17) 42)
+(assert-eq ((sf-lambda [(:mut a)] (sf-set! a 42)) 17) nil)
 ```
 
 #### `(sf-throw x)`
@@ -535,28 +537,28 @@ Evaluates `x` and throws the result.
 ) 0)
 ```
 
-#### `(sf-try try-exp id caught-exp)` `(sf-try try-exp :mut id caught-exp)`
+#### `(sf-try try-exp id caught-exp)` `(sf-try try-exp (:mut id) caught-exp)`
 
 Evaluates the `try-exp`. If it throws, the thrown value is bound to the `id` and then the `caught-exp` is evaluated. If the keyword `:mut` is supplied, the binding is mutable.
 
 ```pavo
 (assert-eq (sf-try 0 foo 1) 0)
 (assert-eq (sf-try (sf-throw 0) foo 1) 1)
-(assert-eq (sf-try (sf-throw 0) :mut foo (sf-set! foo 1)) nil)
+(assert-eq (sf-try (sf-throw 0) (:mut foo) (sf-set! foo 1)) nil)
 (assert-eq (sf-try (sf-throw 0) foo foo) 0)
 (assert-throw (sf-try (sf-throw 0) foo (sf-throw 1)) 1)
 ```
 
-#### `(sf-lambda id body)` `(sf-lambda :mut id body)` `(sf-lambda [<args>] body)`
+#### `(sf-lambda id body)` `(sf-lambda (:mut id) body)` `(sf-lambda [<args>] body)`
 
 Evaluates to a function. Associated with that function is the current environment, i.e. the same set of variable bindings that are in scope at the program point where the `sf-lambda` form occurs. When applying the function, the environment is modified according to the arguments (see below), and then the `body` expression is evaluated in that environment. The bindings introduced through application to arguments shadow any bindings of the same identifier that have been in lexical scope at the point of the function definition.
 
-In the `(sf-lambda <:mut> id body)` version, when applying the function to some argument values, the identifier `id` is bound to an array containing those values before evaluating the `body`. If the keyword `:mut` is supplied, the binding is mutable.
+In the `(sf-lambda id body)` and `(sf-lambda (:mut id) body)` versions, when applying the function to some argument values, the identifier `id` is bound to an array containing those values before evaluating the `body`. If the keyword `:mut` is supplied, the binding is mutable.
 
 ```pavo
 (assert-eq (typeof (sf-lambda foo nil)) :function))
 (assert-eq ((sf-lambda foo foo) 0 1 2) [0 1 2])
-(assert-eq ((sf-lambda :mut foo (sf-do (sf-set! foo 42) foo)) 0 1 2) 42)
+(assert-eq ((sf-lambda (:mut foo) (sf-do (sf-set! foo 42) foo)) 0 1 2) 42)
 ```
 
 In the `(sf-lambda [<args>] body)` version, `[<args>]` is an array containing zero or more identifiers, each optionally preceded by the `:mut` keyword. When applying the function to some arguments, if the number of arguments does not match the number of identifiers in the function definition, `{ :tag :err-num-args, :expected <defined>, :got <supplied>}` is thrown, where `<defined>` is the number of identifiers in the `[<args>]` definition, and `<supplied>` is the number of arguments to which the function was applied. If the number of arguments matches, then each argument identifier is bound to the corresponding supplied value before evaluating the `body`. For identifiers that are prefixed with the `:mut` keyword, the binding is mutable.
@@ -566,7 +568,7 @@ In the `(sf-lambda [<args>] body)` version, `[<args>]` is an array containing ze
 (assert-eq ((sf-lambda [] 42)) 42)
 (assert-throw ((sf-lambda [] 42) :an-argument) {:tag :err-num-args, :expected 0, :got 1})
 (assert-eq ((sf-lambda [a b] (int-add a b)) 1 2) 3)
-(assert-eq ((sf-lambda [a :mut b] (sf-do (sf-set! b 3) (int-add a b))) 1 2) 4)
+(assert-eq ((sf-lambda [a (:mut b)] (sf-do (sf-set! b 3) (int-add a b))) 1 2) 4)
 ```
 
 Pavo guarantees tail-call optimization, (mutually) recursive function calls in tail position only take up a bounded amount of stack space. The tail positions are exactly the following:
@@ -610,6 +612,8 @@ The precedence of errors is as follows: First, the number of arguments is checke
 ```
 
 ### Bool
+
+Bools are binary [truth values](https://en.wikipedia.org/wiki/Truth_value), either `true` or `false`.
 
 #### `(bool-not b)`
 
@@ -725,7 +729,9 @@ Throws a type error if any of the arguments is not a bool.
 
 ### Int
 
-Most of this has been taken/adapted from the [rust i64 docs](https://doc.rust-lang.org/std/primitive.i64.html). A helpful discussion of various design choices for the behavior of the modulus and division operations is [Boute, Raymond T. "The Euclidean definition of the functions div and mod."](https://biblio.ugent.be/publication/314490/file/452146.pdf).
+Ints are [signed 64 bit integers](https://en.wikipedia.org/wiki/Integer_(computer_science)) represented in [two's complement](https://en.wikipedia.org/wiki/Two's_complement), that is numbers between `-2^63` and and `2^63 - 1` inclusive. Because of their finite width and the inherent asymmetry of two's complement representation, the functions operating on integers often have cornercases. The "default" functions (`int-add` and friends) throw an error when reaching the boundaries of the numeric representation. Others (`int-add-wrap` etc. and `int-add-sat` etc.) allow the programmer to embrace the limits of the finite representation. Not caring about those limits at all however usually leads to bad surprises.
+
+Most of the function (documentation) has been taken/adapted from the [rust i64 docs](https://doc.rust-lang.org/std/primitive.i64.html). A helpful discussion of various design choices for the behavior of the modulus and division operations is [Boute, Raymond T. "The Euclidean definition of the functions div and mod."](https://biblio.ugent.be/publication/314490/file/452146.pdf).
 
 #### `int-max-val`
 
@@ -1165,6 +1171,15 @@ Returns `-1` if the int `n` is less than `0`, `0` if `n` is equal to `0`, `1` if
 
 ### Bytes
 
+Bytes are sequences of unsigned 8 bit integers, that is integers between `0` and `255` inclusive. They serve as a more efficient alternative to arrays containing ints.
+
+Whenever a function takes a "byte" as an argument but is given a non-int argument, a type error is thrown. If it is an int but it is not between zero and 255, an `err-not-byte` is thrown.
+
+```pavo
+(assert-throw (bytes-insert @[] 0 :256) { :tag :err-type, :expected :int, :got :keyword})
+(assert-throw (bytes-insert @[] 0 256) { :tag :err-not-byte, :got 256})
+```
+
 #### `(bytes-count b)`
 
 Returns the number of bytes in the bytes `b`.
@@ -1187,7 +1202,7 @@ Time: O(log n), where n is `(bytes-count b)`.
 
 ```pavo
 (assert-eq (bytes-get @[42] 0) 42)
-(assert-throw (bytes-get [] 0) { :tag :err-lookup, :got 0})
+(assert-throw (bytes-get @[] 0) { :tag :err-lookup, :got 0})
 ```
 
 #### `(bytes-insert b index new)`
@@ -1201,12 +1216,12 @@ Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63
 Time: O(log n), where n is `(bytes-count b)`.
 
 ```pavo
-(assert-eq (bytes-insert @[0 1] 0 42) [42 0 1])
-(assert-eq (bytes-insert @[0 1] 1 42) [0 42 1])
-(assert-eq (bytes-insert @[0 1] 2 42) [0 1 42])
+(assert-eq (bytes-insert @[0 1] 0 42) @[42 0 1])
+(assert-eq (bytes-insert @[0 1] 1 42) @[0 42 1])
+(assert-eq (bytes-insert @[0 1] 2 42) @[0 1 42])
 (assert-throw (bytes-insert @[0 1] 3 42) { :tag :err-lookup, :got 3})
 (assert-throw (bytes-insert @[] 0 256) { :tag :err-not-byte, :got 256})
-(assert-throw (bytes-insert @[] 0 256 nil) { :tag :err-not-byte, :got 256})
+    (assert-throw (bytes-insert @[] 0 :256) { :tag :err-type, :expected :int, :got :keyword})
 ```
 
 #### `(bytes-remove b index)`
@@ -1236,8 +1251,7 @@ Time: O(log n), where n is `(bytes-count b)`.
 (assert-eq (bytes-update @[0 1] 0 42) @[42 1])
 (assert-eq (bytes-update @[0 1] 1 42) @[0 42])
 (assert-throw (bytes-update @[0 1] 2 42) { :tag :err-lookup, :got 2})
-(assert-throw (bytes-update @[] 0 256) { :tag :err-not-byte, :got 256})
-(assert-throw (bytes-update @[] 0 256 nil) { :tag :err-not-byte, :got 256})
+(assert-throw (bytes-update @[0] 0 256) { :tag :err-not-byte, :got 256})
 ```
 
 #### `(bytes-slice b start end)`
@@ -1251,10 +1265,10 @@ Throws `{ :tag :err-lookup, :got end}` if `end` is out of bounds.
 Time: O(log n), where n is `(bytes-count b)`.
 
 ```pavo
-(assert-eq (bytes-slice @[42 43] 1 1) [])
-(assert-eq (bytes-slice @[42 43] 0 1) [42])
-(assert-eq (bytes-slice @[42 43] 1 2) [43])
-(assert-eq (bytes-slice @[42 43] 0 2) [42 43])
+(assert-eq (bytes-slice @[42 43] 1 1) @[])
+(assert-eq (bytes-slice @[42 43] 0 1) @[42])
+(assert-eq (bytes-slice @[42 43] 1 2) @[43])
+(assert-eq (bytes-slice @[42 43] 0 2) @[42 43])
 (assert-throw (bytes-slice @[] 0 1) { :tag :err-lookup, :got 1})
 (assert-throw (bytes-slice @[] 2 3) { :tag :err-lookup, :got 2})
 (assert-throw (bytes-slice @[0 1 2 3] 2 1) { :tag :err-lookup, :got 1})
@@ -1270,10 +1284,10 @@ Throws `{ :tag :err-collection-full }` if the resulting bytes would contain 2^63
 Time: O(log (n + m)), where n is `(bytes-count old)` and m is `(bytes-count new)`.
 
 ```pavo
-(assert-eq (bytes-splice @[0 1] @[10 11] 0) @[10 11 0 1])
-(assert-eq (bytes-splice @[0 1] @[10 11] 1) @[0 10 11 1])
-(assert-eq (bytes-splice @[0 1] @[10 11] 2) @[0 1 10 11])
-(assert-throw (bytes-splice @[0 1] @[10 11] 3) { :tag :err-lookup, :got 3})
+(assert-eq (bytes-splice @[0 1] 0 @[10 11]) @[10 11 0 1])
+(assert-eq (bytes-splice @[0 1] 1 @[10 11]) @[0 10 11 1])
+(assert-eq (bytes-splice @[0 1] 2 @[10 11]) @[0 1 10 11])
+(assert-throw (bytes-splice @[0 1] 3 @[10 11]) { :tag :err-lookup, :got 3})
 ```
 
 #### `(bytes-concat left right)`
@@ -1296,18 +1310,21 @@ Starting from the beginning of the bytes `b`, applies the function `fun` to the 
 
 Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
 
+TODO resume unit testing here
+
 ```pavo
 (let :mut product 1 (do
     (bytes-iter @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
     (assert-eq product 24)
 ))
 (let :mut product 1 (do
-    (bytes-iter @[1 2 3 4] (fn [elem] (if
+    (bytes-iter @[1 2 3 4] (fn [elem] (sf-if
             (= elem 3) true
             (set! product (int-mul product elem))
         )))
     (assert-eq product 2)
 ))
+(assert-throw (bytes-iter @[0 1] (fn [b] (throw b))) 0)
 ```
 
 #### `(bytes-iter-back b fun)`
@@ -1328,6 +1345,7 @@ Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
         )))
     (assert-eq product 4)
 ))
+(assert-throw (bytes-ite-back @[0 1] (fn [b] (throw b))) 1)
 ```
 
 ### Chars
@@ -1538,6 +1556,7 @@ Time: Iteration takes amortized O(n), where n is `(str-count s)`.
         )))
     (assert-eq out "baz")
 ))
+(assert-throw (str-iter "ab" (fn [c] (throw c))) 'a')
 ```
 
 #### `(str-iter-back s fun)`
@@ -1558,6 +1577,7 @@ Time: Iteration takes amortized O(n), where n is `(str-count s)`.
         )))
     (assert-eq out "dz")
 ))
+(assert-throw (str-iter-back "ab" (fn [c] (throw c))) 'b')
 ```
 
 #### `(str-iter-utf8 s fun)`
@@ -1987,6 +2007,7 @@ Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
         )))
     (assert-eq product 2)
 ))
+(assert-throw (arr-iter [0 1] (fn [n] (throw n))) 0)
 ```
 
 #### `(arr-iter-back arr fun)`
@@ -2007,6 +2028,7 @@ Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
         )))
     (assert-eq product 4)
 ))
+(assert-throw (arr-iter-back [0 1] (fn [n] (throw n))) 1)
 ```
 
 ### Applications
@@ -2148,6 +2170,7 @@ Time: Iteration takes amortized O(n), where n is `(app-count app)`.
         )))
     (assert-eq product 2)
 ))
+(assert-throw (app-iter $(0 1) (fn [n] (throw n))) 0)
 ```
 
 #### `(app-iter-back app fun)`
@@ -2168,6 +2191,7 @@ Time: Iteration takes amortized O(n), where n is `(app-count app)`.
         )))
     (assert-eq product 4)
 ))
+(assert-throw (app-iter-back $(0 1) (fn [n] (throw n))) 1)
 ```
 
 #### `(app-apply app)`
@@ -2325,6 +2349,7 @@ Time: Iteration takes amortized O(n), where n is `(set-count set)`.
         )))
     (assert-eq product 2)
 ))
+(assert-throw (set-iter @{0 1} (fn [n] (throw n))) 0)
 ```
 
 #### `(set-iter-back set fun)`
@@ -2345,6 +2370,7 @@ Time: Iteration takes amortized O(n), where n is `(set-count set)`.
         )))
     (assert-eq product 4)
 ))
+(assert-throw (set-iter-back @{0 1} (fn [n] (throw n))) 1)
 ```
 
 ### Maps
@@ -2562,6 +2588,7 @@ Time: Iteration takes amortized O(n), where n is `(map-count map)`.
         )))
     (assert-eq product 3)
 ))
+(assert-throw (map-iter {0 1, 2 3} (fn [n m] (throw (int-mul n m)))) 0)
 ```
 
 #### `(map-iter-back map fun)`
@@ -2584,6 +2611,7 @@ Time: Iteration takes amortized O(n), where n is `(map-count map)`.
         )))
     (assert-eq product 8)
 ))
+(assert-throw (map-iter-back {0 1, 2 3} (fn [n m] (throw (int-mul n m)))) 6)
 ```
 
 ### Symbols

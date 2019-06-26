@@ -1,8 +1,7 @@
 // Static typing for special forms to help implementing them. This doesn't actually *do*
 // anything, its just a convenient/checked way of accessing special forms. The first
 // attempt at implementing pavo without this layer very quickly turned into spaghetti.
-
-use im_rc::Vector as ImVector;
+use std::collections::BTreeSet;
 
 use crate::gc_foreign::Vector;
 use crate::value::{Value, Id};
@@ -40,6 +39,8 @@ pub enum SpecialFormSyntaxError {
     Arity(FormType, usize),
     Id(FormType, Value),
     SetBangId(Value),
+    Binder(FormType, Value),
+    DuplicateArg(Id),
 }
 
 pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, SpecialFormSyntaxError> {
@@ -97,89 +98,65 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
         }
 
         Some("sf-try") => {
-            if v.0.len() != 4 && v.0.len() != 5  {
+            if v.0.len() != 4 {
                 return Err(SpecialFormSyntaxError::Arity(FormType::Try, v.0.len()));
             }
 
             let to_try = &v.0[1];
-            let (mutable, id) = mut_id(&v.0, 2, FormType::Try)?;
-            if mutable && v.0.len() != 5 {
-                return Err(SpecialFormSyntaxError::Arity(FormType::Try, v.0.len()));
-            }
-            if !mutable && v.0.len() != 4 {
-                return Err(SpecialFormSyntaxError::Arity(FormType::Try, v.0.len()));
-            }
-            let cont = &v.0[if mutable { 4 } else { 3 }];
+            let (mutable, id) = mut_id(&v.0[2], FormType::Try)?;
+            let cont = &v.0[3];
 
             return Ok(Some(SpecialForm::Try(to_try, mutable, id, cont)));
         }
 
         Some("sf-lambda") => {
-            if v.0.len() != 3 && v.0.len() != 4  {
+            if v.0.len() != 3  {
                 return Err(SpecialFormSyntaxError::Arity(FormType::Lambda, v.0.len()));
             }
 
-            let (args, body) = fun_def(&v.0, 1, FormType::Lambda)?;
-            return Ok(Some(SpecialForm::Lambda(args, body)));
+            match v.0[1].as_arr() {
+                Some(args_arr) => {
+                    let mut args = vec![];
+
+                    for arg in args_arr.0.iter() {
+                        args.push(mut_id(&arg, FormType::Lambda)?);
+                    }
+
+                    let mut uniques = BTreeSet::new();
+                    for (_, id) in args.iter() {
+                        if !uniques.insert(id.clone()) {
+                            return Err(SpecialFormSyntaxError::DuplicateArg((*id).clone()));
+                        }
+                    }
+
+                    return Ok(Some(SpecialForm::Lambda(Args::Destructured(args), &v.0[2])));
+                }
+
+                None => {
+                    let (mutable, id) = mut_id(&v.0[1], FormType::Lambda)?;
+                    return Ok(Some(SpecialForm::Lambda(Args::All(mutable, id), &v.0[2])));
+                }
+            }
         }
 
         _ => return Ok(None),
     }
 }
 
-fn fun_def<'a>(v: &'a ImVector<Value>, start_at: usize, ft: FormType) -> Result<(Args<'a>, &'a Value), SpecialFormSyntaxError> {
-    match v[start_at].as_arr() {
-        Some(args_arr) => {
-            let mut args = vec![];
-
-            let mut i = 0;
-            while i < args_arr.0.len() {
-                let (mutable, id) = mut_id(&args_arr.0, i, ft)?;
-                args.push((mutable, id));
-                i += if mutable { 2 } else { 1 };
-            }
-
-            if v.len() != start_at + 2 {
-                return Err(SpecialFormSyntaxError::Arity(ft, v.len()));
-            }
-
-            let body = &v[start_at + 1];
-            return Ok((Args::Destructured(args), body));
-        }
-
-        None => {
-            let (mutable, id) = mut_id(v, start_at, ft)?;
-
-            if mutable {
-                if v.len() != start_at + 3 {
-                    return Err(SpecialFormSyntaxError::Arity(ft, v.len()));
+fn mut_id<'a>(v: &'a Value, ft: FormType) -> Result<(bool, &'a Id), SpecialFormSyntaxError> {
+    match v.as_id() {
+        Some(id) => Ok((false, id)),
+        None => match v.as_app() {
+            Some(app) => {
+                if app.0.len() != 2 || !app.0[0].is_kw("mut") {
+                    return Err(SpecialFormSyntaxError::Binder(ft, v.clone()));
                 }
-            } else {
-                if v.len() != start_at + 2 {
-                    return Err(SpecialFormSyntaxError::Arity(ft, v.len()));
+                match app.0[1].as_id() {
+                    Some(id) => return Ok((true, id)),
+                    None => return Err(SpecialFormSyntaxError::Binder(ft, v.clone())),
                 }
             }
-
-            let body = &v[if mutable { start_at + 2 } else { start_at + 1 }];
-            return Ok((Args::All(mutable, id), body));
-        }
-    }
-}
-
-fn mut_id<'a>(v: &'a ImVector<Value>, start_at: usize, ft: FormType) -> Result<(bool, &'a Id), SpecialFormSyntaxError> {
-    if v[start_at].is_kw("mut") {
-        if v.len() <= start_at + 1 {
-            return Err(SpecialFormSyntaxError::Arity(FormType::Lambda, v.len()));
-        }
-
-        match v[start_at + 1].as_id() {
-            Some(id) => Ok((true, id)),
-            None => Err(SpecialFormSyntaxError::Id(ft, v[start_at + 1].clone()))
-        }
-    } else {
-        match v[start_at].as_id() {
-            Some(id) => Ok((false, id)),
-            None => Err(SpecialFormSyntaxError::Id(ft, v[start_at].clone()))
+            None => Err(SpecialFormSyntaxError::Binder(ft, v.clone())),
         }
     }
 }

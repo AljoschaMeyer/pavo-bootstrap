@@ -188,7 +188,7 @@ impl Environment {
 }
 
 // An IrChunk together with an environment. This is a runtime value.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub struct Closure {
     #[unsafe_ignore_trace]
     pub fun: Rc<IrChunk>,
@@ -204,6 +204,12 @@ impl Closure {
             env,
             args,
         }
+    }
+}
+
+impl std::fmt::Debug for Closure {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Closure {{ args: {:?}, ir: {:?} }}", self.args, self.fun)
     }
 }
 

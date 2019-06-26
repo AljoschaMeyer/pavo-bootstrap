@@ -408,8 +408,9 @@ mod tests {
     #[test]
     fn test_static_sf_try() {
         assert_any_static_error("(sf-try 0 1 2)");
-        assert_any_static_error("(sf-try 0 :mut 1 2)");
-        assert_any_static_error("(sf-try 0 :mut a)");
+        assert_any_static_error("(sf-try 0 (:mut 1) 2)");
+        assert_any_static_error("(sf-try 0 (:foo a) 2)");
+        assert_any_static_error("(sf-try 0 (:mut a))");
         assert_any_static_error("(sf-try)");
         assert_any_static_error("(sf-try 0)");
         assert_any_static_error("(sf-try 0 a)");
@@ -418,11 +419,13 @@ mod tests {
 
     #[test]
     fn test_static_sf_lambda() {
+        assert_any_static_error("(sf-lambda [a a] 0)");
         assert_any_static_error("(sf-lambda 0 1)");
-        assert_any_static_error("(sf-lambda :mut 0 1)");
+        assert_any_static_error("(sf-lambda (:mut 0) 1)");
         assert_any_static_error("(sf-lambda [0] 1)");
-        assert_any_static_error("(sf-lambda [:mut] 0)");
-        assert_any_static_error("(sf-lambda [a :mut] 0)");
+        assert_any_static_error("(sf-lambda [(:mut)] 0)");
+        assert_any_static_error("(sf-lambda [(:mut a b)] 0)");
+        assert_any_static_error("(sf-lambda [(a :mut)] 0)");
         assert_any_static_error("(sf-lambda)");
         assert_any_static_error("(sf-lambda a)");
         assert_any_static_error("(sf-lambda a 0 1)");
@@ -439,10 +442,10 @@ mod tests {
     fn test_static_bindings() {
         assert_ok("(sf-quote a)", Value::id_str("a"));
         assert_ok("(sf-try 0 a a)", Value::int(0));
-        assert_ok("(sf-try 0 :mut a (sf-set! a 42))", Value::int(0));
+        assert_ok("(sf-try 0 (:mut a) (sf-set! a 42))", Value::int(0));
         assert_ok("((sf-lambda [a] a) 0)", Value::int(0));
-        assert_ok("((sf-lambda :mut a (sf-set! a 42)) 0)", Value::nil());
-        assert_ok("(((sf-lambda a (sf-lambda :mut a (sf-set! a 0))) 0) 0)", Value::nil());
+        assert_ok("((sf-lambda (:mut a) (sf-set! a 42)) 0)", Value::nil());
+        assert_ok("(((sf-lambda a (sf-lambda (:mut a) (sf-set! a 0))) 0) 0)", Value::nil());
         assert_any_static_error("some-id");
         assert_any_static_error("[some-id]");
         assert_any_static_error("(sf-set! some-id 42)");
@@ -497,8 +500,8 @@ mod tests {
 
     #[test]
     fn test_sf_set_bang() {
-        assert_ok("((sf-lambda [:mut a] (sf-do (sf-set! a 42) a)) 17)", Value::int(42));
-        assert_ok("((sf-lambda [:mut a] (sf-set! a 42)) 17)", Value::nil());
+        assert_ok("((sf-lambda [(:mut a)] (sf-do (sf-set! a 42) a)) 17)", Value::int(42));
+        assert_ok("((sf-lambda [(:mut a)] (sf-set! a 42)) 17)", Value::nil());
     }
 
     #[test]
@@ -512,7 +515,7 @@ mod tests {
     fn test_sf_try() {
         assert_ok("(sf-try 0 foo 1)", Value::int(0));
         assert_ok("(sf-try (sf-throw 0) foo 1)", Value::int(1));
-        assert_ok("(sf-try (sf-throw 0) :mut foo (sf-set! foo 1))", Value::nil());
+        assert_ok("(sf-try (sf-throw 0) (:mut foo) (sf-set! foo 1))", Value::nil());
         assert_ok("(sf-try (sf-throw 0) foo foo)", Value::int(0));
         assert_throw("(sf-try (sf-throw 0) foo (sf-throw 1))", Value::int(1));
     }
@@ -524,7 +527,7 @@ mod tests {
             "((sf-lambda foo foo) 0 1 2)",
             Value::arr_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)])
         );
-        assert_ok("((sf-lambda :mut foo (sf-do (sf-set! foo 42) foo)) 0 1 2)", Value::int(42));
+        assert_ok("((sf-lambda (:mut foo) (sf-do (sf-set! foo 42) foo)) 0 1 2)", Value::int(42));
 
         assert_ok("(typeof (sf-lambda [] nil))", Value::kw_str("function"));
         assert_ok("((sf-lambda [] 42))", Value::int(42));
@@ -533,7 +536,7 @@ mod tests {
             execute("{:tag :err-num-args, :expected 0, :got 1}").unwrap()
         );
         assert_ok("((sf-lambda [a b] (int-add a b)) 1 2)", Value::int(3));
-        assert_ok("((sf-lambda [a :mut b] (sf-do (sf-set! b 3) (int-add a b))) 1 2)", Value::int(4));
+        assert_ok("((sf-lambda [a (:mut b)] (sf-do (sf-set! b 3) (int-add a b))) 1 2)", Value::int(4));
     }
 
     // ## Toplevel Values
@@ -849,6 +852,82 @@ mod tests {
         (assert-eq (int-signum -42) -1)
         (assert-eq (int-signum 0) 0)
         (assert-eq (int-signum 42) 1)
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_bytes() {
+        test_example("
+        (assert-eq (bytes-count @[]) 0)
+        (assert-eq (bytes-count @[0]) 1)
+        (assert-eq (bytes-count @[0, 1, 2]) 3)
+        ");
+
+        test_example("
+        (assert-eq (bytes-get @[42] 0) 42)
+        (assert-throw (bytes-get @[] 0) { :tag :err-lookup, :got 0})
+        ");
+
+        test_example("
+        (assert-eq (bytes-insert @[0 1] 0 42) @[42 0 1])
+        (assert-eq (bytes-insert @[0 1] 1 42) @[0 42 1])
+        (assert-eq (bytes-insert @[0 1] 2 42) @[0 1 42])
+        (assert-throw (bytes-insert @[0 1] 3 42) { :tag :err-lookup, :got 3})
+        (assert-throw (bytes-insert @[] 0 256) { :tag :err-not-byte, :got 256})
+        (assert-throw (bytes-insert @[] 0 :256) { :tag :err-type, :expected :int, :got :keyword})
+        ");
+
+        test_example("
+        (assert-eq (bytes-remove @[0 1] 0) @[1])
+        (assert-eq (bytes-remove @[0 1] 1) @[0])
+        (assert-throw (bytes-remove @[0 1] 3) { :tag :err-lookup, :got 3})
+        ");
+
+        test_example("
+        (assert-eq (bytes-update @[0 1] 0 42) @[42 1])
+        (assert-eq (bytes-update @[0 1] 1 42) @[0 42])
+        (assert-throw (bytes-update @[0 1] 2 42) { :tag :err-lookup, :got 2})
+        (assert-throw (bytes-update @[0] 0 256) { :tag :err-not-byte, :got 256})
+        ");
+
+        test_example("
+        (assert-eq (bytes-slice @[42 43] 1 1) @[])
+        (assert-eq (bytes-slice @[42 43] 0 1) @[42])
+        (assert-eq (bytes-slice @[42 43] 1 2) @[43])
+        (assert-eq (bytes-slice @[42 43] 0 2) @[42 43])
+        (assert-throw (bytes-slice @[] 0 1) { :tag :err-lookup, :got 1})
+        (assert-throw (bytes-slice @[] 2 3) { :tag :err-lookup, :got 2})
+        (assert-throw (bytes-slice @[0 1 2 3] 2 1) { :tag :err-lookup, :got 1})
+        ");
+
+        test_example("
+        (assert-eq (bytes-splice @[0 1] 0 @[10 11]) @[10 11 0 1])
+        (assert-eq (bytes-splice @[0 1] 1 @[10 11]) @[0 10 11 1])
+        (assert-eq (bytes-splice @[0 1] 2 @[10 11]) @[0 1 10 11])
+        (assert-throw (bytes-splice @[0 1] 3 @[10 11]) { :tag :err-lookup, :got 3})
+        ");
+
+        test_example("
+        (assert-eq (bytes-concat @[0 1] @[2 3]) @[0 1 2 3])
+        (assert-eq (bytes-concat @[] @[0 1]) @[0 1])
+        (assert-eq (bytes-concat @[0 1] @[]) @[0 1])
+        ");
+
+        // test_example("
+        // (let :mut product 1 (do
+        //     (bytes-iter @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
+        //     (assert-eq product 24)
+        // ))
+        // (let :mut product 1 (do
+        //     (bytes-iter @[1 2 3 4] (fn [elem] (sf-if
+        //             (= elem 3) true
+        //             (set! product (int-mul product elem))
+        //         )))
+        //     (assert-eq product 2)
+        // ))
+        // ");
+
+        test_example("
         ");
     }
 }

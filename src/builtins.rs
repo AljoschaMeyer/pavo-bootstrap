@@ -702,110 +702,119 @@ pub fn int_signum(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value
 
 /////////////////////////////////////////////////////////////////////////////
 
-// pub fn bytes_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b = bytes!(arg!(args, 0));
-//     Ok(Value::int(b.0.len() as i64))
-// }
-//
-// pub fn bytes_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b = bytes!(arg!(args, 0));
-//     let index = index!(&b, int!(arg!(args, 1)));
-//
-//     Ok(Value::int(b.0[index] as i64))
-// }
-//
-// pub fn bytes_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b = bytes!(arg!(args, 0));
-//     let index = index_incl!(&b, int!(arg!(args, 1)));
-//     let elem = byte!(arg!(args, 2));
-//
-//     if b.0.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     let mut new = b.0.clone();
-//     new.insert(index, elem.clone());
-//     Ok(Value::bytes(Vector(new)))
-// }
-//
-// pub fn bytes_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b = bytes!(arg!(args, 0));
-//     let index = index!(&b, int!(arg!(args, 1)));
-//
-//     let mut new = b.0.clone();
-//     let _ = new.remove(index);
-//     Ok(Value::bytes(Vector(new)))
-// }
-//
-// pub fn bytes_update(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b = bytes!(arg!(args, 0));
-//     let index = index!(&b, int!(arg!(args, 1)));
-//     let elem = byte!(arg!(args, 2));
-//
-//     Ok(Value::bytes(Vector(b.0.update(index, elem))))
-// }
-//
-// pub fn bytes_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b = bytes!(arg!(args, 0));
-//     let start = index_incl!(&b, int!(arg!(args, 1)));
-//     let end = index_incl!(&b, int!(arg!(args, 2)));
-//
-//     if start > end {
-//         return Err(index_error(end));
-//     }
-//
-//     let mut tmp = b.0.clone();
-//     Ok(Value::bytes(Vector(tmp.slice(start..end))))
-// }
-//
-// pub fn bytes_splice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let b = bytes!(arg!(args, 0));
-//     let index = index_incl!(&b, int!(arg!(args, 1)));
-//     let new = bytes!(arg!(args, 2));
-//
-//     let (mut left, right) = b.0.split_at(index);
-//     left.append(new.0);
-//     left.append(right);
-//
-//     if left.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     Ok(Value::bytes(Vector(left)))
-// }
-//
-// pub fn bytes_concat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let left = bytes!(arg!(args, 0));
-//     let right = bytes!(arg!(args, 1));
-//
-//     let mut ret = left.0.clone();
-//     ret.append(right.0);
-//
-//     if ret.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     Ok(Value::bytes(Vector(ret)))
-// }
-//
-// pub fn bytes_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     let b = bytes!(arg!(args, 0));
-//     let fun = fun!(arg!(args, 1));
-//
-//     for elem in b.0.iter() {
-//         match fun.compute(Vector(ImVector::from(vec![Value::int(*elem as i64)])), cx) {
-//             Ok(yay) => {
-//                 if yay.truthy() {
-//                     return Ok(Value::nil());
-//                 }
-//             }
-//             Err(thrown) => return Err(thrown),
-//         }
-//     }
-//
-//     Ok(Value::nil())
-// }
-//
+pub fn bytes_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let b = bytes!(args.0[0]);
+    Ok(Value::int(b.0.len() as i64))
+}
+
+pub fn bytes_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let b = bytes!(args.0[0]);
+    let index = index!(&b, int!(args.0[1]));
+
+    Ok(Value::int(b.0[index] as i64))
+}
+
+pub fn bytes_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let b = bytes!(args.0[0]);
+    let index = index_incl!(&b, int!(args.0[1]));
+    let elem = byte!(args.0[2]);
+
+    if b.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    let mut new = b.0.clone();
+    new.insert(index, elem.clone());
+    Ok(Value::bytes(Vector(new)))
+}
+
+pub fn bytes_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let b = bytes!(args.0[0]);
+    let index = index!(&b, int!(args.0[1]));
+
+    let mut new = b.0.clone();
+    let _ = new.remove(index);
+    Ok(Value::bytes(Vector(new)))
+}
+
+pub fn bytes_update(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let b = bytes!(args.0[0]);
+    let index = index!(&b, int!(args.0[1]));
+    let elem = byte!(args.0[2]);
+
+    Ok(Value::bytes(Vector(b.0.update(index, elem))))
+}
+
+pub fn bytes_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let b = bytes!(args.0[0]);
+    let start = index_incl!(&b, int!(args.0[1]));
+    let end = index_incl!(&b, int!(args.0[2]));
+
+    if start > end {
+        return Err(index_error(end));
+    }
+
+    let mut tmp = b.0.clone();
+    Ok(Value::bytes(Vector(tmp.slice(start..end))))
+}
+
+pub fn bytes_splice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let b = bytes!(args.0[0]);
+    let index = index_incl!(&b, int!(args.0[1]));
+    let new = bytes!(args.0[2]);
+
+    let (mut left, right) = b.0.split_at(index);
+    left.append(new.0);
+    left.append(right);
+
+    if left.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::bytes(Vector(left)))
+}
+
+pub fn bytes_concat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let left = bytes!(args.0[0]);
+    let right = bytes!(args.0[1]);
+
+    let mut ret = left.0.clone();
+    ret.append(right.0);
+
+    if ret.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::bytes(Vector(ret)))
+}
+
+pub fn bytes_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let b = bytes!(args.0[0]);
+    let fun = fun!(args.0[1]);
+
+    for elem in b.0.iter() {
+        match fun.compute(Vector(ImVector::from(vec![Value::int(*elem as i64)])), cx) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
 // pub fn bytes_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
 //     let b = bytes!(arg!(args, 0));
 //     let fun = fun!(arg!(args, 1));

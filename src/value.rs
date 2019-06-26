@@ -332,6 +332,15 @@ impl Fun {
             Fun::Builtin(Builtin::IntPowWrap) => builtins::int_pow_wrap(args, cx),
             Fun::Builtin(Builtin::IntSignum) => builtins::int_signum(args, cx),
 
+            Fun::Builtin(Builtin::BytesCount) => builtins::bytes_count(args, cx),
+            Fun::Builtin(Builtin::BytesGet) => builtins::bytes_get(args, cx),
+            Fun::Builtin(Builtin::BytesInsert) => builtins::bytes_insert(args, cx),
+            Fun::Builtin(Builtin::BytesRemove) => builtins::bytes_remove(args, cx),
+            Fun::Builtin(Builtin::BytesUpdate) => builtins::bytes_update(args, cx),
+            Fun::Builtin(Builtin::BytesSlice) => builtins::bytes_slice(args, cx),
+            Fun::Builtin(Builtin::BytesSplice) => builtins::bytes_splice(args, cx),
+            Fun::Builtin(Builtin::BytesConcat) => builtins::bytes_concat(args, cx),
+            Fun::Builtin(Builtin::BytesIter) => builtins::bytes_iter(args, cx),
 
             Fun::Builtin(Builtin::AppInsert) => builtins::app_insert(args, cx),
 
