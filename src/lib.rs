@@ -944,4 +944,170 @@ mod tests {
         (assert-throw (bytes-iter-back @[0 1] (fn [b] (throw b))) 1)
         ");
     }
+
+    #[test]
+    fn test_toplevel_char() {
+        test_example("(assert-eq char-max-val '\\{10ffff}')");
+
+        test_example("
+        (assert-eq (int=>char 0x41) 'A')
+        (assert-throw (int=>char 0x110000) { :tag :err-not-unicode-scalar, :got 0x110000})
+        ");
+
+        test_example("
+        (assert (int=>char? 0x41))
+        (assert-not (int=>char? 0x110000))
+        ");
+
+        test_example("(assert-eq (char->int 'A') 0x41)");
+    }
+
+    #[test]
+    fn test_toplevel_string() {
+        test_example(r#"
+        (assert-eq (str-count "") 0)
+        (assert-eq (str-count "a") 1)
+        (assert-eq (str-count "⚗") 1)
+        (assert-eq (str-count "abc") 3)
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-count-utf8 "") 0)
+        (assert-eq (str-count-utf8 "a") 1)
+        (assert-eq (str-count-utf8 "⚗") 3)
+        (assert-eq (str-count-utf8 "abc") 3)
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-get "a" 0) 'a')
+        (assert-eq (str-get "⚗b" 1) 'b')
+        (assert-throw (str-get "" 0) { :tag :err-lookup, :got 0})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-get-utf8 "a" 0) 97)
+        (assert-eq (str-get-utf8 "⚗" 0) 226)
+        (assert-eq (str-get-utf8 "⚗" 1) 154)
+        (assert-eq (str-get-utf8 "⚗" 2) 151)
+        (assert-throw (str-get-utf8 "" 0) { :tag :err-lookup, :got 0})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-index-char->utf8 "a" 0) 0)
+        (assert-eq (str-index-char->utf8 "ab" 1) 1)
+        (assert-eq (str-index-char->utf8 "⚗b" 1) 3)
+        (assert-throw (str-index-char->utf8 "" 0) { :tag :err-lookup, :got 0})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-index-utf8->char "a" 0) 0)
+        (assert-eq (str-index-utf8->char "ab" 1) 1)
+        (assert-eq (str-index-utf8->char "⚗b" 1) 0)
+        (assert-eq (str-index-utf8->char "⚗b" 2) 0)
+        (assert-eq (str-index-utf8->char "⚗b" 3) 1)
+        (assert-throw (str-index-char->utf8 "" 0) { :tag :err-lookup, :got 0})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-insert "ab" 0 'z') "zab")
+        (assert-eq (str-insert "ab" 1 'z') "azb")
+        (assert-eq (str-insert "ab" 2 'z') "abz")
+        (assert-throw (str-insert "ab" 3 'z') { :tag :err-lookup, :got 3})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-remove "ab" 0) "b")
+        (assert-eq (str-remove "ab" 1) "a")
+        (assert-throw (str-remove "ab" 2) { :tag :err-lookup, :got 2})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-update "ab" 0 'z') "zb")
+        (assert-eq (str-update "ab" 1 'z') "az")
+        (assert-throw (str-update "ab" 2 'z') { :tag :err-lookup, :got 2})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-slice "ab" 1 1) "")
+        (assert-eq (str-slice "ab" 0 1) "a")
+        (assert-eq (str-slice "ab" 1 2) "b")
+        (assert-eq (str-slice "ab" 0 2) "ab")
+        (assert-throw (str-slice "" 0 1) { :tag :err-lookup, :got 1})
+        (assert-throw (str-slice "" 2 3) { :tag :err-lookup, :got 2})
+        (assert-throw (str-slice "abcd" 2 1) { :tag :err-lookup, :got 1})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-splice "ab" 0 "cd") "cdab")
+        (assert-eq (str-splice "ab" 1 "cd") "acdb")
+        (assert-eq (str-splice "ab" 2 "cd") "abcd")
+        (assert-throw (str-splice "ab" 3 "cd") { :tag :err-lookup, :got 3})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-concat "ab" "cd") "abcd")
+        (assert-eq (str-concat "" "cd") "cd")
+        (assert-eq (str-concat "ab" "") "ab")
+        "#);
+
+        test_example(r#"
+        (let (:mut out) "z" (do
+            (str-iter "abcd" (fn [elem] (set! out (str-insert out 0 elem))))
+            (assert-eq out "dcbaz")
+        ))
+        (let (:mut out) "z" (do
+            (str-iter "abcd" (fn [elem] (if
+                    (= elem 'c') true
+                    (set! out (str-insert out 0 elem))
+                )))
+            (assert-eq out "baz")
+        ))
+        (assert-throw (str-iter "ab" (fn [c] (throw c))) 'a')
+        "#);
+
+        test_example(r#"
+        (let (:mut out) "z" (do
+            (str-iter-back "abcd" (fn [elem] (set! out (str-insert out 0 elem))))
+            (assert-eq out "abcdz")
+        ))
+        (let (:mut out) "z" (do
+            (str-iter-back "abcd" (fn [elem] (if
+                    (= elem 'c') true
+                    (set! out (str-insert out 0 elem))
+                )))
+            (assert-eq out "dz")
+        ))
+        (assert-throw (str-iter-back "ab" (fn [c] (throw c))) 'b')
+        "#);
+
+        test_example(r#"
+        (let (:mut product) 1 (do
+            (str-iter-utf8 "abc" (fn [elem] (set! product (int-mul product elem))))
+            (assert-eq product 941094)
+        ))
+        (let (:mut product) 1 (do
+            (str-iter-utf8 "abc" (fn [elem] (sf-if
+                    (= elem 98) true
+                    (set! product (int-mul product elem))
+                )))
+            (assert-eq product 97)
+        ))
+        (assert-throw (str-iter-utf8 "abc" (fn [b] (throw b))) 97)
+        "#);
+
+        test_example(r#"
+        (let (:mut product) 1 (do
+            (str-iter-utf8-back "abc" (fn [elem] (set! product (int-mul product elem))))
+            (assert-eq product 941094)
+        ))
+        (let (:mut product) 1 (do
+            (str-iter-utf8-back "abc" (fn [elem] (sf-if
+                    (= elem 98) true
+                    (set! product (int-mul product elem))
+                )))
+            (assert-eq product 99)
+        ))
+        (assert-throw (str-iter-utf8-back "abc" (fn [b] (throw b))) 99)
+        "#);
+    }
 }

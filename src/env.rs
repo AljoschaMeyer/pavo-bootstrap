@@ -75,6 +75,8 @@ pub fn default() -> HashMap<Id, Value> {
     env_add(&mut m, "str-count-utf8", Builtin::StrCountUtf8);
     env_add(&mut m, "str-get", Builtin::StrGet);
     env_add(&mut m, "str-get-utf8", Builtin::StrGetUtf8);
+    env_add(&mut m, "str-index-char->utf8", Builtin::StrIndexCharToUtf8);
+    env_add(&mut m, "str-index-utf8->char", Builtin::StrIndexUtf8ToChar);
     env_add(&mut m, "str-insert", Builtin::StrInsert);
     env_add(&mut m, "str-remove", Builtin::StrRemove);
     env_add(&mut m, "str-update", Builtin::StrUpdate);

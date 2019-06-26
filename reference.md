@@ -1310,8 +1310,6 @@ Starting from the beginning of the bytes `b`, applies the function `fun` to the 
 
 Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
 
-TODO resume unit testing here
-
 ```pavo
 (let (:mut product) 1 (do
     (bytes-iter @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
@@ -1430,7 +1428,7 @@ Time: O(log n), where n is `(str-count s)`.
 
 #### `(str-get-utf8 s index)`
 
-Returns the utf8 byte at the int `index` in the string `s`.
+Returns the utf8 byte at the int `index` (in bytes) in the string `s`.
 
 Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
 
@@ -1442,6 +1440,34 @@ Time: O(log n), where n is `(str-count-utf8 s)`.
 (assert-eq (str-get-utf8 "⚗" 1) 154)
 (assert-eq (str-get-utf8 "⚗" 2) 151)
 (assert-throw (str-get-utf8 "" 0) { :tag :err-lookup, :got 0})
+```
+
+#### `(str-index-char->utf8 str index)`
+
+Finds the character at the int `index` in the string `s`, and returns at which byte index it begins.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+```pavo
+(assert-eq (str-index-char->utf8 "a" 0) 0)
+(assert-eq (str-index-char->utf8 "ab" 1) 1)
+(assert-eq (str-index-char->utf8 "⚗b" 1) 3)
+(assert-throw (str-index-char->utf8 "" 0) { :tag :err-lookup, :got 0})
+```
+
+#### `(str-index-utf8->char str index)`
+
+Finds the utf8 byte at the int `index` (in bytes) in the string `s`, and returns at which position (in characters) the character to which it belongs begins.
+
+Throws `{ :tag :err-lookup, :got index}` if the index is out of bounds.
+
+```pavo
+(assert-eq (str-index-utf8->char "a" 0) 0)
+(assert-eq (str-index-utf8->char "ab" 1) 1)
+(assert-eq (str-index-utf8->char "⚗b" 1) 0)
+(assert-eq (str-index-utf8->char "⚗b" 2) 0)
+(assert-eq (str-index-utf8->char "⚗b" 3) 1)
+(assert-throw (str-index-char->utf8 "" 0) { :tag :err-lookup, :got 0})
 ```
 
 #### `(str-insert s index c)`
@@ -1471,7 +1497,7 @@ Time: O(log n), where n is `(str-count s)`.
 ```pavo
 (assert-eq (str-remove "ab" 0) "b")
 (assert-eq (str-remove "ab" 1) "a")
-(assert-throw (str-remove "ab" 3) { :tag :err-lookup, :got 3})
+(assert-throw (str-remove "ab" 2) { :tag :err-lookup, :got 2})
 ```
 
 #### `(str-update s index c)`
@@ -1518,10 +1544,10 @@ Throws `{ :tag :err-collection-full }` if the resulting string would contain 2^6
 Time: O(log (n + m)), where n is `(str-count old)` and m is `(str-count new)`.
 
 ```pavo
-(assert-eq (str-splice "ab" "cd" 0) "cdab")
-(assert-eq (str-splice "ab" "cd" 1) "acdb")
-(assert-eq (str-splice "ab" "cd" 2) "abcd")
-(assert-throw (str-splice "ab" "cd" 3) { :tag :err-lookup, :got 3})
+(assert-eq (str-splice "ab" 0 "cd") "cdab")
+(assert-eq (str-splice "ab" 1 "cd") "acdb")
+(assert-eq (str-splice "ab" 2 "cd") "abcd")
+(assert-throw (str-splice "ab" 3 "cd") { :tag :err-lookup, :got 3})
 ```
 
 #### `(str-concat left right)`
@@ -1586,11 +1612,41 @@ Starting from the beginning of the string `s`, applies the function `fun` to the
 
 Time: Iteration takes amortized O(n), where n is `(str-count-utf8 s)`.
 
+```pavo
+(let (:mut product) 1 (do
+    (str-iter-utf8 "abc" (fn [elem] (set! product (int-mul product elem))))
+    (assert-eq product 941094)
+))
+(let (:mut product) 1 (do
+    (str-iter-utf8 "abc" (fn [elem] (sf-if
+            (= elem 98) true
+            (set! product (int-mul product elem))
+        )))
+    (assert-eq product 97)
+))
+(assert-throw (str-iter-utf8 "abc" (fn [b] (throw b))) 97)
+```
+
 #### `(str-iter-utf8-back s fun)`
 
 Starting from the back of the string `s`, applies the function `fun` to the utf8 bytes of `s` in reverse order until either `fun` returns a truthy value or the end of the string is reached. Returns `nil`. Propagates any value thrown by `fun`.
 
 Time: Iteration takes amortized O(n), where n is `(str-count-utf8 s)`.
+
+```pavo
+(let (:mut product) 1 (do
+    (str-iter-utf8-back "abc" (fn [elem] (set! product (int-mul product elem))))
+    (assert-eq product 941094)
+))
+(let (:mut product) 1 (do
+    (str-iter-utf8-back "abc" (fn [elem] (sf-if
+            (= elem 98) true
+            (set! product (int-mul product elem))
+        )))
+    (assert-eq product 99)
+))
+(assert-throw (str-iter-utf8-back "abc" (fn [b] (throw b))) 99)
+```
 
 ### Floats
 
