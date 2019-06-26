@@ -571,8 +571,7 @@ pub enum Builtin {
     Exval,
 
     Typeof,
-    Truthy,
-    Falsey,
+    Not,
     Diverge,
 
     Require,

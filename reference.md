@@ -2785,32 +2785,18 @@ Returns a keyword indicating the type of `x`: `:nil`, `:bool`, `:int`, `:float`,
 
 TODO opaque
 
-#### `(truthy? x)`
-
-Returns `false` if `x` is `nil` or `false`, and `true` otherwise.
-
-Equivalent to `(if x true false)`.
-
-```pavo
-(assert-not (truthy? nil))
-(assert-not (truthy? false))
-(assert (truthy? true)
-(assert (truthy? 0))
-(assert (truthy? truthy?))
-```
-
-#### `(falsey? x)`
+#### `(not x)`
 
 Returns `true` if `x` is `nil` or `false`, and `false` otherwise.
 
 Equivalent to `(if x false true)`.
 
 ```pavo
-(assert (falsey? nil))
-(assert (falsey? false))
-(assert-not (falsey? true)
-(assert-not (falsey? 0))
-(assert-not (falsey? falsey?))
+(assert (not nil))
+(assert (not false))
+(assert-not (not true)
+(assert-not (not 0))
+(assert-not (not falsey?))
 ```
 
 #### `(diverge v)`
