@@ -29,11 +29,9 @@ pub fn typeof__(v: &Value) -> Value {
     }
 }
 
-pub fn num_args_error(expected: usize, got: usize) -> Value {
+pub fn num_args_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-num-args")),
-            (Value::kw_str("expected"), Value::int(expected as i64)),
-            (Value::kw_str("got"), Value::int(got as i64)),
         ])))
 }
 
@@ -344,7 +342,7 @@ fn num_args(args: &Vector<Value>, expected: usize) -> Result<(), Value> {
     if args.0.len() == expected {
         Ok(())
     } else {
-        Err(num_args_error(expected, args.0.len()))
+        Err(num_args_error())
     }
 }
 
@@ -1450,212 +1448,233 @@ pub fn is_bits_to_float(args: Vector<Value>, _cx: &mut Context) -> Result<Value,
 
 /////////////////////////////////////////////////////////////////////////////
 
-// pub fn str_to_id(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let a = args.0[0];
-//     let s = string!(a);
-//
-//     if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
-//         return Err(id_error(&a));
-//     }
-//
-//     match parse_id(CompleteStr(&s.0.to_string())) {
-//         Ok(v) => Ok(v),
-//         Err(_) => {
-//             return Err(id_error(&a));
-//         }
-//     }
-// }
-//
-// pub fn is_str_to_id(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     match str_to_id(args, _cx) {
-//         Ok(_) => Ok(Value::bool_(true)),
-//         Err(_) => Ok(Value::bool_(false)),
-//     }
-// }
-//
-// pub fn id_to_str(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let id = id!(args.0[0]);
-//     Ok(Value::string_from_str(&id))
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
-//
-// pub fn str_to_kw(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let a = args.0[0];
-//     let s = string!(a);
-//
-//     if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
-//         return Err(kw_error(&a));
-//     }
-//
-//     for c in s.0.chars() {
-//         if !is_id_char(c) {
-//             return Err(kw_error(&a));
-//         }
-//     }
-//
-//     Ok(Value::kw(s.0.to_string()))
-// }
-//
-// pub fn is_str_to_kw(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let s = string!(args.0[0]);
-//
-//     if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
-//         return Ok(Value::bool_(false));
-//     }
-//
-//     for c in s.0.chars() {
-//         if !is_id_char(c) {
-//             return Ok(Value::bool_(false));
-//         }
-//     }
-//
-//     return Ok(Value::bool_(true));
-// }
-//
-// pub fn kw_to_str(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let kw = kw!(args.0[0]);
-//     Ok(Value::string_from_str(&kw))
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
-//
-// pub fn arr_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let arr = arr!(args.0[0]);
-//     Ok(Value::int(arr.0.len() as i64))
-// }
-//
-// pub fn arr_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let arr = arr!(args.0[0]);
-//     let index = index!(&arr, int!(args.0[1]));
-//
-//     Ok(arr.0[index].clone())
-// }
-//
-// pub fn arr_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let arr = arr!(args.0[0]);
-//     let index = index_incl!(&arr, int!(args.0[1]));
-//     let elem = args.0[2];
-//
-//     if arr.0.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     let mut new = arr.0.clone();
-//     new.insert(index, elem.clone());
-//     Ok(Value::arr(Vector(new)))
-// }
-//
-// pub fn arr_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let arr = arr!(args.0[0]);
-//     let index = index!(&arr, int!(args.0[1]));
-//
-//     let mut new = arr.0.clone();
-//     let _ = new.remove(index);
-//     Ok(Value::arr(Vector(new)))
-// }
-//
-// pub fn arr_update(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let arr = arr!(args.0[0]);
-//     let index = index!(&arr, int!(args.0[1]));
-//     let elem = args.0[2];
-//
-//     Ok(Value::arr(Vector(arr.0.update(index, elem))))
-// }
-//
-// pub fn arr_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let arr = arr!(args.0[0]);
-//     let start = index_incl!(&arr, int!(args.0[1]));
-//     let end = index_incl!(&arr, int!(args.0[2]));
-//
-//     if start > end {
-//         return Err(index_error(end));
-//     }
-//
-//     let mut tmp = arr.0.clone();
-//     Ok(Value::arr(Vector(tmp.slice(start..end))))
-// }
-//
-// pub fn arr_splice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let arr = arr!(args.0[0]);
-//     let index = index_incl!(&arr, int!(args.0[1]));
-//     let new = arr!(args.0[2]);
-//
-//     let (mut left, right) = arr.0.split_at(index);
-//     left.append(new.0);
-//     left.append(right);
-//
-//     if left.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     Ok(Value::arr(Vector(left)))
-// }
-//
-// pub fn arr_concat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let left = arr!(args.0[0]);
-//     let right = arr!(args.0[1]);
-//
-//     let mut ret = left.0.clone();
-//     ret.append(right.0);
-//
-//     if ret.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     Ok(Value::arr(Vector(ret)))
-// }
-//
-// pub fn arr_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     let arr = arr!(args.0[0]);
-//     let fun = fun!(args.0[1]);
-//
-//     for elem in arr.0.iter() {
-//         match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-//             Ok(yay) => {
-//                 if yay.truthy() {
-//                     return Ok(Value::nil());
-//                 }
-//             }
-//             Err(thrown) => return Err(thrown),
-//         }
-//     }
-//
-//     Ok(Value::nil())
-// }
-//
-// pub fn arr_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     let arr = arr!(args.0[0]);
-//     let fun = fun!(args.0[1]);
-//
-//     for elem in arr.0.iter().rev() {
-//         match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-//             Ok(yay) => {
-//                 if yay.truthy() {
-//                     return Ok(Value::nil());
-//                 }
-//             }
-//             Err(thrown) => return Err(thrown),
-//         }
-//     }
-//
-//     Ok(Value::nil())
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
-//
-// pub fn app_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let app = app!(args.0[0]);
-//     Ok(Value::int(app.0.len() as i64))
-// }
-//
-// pub fn app_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let app = app!(args.0[0]);
-//     let index = index!(&app, int!(args.0[1]));
-//
-//     Ok(app.0[index].clone())
-// }
-//
+pub fn str_to_id(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let a = &args.0[0];
+    let s = string!(a);
+
+    if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
+        return Err(id_error(a));
+    }
+
+    match parse_id(CompleteStr(&s.0.to_string())) {
+        Ok(v) => match v.as_user_id() {
+            Some(_) => return Ok(v),
+            None => return Err(id_error(a)),
+        },
+        Err(_) => {
+            return Err(id_error(a));
+        }
+    }
+}
+
+pub fn is_str_to_id(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    match str_to_id(args, _cx) {
+        Ok(_) => Ok(Value::bool_(true)),
+        Err(_) => Ok(Value::bool_(false)),
+    }
+}
+
+pub fn id_to_str(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let id = id!(args.0[0]);
+    Ok(Value::string_from_str(&id))
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn str_to_kw(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let a = &args.0[0];
+    let s = string!(a);
+
+    if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
+        return Err(kw_error(a));
+    }
+
+    for c in s.0.chars() {
+        if !is_id_char(c) {
+            return Err(kw_error(a));
+        }
+    }
+
+    Ok(Value::kw(s.0.to_string()))
+}
+
+pub fn is_str_to_kw(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let s = string!(args.0[0]);
+
+    if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
+        return Ok(Value::bool_(false));
+    }
+
+    for c in s.0.chars() {
+        if !is_id_char(c) {
+            return Ok(Value::bool_(false));
+        }
+    }
+
+    return Ok(Value::bool_(true));
+}
+
+pub fn kw_to_str(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let kw = kw!(args.0[0]);
+    Ok(Value::string_from_str(&kw))
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn arr_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let arr = arr!(args.0[0]);
+    Ok(Value::int(arr.0.len() as i64))
+}
+
+pub fn arr_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let arr = arr!(args.0[0]);
+    let index = index!(&arr, int!(args.0[1]));
+
+    Ok(arr.0[index].clone())
+}
+
+pub fn arr_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let arr = arr!(args.0[0]);
+    let index = index_incl!(&arr, int!(args.0[1]));
+    let elem = &args.0[2];
+
+    if arr.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    let mut new = arr.0.clone();
+    new.insert(index, elem.clone());
+    Ok(Value::arr(Vector(new)))
+}
+
+pub fn arr_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let arr = arr!(args.0[0]);
+    let index = index!(&arr, int!(args.0[1]));
+
+    let mut new = arr.0.clone();
+    let _ = new.remove(index);
+    Ok(Value::arr(Vector(new)))
+}
+
+pub fn arr_update(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let arr = arr!(args.0[0]);
+    let index = index!(&arr, int!(args.0[1]));
+    let elem = &args.0[2];
+
+    Ok(Value::arr(Vector(arr.0.update(index, elem.clone()))))
+}
+
+pub fn arr_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let arr = arr!(args.0[0]);
+    let start = index_incl!(&arr, int!(args.0[1]));
+    let end = index_incl!(&arr, int!(args.0[2]));
+
+    if start > end {
+        return Err(index_error(end));
+    }
+
+    let mut tmp = arr.0.clone();
+    Ok(Value::arr(Vector(tmp.slice(start..end))))
+}
+
+pub fn arr_splice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let arr = arr!(args.0[0]);
+    let index = index_incl!(&arr, int!(args.0[1]));
+    let new = arr!(args.0[2]);
+
+    let (mut left, right) = arr.0.split_at(index);
+    left.append(new.0);
+    left.append(right);
+
+    if left.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::arr(Vector(left)))
+}
+
+pub fn arr_concat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let left = arr!(args.0[0]);
+    let right = arr!(args.0[1]);
+
+    let mut ret = left.0.clone();
+    ret.append(right.0);
+
+    if ret.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::arr(Vector(ret)))
+}
+
+pub fn arr_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let arr = arr!(args.0[0]);
+    let fun = fun!(args.0[1]);
+
+    for elem in arr.0.iter() {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn arr_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let arr = arr!(args.0[0]);
+    let fun = fun!(args.0[1]);
+
+    for elem in arr.0.iter().rev() {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn app_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let app = app!(args.0[0]);
+    Ok(Value::int(app.0.len() as i64))
+}
+
+pub fn app_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let app = app!(args.0[0]);
+    let index = index!(&app, int!(args.0[1]));
+
+    Ok(app.0[index].clone())
+}
+
 pub fn app_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 3)?;
     let app = app!(args.0[0]);
@@ -1671,414 +1690,465 @@ pub fn app_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value
     Ok(Value::app(Vector(new)))
 }
 
-// pub fn app_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let app = app!(args.0[0]);
-//     let index = index!(&app, int!(args.0[1]));
-//
-//     let mut new = app.0.clone();
-//     let _ = new.remove(index);
-//     Ok(Value::app(Vector(new)))
-// }
-//
-// pub fn app_update(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let app = app!(args.0[0]);
-//     let index = index!(&app, int!(args.0[1]));
-//     let elem = args.0[2];
-//
-//     Ok(Value::app(Vector(app.0.update(index, elem))))
-// }
-//
-// pub fn app_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let app = app!(args.0[0]);
-//     let start = index_incl!(&app, int!(args.0[1]));
-//     let end = index_incl!(&app, int!(args.0[2]));
-//
-//     if start > end {
-//         return Err(index_error(end));
-//     }
-//
-//     let mut tmp = app.0.clone();
-//     Ok(Value::app(Vector(tmp.slice(start..end))))
-// }
-//
-// pub fn app_splice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let app = app!(args.0[0]);
-//     let index = index_incl!(&app, int!(args.0[1]));
-//     let new = app!(args.0[2]);
-//
-//     let (mut left, right) = app.0.split_at(index);
-//     left.append(new.0);
-//     left.append(right);
-//
-//     if left.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     Ok(Value::app(Vector(left)))
-// }
-//
-// pub fn app_concat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let left = app!(args.0[0]);
-//     let right = app!(args.0[1]);
-//
-//     let mut ret = left.0.clone();
-//     ret.append(right.0);
-//
-//     if ret.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     Ok(Value::app(Vector(ret)))
-// }
-//
-// pub fn app_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     let app = app!(args.0[0]);
-//     let fun = fun!(args.0[1]);
-//
-//     for elem in app.0.iter() {
-//         match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-//             Ok(yay) => {
-//                 if yay.truthy() {
-//                     return Ok(Value::nil());
-//                 }
-//             }
-//             Err(thrown) => return Err(thrown),
-//         }
-//     }
-//
-//     Ok(Value::nil())
-// }
-//
-// pub fn app_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     let app = app!(args.0[0]);
-//     let fun = fun!(args.0[1]);
-//
-//     for elem in app.0.iter().rev() {
-//         match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-//             Ok(yay) => {
-//                 if yay.truthy() {
-//                     return Ok(Value::nil());
-//                 }
-//             }
-//             Err(thrown) => return Err(thrown),
-//         }
-//     }
-//
-//     Ok(Value::nil())
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
-//
-// pub fn set_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let set = set!(args.0[0]);
-//     Ok(Value::int(set.0.len() as i64))
-// }
-//
-// pub fn set_contains(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let set = set!(args.0[0]);
-//     let needle = args.0[1];
-//
-//     Ok(Value::bool_(set.0.contains(&needle)))
-// }
-//
-// pub fn set_min(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let set = set!(args.0[0]);
-//
-//     match set.0.get_min() {
-//         Some(min) => Ok(min.clone()),
-//         None => Err(coll_empty_error()),
-//     }
-// }
-//
-// pub fn set_max(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let set = set!(args.0[0]);
-//
-//     match set.0.get_max() {
-//         Some(min) => Ok(min.clone()),
-//         None => Err(coll_empty_error()),
-//     }
-// }
-//
-// pub fn set_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let set = set!(args.0[0]);
-//     let new = args.0[1];
-//
-//     if set.0.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     let mut ret = set.0.clone();
-//     ret.insert(new.clone());
-//     Ok(Value::set(OrdSet(ret)))
-// }
-//
-// pub fn set_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let set = set!(args.0[0]);
-//     let elem = args.0[1];
-//
-//     let mut new = set.0.clone();
-//     let _ = new.remove(&elem);
-//     Ok(Value::set(OrdSet(new)))
-// }
-//
-// pub fn set_union(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let lhs = set!(args.0[0]);
-//     let rhs = set!(args.0[1]);
-//
-//     let ret = lhs.0.union(rhs.0);
-//     if ret.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//     Ok(Value::set(OrdSet(ret)))
-// }
-//
-// pub fn set_intersection(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let lhs = set!(args.0[0]);
-//     let rhs = set!(args.0[1]);
-//
-//     let ret = lhs.0.intersection(rhs.0);
-//     Ok(Value::set(OrdSet(ret)))
-// }
-//
-// pub fn set_difference(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let lhs = set!(args.0[0]);
-//     let rhs = set!(args.0[1]);
-//
-//     let mut ret = lhs.0.clone();
-//
-//     for elem in rhs.0.iter() {
-//         let _ = ret.remove(elem);
-//     }
-//
-//     Ok(Value::set(OrdSet(ret)))
-// }
-//
-// pub fn set_symmetric_difference(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let lhs = set!(args.0[0]);
-//     let rhs = set!(args.0[1]);
-//
-//     let ret = lhs.0.difference(rhs.0);
-//     Ok(Value::set(OrdSet(ret)))
-// }
-//
-// pub fn set_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     let set = set!(args.0[0]);
-//     let fun = fun!(args.0[1]);
-//
-//     for elem in set.0.iter() {
-//         match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-//             Ok(yay) => {
-//                 if yay.truthy() {
-//                     return Ok(Value::nil());
-//                 }
-//             }
-//             Err(thrown) => return Err(thrown),
-//         }
-//     }
-//
-//     Ok(Value::nil())
-// }
-//
-// pub fn set_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     let set = set!(args.0[0]);
-//     let fun = fun!(args.0[1]);
-//
-//     for elem in set.0.iter().rev() {
-//         match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-//             Ok(yay) => {
-//                 if yay.truthy() {
-//                     return Ok(Value::nil());
-//                 }
-//             }
-//             Err(thrown) => return Err(thrown),
-//         }
-//     }
-//
-//     Ok(Value::nil())
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
-//
-// pub fn map_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//     Ok(Value::int(map.0.len() as i64))
-// }
-//
-// pub fn map_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//     let key = args.0[1];
-//
-//     match map.0.get(&key) {
-//         Some(val) => Ok(val.clone()),
-//         None => Err(lookup_error(key)),
-//     }
-// }
-//
-// pub fn map_contains(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//     let key = args.0[1];
-//
-//     Ok(Value::bool_(map.0.contains_key(&key)))
-// }
-//
-// pub fn map_min(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//
-//     match map.0.get_min() {
-//         Some(min) => Ok(min.1.clone()),
-//         None => Err(coll_empty_error()),
-//     }
-// }
-//
-// pub fn map_min_key(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//
-//     match map.0.get_min() {
-//         Some(min) => Ok(min.0.clone()),
-//         None => Err(coll_empty_error()),
-//     }
-// }
-//
-// pub fn map_min_entry(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//
-//     match map.0.get_min() {
-//         Some(min) => Ok(Value::arr_from_vec(vec![min.0.clone(), min.1.clone()])),
-//         None => Err(coll_empty_error()),
-//     }
-// }
-//
-// pub fn map_max(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//
-//     match map.0.get_max() {
-//         Some(max) => Ok(max.1.clone()),
-//         None => Err(coll_empty_error()),
-//     }
-// }
-//
-// pub fn map_max_key(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//
-//     match map.0.get_max() {
-//         Some(max) => Ok(max.0.clone()),
-//         None => Err(coll_empty_error()),
-//     }
-// }
-//
-// pub fn map_max_entry(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//
-//     match map.0.get_max() {
-//         Some(max) => Ok(Value::arr_from_vec(vec![max.0.clone(), max.1.clone()])),
-//         None => Err(coll_empty_error()),
-//     }
-// }
-//
-// pub fn map_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//     let key = args.0[1];
-//     let value = args.0[2];
-//
-//     if map.0.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//
-//     let mut ret = map.0.clone();
-//     ret.insert(key.clone(), value.clone());
-//     Ok(Value::map(OrdMap(ret)))
-// }
-//
-// pub fn map_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//     let key = args.0[1];
-//
-//     let mut new = map.0.clone();
-//     let _ = new.remove(&key);
-//     Ok(Value::map(OrdMap(new)))
-// }
-//
-// pub fn map_union(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let lhs = map!(args.0[0]);
-//     let rhs = map!(args.0[1]);
-//
-//     let ret = lhs.0.union(rhs.0);
-//     if ret.len() >= (i64::max as usize) {
-//         return Err(coll_full_error());
-//     }
-//     Ok(Value::map(OrdMap(ret)))
-// }
-//
-// pub fn map_intersection(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let lhs = map!(args.0[0]);
-//     let rhs = map!(args.0[1]);
-//
-//     let ret = lhs.0.intersection(rhs.0);
-//     Ok(Value::map(OrdMap(ret)))
-// }
-//
-// pub fn map_difference(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let lhs = map!(args.0[0]);
-//     let rhs = map!(args.0[1]);
-//
-//     let mut ret = lhs.0.clone();
-//
-//     for key in rhs.0.keys() {
-//         let _ = ret.remove(key);
-//     }
-//
-//     Ok(Value::map(OrdMap(ret)))
-// }
-//
-// pub fn map_symmetric_difference(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let lhs = map!(args.0[0]);
-//     let rhs = map!(args.0[1]);
-//
-//     let ret = lhs.0.difference(rhs.0);
-//     Ok(Value::map(OrdMap(ret)))
-// }
-//
-// pub fn map_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//     let fun = fun!(args.0[1]);
-//
-//     for entry in map.0.iter() {
-//         match fun.compute(Vector(ImVector::from(vec![entry.0.clone(), entry.1.clone()])), cx) {
-//             Ok(yay) => {
-//                 if yay.truthy() {
-//                     return Ok(Value::nil());
-//                 }
-//             }
-//             Err(thrown) => return Err(thrown),
-//         }
-//     }
-//
-//     Ok(Value::nil())
-// }
-//
-// pub fn map_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     let map = map!(args.0[0]);
-//     let fun = fun!(args.0[1]);
-//
-//     for entry in map.0.iter().rev() {
-//         match fun.compute(Vector(ImVector::from(vec![entry.0.clone(), entry.1.clone()])), cx) {
-//             Ok(yay) => {
-//                 if yay.truthy() {
-//                     return Ok(Value::nil());
-//                 }
-//             }
-//             Err(thrown) => return Err(thrown),
-//         }
-//     }
-//
-//     Ok(Value::nil())
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
-//
-// pub fn symbol(_args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::symbol(cx))
-// }
+pub fn app_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let app = app!(args.0[0]);
+    let index = index!(&app, int!(args.0[1]));
+
+    let mut new = app.0.clone();
+    let _ = new.remove(index);
+    Ok(Value::app(Vector(new)))
+}
+
+pub fn app_update(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let app = app!(args.0[0]);
+    let index = index!(&app, int!(args.0[1]));
+    let elem = args.0[2].clone();
+
+    Ok(Value::app(Vector(app.0.update(index, elem))))
+}
+
+pub fn app_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let app = app!(args.0[0]);
+    let start = index_incl!(&app, int!(args.0[1]));
+    let end = index_incl!(&app, int!(args.0[2]));
+
+    if start > end {
+        return Err(index_error(end));
+    }
+
+    let mut tmp = app.0.clone();
+    Ok(Value::app(Vector(tmp.slice(start..end))))
+}
+
+pub fn app_splice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let app = app!(args.0[0]);
+    let index = index_incl!(&app, int!(args.0[1]));
+    let new = app!(args.0[2]);
+
+    let (mut left, right) = app.0.split_at(index);
+    left.append(new.0);
+    left.append(right);
+
+    if left.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::app(Vector(left)))
+}
+
+pub fn app_concat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let left = app!(args.0[0]);
+    let right = app!(args.0[1]);
+
+    let mut ret = left.0.clone();
+    ret.append(right.0);
+
+    if ret.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::app(Vector(ret)))
+}
+
+pub fn app_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let app = app!(args.0[0]);
+    let fun = fun!(args.0[1]);
+
+    for elem in app.0.iter() {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn app_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let app = app!(args.0[0]);
+    let fun = fun!(args.0[1]);
+
+    for elem in app.0.iter().rev() {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn app_apply(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let a = app!(args.0[0]);
+
+    if a.0.len() == 0 {
+        return Err(lookup_error(Value::int(0)));
+    } else {
+        match a.0[0].as_fun() {
+            None => return Err(type_error(&a.0[0], "function")),
+            Some(fun) => fun.compute(Vector(a.0.skip(1)), cx),
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn set_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let set = set!(args.0[0]);
+    Ok(Value::int(set.0.len() as i64))
+}
+
+pub fn set_contains(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+    let needle = args.0[1].clone();
+
+    Ok(Value::bool_(set.0.contains(&needle)))
+}
+
+pub fn set_min(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let set = set!(args.0[0]);
+
+    match set.0.get_min() {
+        Some(min) => Ok(min.clone()),
+        None => Err(coll_empty_error()),
+    }
+}
+
+pub fn set_max(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let set = set!(args.0[0]);
+
+    match set.0.get_max() {
+        Some(min) => Ok(min.clone()),
+        None => Err(coll_empty_error()),
+    }
+}
+
+pub fn set_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+    let new = args.0[1].clone();
+
+    if set.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    let mut ret = set.0.clone();
+    ret.insert(new.clone());
+    Ok(Value::set(OrdSet(ret)))
+}
+
+pub fn set_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+    let elem = args.0[1].clone();
+
+    let mut new = set.0.clone();
+    let _ = new.remove(&elem);
+    Ok(Value::set(OrdSet(new)))
+}
+
+pub fn set_union(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let lhs = set!(args.0[0]);
+    let rhs = set!(args.0[1]);
+
+    let ret = lhs.0.union(rhs.0);
+    if ret.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+    Ok(Value::set(OrdSet(ret)))
+}
+
+pub fn set_intersection(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let lhs = set!(args.0[0]);
+    let rhs = set!(args.0[1]);
+
+    let ret = lhs.0.intersection(rhs.0);
+    Ok(Value::set(OrdSet(ret)))
+}
+
+pub fn set_difference(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let lhs = set!(args.0[0]);
+    let rhs = set!(args.0[1]);
+
+    let mut ret = lhs.0.clone();
+
+    for elem in rhs.0.iter() {
+        let _ = ret.remove(elem);
+    }
+
+    Ok(Value::set(OrdSet(ret)))
+}
+
+pub fn set_symmetric_difference(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let lhs = set!(args.0[0]);
+    let rhs = set!(args.0[1]);
+
+    let ret = lhs.0.difference(rhs.0);
+    Ok(Value::set(OrdSet(ret)))
+}
+
+pub fn set_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+    let fun = fun!(args.0[1]);
+
+    for elem in set.0.iter() {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn set_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+    let fun = fun!(args.0[1]);
+
+    for elem in set.0.iter().rev() {
+        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn map_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let map = map!(args.0[0]);
+    Ok(Value::int(map.0.len() as i64))
+}
+
+pub fn map_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+    let key = args.0[1].clone();
+
+    match map.0.get(&key) {
+        Some(val) => Ok(val.clone()),
+        None => Err(lookup_error(key)),
+    }
+}
+
+pub fn map_contains(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+    let key = args.0[1].clone();
+
+    Ok(Value::bool_(map.0.contains_key(&key)))
+}
+
+pub fn map_min(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let map = map!(args.0[0]);
+
+    match map.0.get_min() {
+        Some(min) => Ok(min.1.clone()),
+        None => Err(coll_empty_error()),
+    }
+}
+
+pub fn map_min_key(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let map = map!(args.0[0]);
+
+    match map.0.get_min() {
+        Some(min) => Ok(min.0.clone()),
+        None => Err(coll_empty_error()),
+    }
+}
+
+pub fn map_min_entry(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let map = map!(args.0[0]);
+
+    match map.0.get_min() {
+        Some(min) => Ok(Value::arr_from_vec(vec![min.0.clone(), min.1.clone()])),
+        None => Err(coll_empty_error()),
+    }
+}
+
+pub fn map_max(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let map = map!(args.0[0]);
+
+    match map.0.get_max() {
+        Some(max) => Ok(max.1.clone()),
+        None => Err(coll_empty_error()),
+    }
+}
+
+pub fn map_max_key(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let map = map!(args.0[0]);
+
+    match map.0.get_max() {
+        Some(max) => Ok(max.0.clone()),
+        None => Err(coll_empty_error()),
+    }
+}
+
+pub fn map_max_entry(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let map = map!(args.0[0]);
+
+    match map.0.get_max() {
+        Some(max) => Ok(Value::arr_from_vec(vec![max.0.clone(), max.1.clone()])),
+        None => Err(coll_empty_error()),
+    }
+}
+
+pub fn map_insert(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let map = map!(args.0[0]);
+    let key = args.0[1].clone();
+    let value = args.0[2].clone();
+
+    if map.0.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+
+    let mut ret = map.0.clone();
+    ret.insert(key.clone(), value.clone());
+    Ok(Value::map(OrdMap(ret)))
+}
+
+pub fn map_remove(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+    let key = args.0[1].clone();
+
+    let mut new = map.0.clone();
+    let _ = new.remove(&key);
+    Ok(Value::map(OrdMap(new)))
+}
+
+pub fn map_union(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let lhs = map!(args.0[0]);
+    let rhs = map!(args.0[1]);
+
+    let ret = lhs.0.union(rhs.0);
+    if ret.len() >= (i64::max as usize) {
+        return Err(coll_full_error());
+    }
+    Ok(Value::map(OrdMap(ret)))
+}
+
+pub fn map_intersection(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let lhs = map!(args.0[0]);
+    let rhs = map!(args.0[1]);
+
+    let ret = lhs.0.intersection(rhs.0);
+    Ok(Value::map(OrdMap(ret)))
+}
+
+pub fn map_difference(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let lhs = map!(args.0[0]);
+    let rhs = map!(args.0[1]);
+
+    let mut ret = lhs.0.clone();
+
+    for key in rhs.0.keys() {
+        let _ = ret.remove(key);
+    }
+
+    Ok(Value::map(OrdMap(ret)))
+}
+
+pub fn map_symmetric_difference(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let lhs = map!(args.0[0]);
+    let rhs = map!(args.0[1]);
+
+    let ret = lhs.0.difference(rhs.0);
+    Ok(Value::map(OrdMap(ret)))
+}
+
+pub fn map_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+    let fun = fun!(args.0[1]);
+
+    for entry in map.0.iter() {
+        match fun.compute(Vector(ImVector::from(vec![entry.0.clone(), entry.1.clone()])), cx) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+pub fn map_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+    let fun = fun!(args.0[1]);
+
+    for entry in map.0.iter().rev() {
+        match fun.compute(Vector(ImVector::from(vec![entry.0.clone(), entry.1.clone()])), cx) {
+            Ok(yay) => {
+                if yay.truthy() {
+                    return Ok(Value::nil());
+                }
+            }
+            Err(thrown) => return Err(thrown),
+        }
+    }
+
+    Ok(Value::nil())
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn symbol(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 0)?;
+    Ok(Value::symbol(cx))
+}
 
 /////////////////////////////////////////////////////////////////////////////
 

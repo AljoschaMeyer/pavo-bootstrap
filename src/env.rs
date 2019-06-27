@@ -164,10 +164,10 @@ pub fn default() -> HashMap<Id, Value> {
     env_add(&mut m, "app-concat", Builtin::AppConcat);
     env_add(&mut m, "app-iter", Builtin::AppIter);
     env_add(&mut m, "app-iter-back", Builtin::AppIterBack);
-    env_add(&mut m, "app-applyr", Builtin::AppApply);
+    env_add(&mut m, "app-apply", Builtin::AppApply);
 
     env_add(&mut m, "set-count", Builtin::SetCount);
-    env_add(&mut m, "set-contains", Builtin::SetContains);
+    env_add(&mut m, "set-contains?", Builtin::SetContains);
     env_add(&mut m, "set-min", Builtin::SetMin);
     env_add(&mut m, "set-max", Builtin::SetMax);
     env_add(&mut m, "set-insert", Builtin::SetInsert);
@@ -181,7 +181,7 @@ pub fn default() -> HashMap<Id, Value> {
 
     env_add(&mut m, "map-count", Builtin::MapCount);
     env_add(&mut m, "map-get", Builtin::MapGet);
-    env_add(&mut m, "map-contains", Builtin::MapContains);
+    env_add(&mut m, "map-contains?", Builtin::MapContains);
     env_add(&mut m, "map-min", Builtin::MapMin);
     env_add(&mut m, "map-min-key", Builtin::MapMinKey);
     env_add(&mut m, "map-min-entry", Builtin::MapMinEntry);

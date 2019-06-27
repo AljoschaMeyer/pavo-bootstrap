@@ -250,7 +250,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
             }
             Some(num_args) => {
                 if args.0.len() != num_args {
-                    return Err(num_args_error(num_args, args.0.len()));
+                    return Err(num_args_error());
                 }
 
                 for (i, arg) in args.0.iter().enumerate() {

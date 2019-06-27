@@ -333,11 +333,16 @@ pub fn read(i: CompleteStr) -> Result<Value, ParseError> {
 }
 
 pub fn parse_id(i: CompleteStr) -> Result<Value, ParseError> {
-    match id(i) {
-        Ok((_, o)) => return Ok(o),
-        Err(Err::Incomplete(_)) => unreachable!(),
-        Err(Err::Error(cx)) | Err(Err::Failure(cx)) => {
-            return Err(ParseError(cx.into_error_kind()));
+    match num(i) {
+        Ok(..) => return Err(ParseError(ErrorKind::RegexpMatch)),
+        _ => {
+            match id(i) {
+                Ok((_, o)) => return Ok(o),
+                Err(Err::Incomplete(_)) => unreachable!(),
+                Err(Err::Error(cx)) | Err(Err::Failure(cx)) => {
+                    return Err(ParseError(cx.into_error_kind()));
+                }
+            }
         }
     }
 }

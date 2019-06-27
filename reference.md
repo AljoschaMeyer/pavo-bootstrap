@@ -465,10 +465,13 @@ Names (identifiers and symbols) evaluate to the value to which they are bound in
 
 Applications are where the magic happens. If the application contains zero items, the evaluation stops immediately by throwing `{:tag :err-lookup :got 0}`. If the first item of an application is the identifier of a special form, application proceeds as described in the section on that particular special form. Otherwise, the contained values are evaluated in iteration order. If the evaluation of an inner value throws an error, the evaluation of the application stops by throwing that same error. If no inner evaluation errors, the type of the evaluation result of the first item is checked. If it is not a function, the evaluation stops by throwing `{:tag :err-type, :expected :function, :got <the_actual_type_as_a_keyword>}`. Otherwise, the function is applied to the remaining results.
 
+If a function is invoked with an incorrect number of args, it throws a map `{ :tag :err-num-args}`.
+
 ```pavo
 (assert-throw ((sf-throw :b) (sf-throw :a)) :b)
 (assert-throw () {:tag :err-lookup :got 0})
 (assert-throw (42) {:tag :err-type, :expected :function, :got :int})
+(assert-throw (int-add 1) {:tag :err-num-args})
 ```
 
 ### Special Forms
@@ -568,7 +571,7 @@ In the `(sf-lambda [<args>] body)` version, when applying the function to some a
 ```pavo
 (assert-eq (typeof (sf-lambda [] nil)) :function)
 (assert-eq ((sf-lambda [] 42)) 42)
-(assert-throw ((sf-lambda [] 42) :an-argument) {:tag :err-num-args, :expected 0, :got 1})
+(assert-throw ((sf-lambda [] 42) :an-argument) {:tag :err-num-args})
 (assert-eq ((sf-lambda [a b] (int-add a b)) 1 2) 3)
 (assert-eq ((sf-lambda [a (:mut b)] (sf-do (sf-set! b 3) (int-add a b))) 1 2) 4)
 (assert-eq ((sf-lambda [a a] a) 0 1) 1)
@@ -601,13 +604,13 @@ Whenever a function is described to "throw a type error", it throws a map `{ :ta
 
 Whenever an argument is referred to as a "positive int", but an int less than zero is supplied, the function throws `{ :tag :err-negative, :got <got>}`, where `<got>` is the supplied, negative int.
 
-If a function is invoked with an incorrect number of args, it throws a map `{ :tag :err-num-args, expected: <expected>, :got <got>}`, where `<expected>` is the number of arguments the function expected to take, and `got` is the number of arguments that were supplied.
+If a function is invoked with an incorrect number of args, it throws a map `{ :tag :err-num-args}`.
 
 The precedence of errors is as follows: First, the number of arguments is checked, then the supplied arguments are checked in sequence. Checking an argument means first checking the type, and then any additional properties (such as non-negativity).
 
 ```pavo
-(assert-throw (bool-not) { :tag :err-num-args, :expected 1, :got 0 })
-(assert-throw (bool-not 42 43) { :tag :err-num-args, :expected 1, :got 2 })
+(assert-throw (bool-not) { :tag :err-num-args})
+(assert-throw (bool-not 42 43) { :tag :err-num-args})
 (assert-throw (bool-not 42) { :tag :err-type, :expected :bool, :got :int })
 (assert-throw (int-pow-wrap :nope "nope") { :tag :err-type, :expected :int, :got :keyword})
 (assert-throw (int-pow-wrap 2 :nope) { :tag :err-type, :expected :int, :got :keyword})
@@ -2081,7 +2084,7 @@ Throws `:nan`, `:inf` or `:-inf` if the bit pattern represents on of these in IE
 
 #### `(bits=>float? n)`
 
-Returns whether applying `bits=>float` to the float `n` would wrk (`true`) or throw an error (`false`).
+Returns whether applying `bits=>float` to the float `n` would work (`true`) or throw an error (`false`).
 
 ```pavo
 (assert-eq (bits=>float? 42) true)
@@ -2092,20 +2095,23 @@ Returns whether applying `bits=>float` to the float `n` would wrk (`true`) or th
 
 ### Identifiers
 
-TODO bla
+Identifiers are intended to be used for syntax. If you find yourself using these functions a lot (possibly at all), ask yourself whether it is really necessary. These function primarily exist so that identifiers can be serialized and deserialized without horribly misusing `read` and `write` to do so.
 
 #### `(str=>id s)`
 
 Returns an identifier created from the string `s`.
 
-Throws `{ :tag :err-identifier, :got s}` if it would not be a valid identifier (empty, longer than 255 characters, or containing invalid characters). TODO other errors: nil, bools, numbers
+Throws `{ :tag :err-identifier, :got s}` if it would not be a valid identifier (empty, longer than 255 characters, containing invalid characters, or would be a nil, bool, int or float literal).
 
 Time: O(n) where n is `(str-count s)`.
 
 ```pavo
 (assert-eq (str=>id "foo") $foo)
-(assert-eq (str=>id "nil") $nil) XXX
-(assert-eq (str=>id "42") $42) XXX
+(assert-throw (str=>id "nil") { :tag :err-identifier, :got "nil" })
+(assert-throw (str=>id "true") { :tag :err-identifier, :got "true" })
+(assert-throw (str=>id "false") { :tag :err-identifier, :got "false" })
+(assert-throw (str=>id "42") { :tag :err-identifier, :got "42" })
+(assert-throw (str=>id "1.2") { :tag :err-identifier, :got "1.2" })
 (assert-throw (str=>id "") { :tag :err-identifier, :got ""})
 (assert-throw (str=>id "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-identifier, :got "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"})
 (assert-throw (str=>id ":a") { :tag :err-identifier, :got ":a"})
@@ -2114,14 +2120,17 @@ Time: O(n) where n is `(str-count s)`.
 
 #### `(str=>id? s)`
 
-Returns whether the string `s` would be a valid identifier, i.e. it is neither empty nor longer than 255 characters, contains only valid identifier characters, and is not a different literal.
+Returns whether the string `s` would be a valid identifier, i.e. it is neither empty nor longer than 255 characters, contains only valid identifier characters, and is not a nil, bool, int or float literal.
 
 ```pavo
 (assert-eq (str=>id? "foo") true)
 (assert-eq (str=>id? "nil") false)
+(assert-eq (str=>id? "true") false)
+(assert-eq (str=>id? "false") false)
 (assert-eq (str=>id? "42") false)
 (assert-eq (str=>id? "-_") true)
 (assert-eq (str=>id? "-42") false)
+(assert-eq (str=>id? "1.2") false)
 (assert-eq (str=>id? "") false)
 (assert-eq (str=>id? "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") false)
 (assert-eq (str=>id? "ß") false)
@@ -2130,7 +2139,7 @@ Returns whether the string `s` would be a valid identifier, i.e. it is neither e
 
 #### `(id->str id)`
 
-Returns the string that corresponds to the given identfier `id.
+Returns the string that corresponds to the given identfier `id`.
 
 ```pavo
 (assert-eq (id->str $foo) "foo")
@@ -2138,7 +2147,7 @@ Returns the string that corresponds to the given identfier `id.
 
 ### Keywords
 
-TODO bla
+Just like identifiers, keywords are primarily to be compared, not to be dynamically computed. These function primarily exist so that keywords can be serialized and deserialized without horribly misusing `read` and `write` to do so.
 
 #### `(str=>kw s)`
 
@@ -2283,10 +2292,10 @@ Throws `{ :tag :err-collection-full }` if the resulting array would contain 2^63
 Time: O(log (n + m)), where n is `(arr-count old)` and m is `(arr-count new)`.
 
 ```pavo
-(assert-eq (arr-splice [0 1] [10 11] 0) [10 11 0 1])
-(assert-eq (arr-splice [0 1] [10 11] 1) [0 10 11 1])
-(assert-eq (arr-splice [0 1] [10 11] 2) [0 1 10 11])
-(assert-throw (arr-splice [0 1] [10 11] 3) { :tag :err-lookup, :got 3})
+(assert-eq (arr-splice [0 1] 0 [10 11]) [10 11 0 1])
+(assert-eq (arr-splice [0 1] 1 [10 11]) [0 10 11 1])
+(assert-eq (arr-splice [0 1] 2 [10 11]) [0 1 10 11])
+(assert-throw (arr-splice [0 1] 3 [10 11]) { :tag :err-lookup, :got 3})
 ```
 
 #### `(arr-concat left right)`
@@ -2446,10 +2455,10 @@ Throws `{ :tag :err-collection-full }` if the resulting application would contai
 Time: O(log (n + m)), where n is `(app-count old)` and m is `(app-count new)`.
 
 ```pavo
-(assert-eq (app-splice $(0 1) $(10 11) 0) $(10 11 0 1))
-(assert-eq (app-splice $(0 1) $(10 11) 1) $(0 10 11 1))
-(assert-eq (app-splice $(0 1) $(10 11) 2) $(0 1 10 11))
-(assert-throw (app-splice $(0 1) $(10 11) 3) { :tag :err-lookup, :got 3})
+(assert-eq (app-splice $(0 1) 0 $(10 11)) $(10 11 0 1))
+(assert-eq (app-splice $(0 1) 1 $(10 11)) $(0 10 11 1))
+(assert-eq (app-splice $(0 1) 2 $(10 11)) $(0 1 10 11))
+(assert-throw (app-splice $(0 1) 3 $(10 11)) { :tag :err-lookup, :got 3})
 ```
 
 #### `(app-concat left right)`
@@ -2510,12 +2519,18 @@ Time: Iteration takes amortized O(n), where n is `(app-count app)`.
 
 #### `(app-apply app)`
 
-Applies the first value in the application to the remaining values.
+Applies the first value in the application `app` to the remaining values.
 
-TODO wrap errors or not?
-TODO examples
+```pavo
+(assert-eq (app-apply `(;int-add 1 2)) 3)
+(assert-throw (app-apply `(;int-add 1)) {:tag :err-num-args})
+(assert-throw (app-apply $()) {:tag :err-lookup :got 0})
+(assert-throw (app-apply $(42)) {:tag :err-type, :expected :function, :got :int})
+```
 
 ### Sets
+
+Sets are unordered collections of up to `2^63 - 1` unique values.
 
 #### `(set-count set)`
 
@@ -2625,7 +2640,7 @@ Returns the set that contains all the elements contained in the set `lhs` but no
 
 ```pavo
 (assert-eq (set-difference @{1 2} @{2 3}) @{1})
-(assert-eq (set-difference @{1 2} @{}) @{})
+(assert-eq (set-difference @{1 2} @{}) @{1 2})
 (assert-eq (set-difference @{} @{2 3}) @{})
 (assert-eq (set-difference @{} @{}) @{})
 ```
@@ -2689,6 +2704,8 @@ Time: Iteration takes amortized O(n), where n is `(set-count set)`.
 
 ### Maps
 
+Maps are collections of up to `2^63 - 1` key-value pairs (entries) with pairwise distinct keys.
+
 #### `(map-count map)`
 
 Returns the number of entries in the map `map`.
@@ -2735,7 +2752,7 @@ Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (map-min @{0 42, 1 41}) 42)
+(assert-eq (map-min {0 42, 1 41}) 42)
 (assert-throw (map-min {}) { :tag :err-collection-empty })
 ```
 
@@ -2748,7 +2765,7 @@ Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (map-min-key @{0 42, 1 41}) 0)
+(assert-eq (map-min-key {0 42, 1 41}) 0)
 (assert-throw (map-min-key {}) { :tag :err-collection-empty })
 ```
 
@@ -2761,7 +2778,7 @@ Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (map-min-entry @{0 42, 1 41}) [0 42])
+(assert-eq (map-min-entry {0 42, 1 41}) [0 42])
 (assert-throw (map-min-entry {}) { :tag :err-collection-empty })
 ```
 
@@ -2774,7 +2791,7 @@ Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (map-max @{0 42, 1 41}) 41)
+(assert-eq (map-max {0 42, 1 41}) 41)
 (assert-throw (map-max {}) { :tag :err-collection-empty })
 ```
 
@@ -2787,7 +2804,7 @@ Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (map-max-key @{0 42, 1 41}) 1)
+(assert-eq (map-max-key {0 42, 1 41}) 1)
 (assert-throw (map-max-key {}) { :tag :err-collection-empty })
 ```
 
@@ -2800,7 +2817,7 @@ Throws `{ :tag :err-collection-empty }` if `map` is the empty map.
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (map-max-entry @{0 42, 1 41}) [1 41])
+(assert-eq (map-max-entry {0 42, 1 41}) [1 41])
 (assert-throw (map-max-entry {}) { :tag :err-collection-empty })
 ```
 
@@ -2824,8 +2841,8 @@ Returns the map obtained by removing the entry (if any) with the key `key` from 
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (set-remove {0 42} 0) {})
-(assert-eq (set-remove {} 0) {})
+(assert-eq (map-remove {0 42} 0) {})
+(assert-eq (map-remove {} 0) {})
 ```
 
 #### `(map-union lhs rhs)`
@@ -2900,7 +2917,7 @@ Time: Iteration takes amortized O(n), where n is `(map-count map)`.
             (= key 3) true
             (set! product (int-mul product (int-mul key value)))
         )))
-    (assert-eq product 3)
+    (assert-eq product 1)
 ))
 (assert-throw (map-iter {0 1, 2 3} (fn [n m] (throw (int-mul n m)))) 0)
 ```
@@ -2929,6 +2946,8 @@ Time: Iteration takes amortized O(n), where n is `(map-count map)`.
 ```
 
 ### Symbols
+
+Symbols are values that are only equal to themselves. There's nothing you can do with symbols except comparing them and generating new ones.
 
 #### `(symbol)`
 

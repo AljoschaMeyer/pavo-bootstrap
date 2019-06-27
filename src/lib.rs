@@ -473,6 +473,7 @@ mod tests {
 
     #[test]
     fn test_application_errors() {
+        assert_throw("(int-add 1)", execute("{:tag :err-num-args}").unwrap());
         assert_throw("()", execute("{:tag :err-lookup :got 0}").unwrap());
         assert_throw("(42)", execute("{:tag :err-type, :expected :function, :got :int}").unwrap());
     }
@@ -539,7 +540,7 @@ mod tests {
         assert_ok("((sf-lambda [] 42))", Value::int(42));
         assert_throw(
             "((sf-lambda [] 42) :an-argument)",
-            execute("{:tag :err-num-args, :expected 0, :got 1}").unwrap()
+            execute("{:tag :err-num-args}").unwrap()
         );
         assert_ok("((sf-lambda [a b] (int-add a b)) 1 2)", Value::int(3));
         assert_ok("((sf-lambda [a (:mut b)] (sf-do (sf-set! b 3) (int-add a b))) 1 2)", Value::int(4));
@@ -551,11 +552,8 @@ mod tests {
     #[test]
     fn test_function_argument_errors() {
         test_example("
-        (assert-throw (bool-not) { :tag :err-num-args, :expected 1, :got 0 })
-        nil
-
-        #(assert-throw (bool-not) { :tag :err-num-args, :expected 1, :got 0 })
-        #(assert-throw (bool-not 42 43) { :tag :err-num-args, :expected 1, :got 2 })
+        (assert-throw (bool-not) { :tag :err-num-args})
+        #(assert-throw (bool-not 42 43) { :tag :err-num-args })
         #(assert-throw (bool-not 42) { :tag :err-type, :expected :bool, :got :int })
         #(assert-throw (int-pow-wrap :nope \"nope\") { :tag :err-type, :expected :int, :got :keyword})
         #(assert-throw (int-pow-wrap 2 :nope) { :tag :err-type, :expected :int, :got :keyword})
@@ -1321,6 +1319,465 @@ mod tests {
         (assert-eq (bits=>float? -42) false)
         (assert-eq (bits=>float? 9218868437227405312) false)
         (assert-eq (bits=>float? -4503599627370496) false)
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_identifier() {
+        test_example(r#"
+        (assert-eq (str=>id "foo") $foo)
+        (assert-throw (str=>id "nil") { :tag :err-identifier, :got "nil" })
+        (assert-throw (str=>id "true") { :tag :err-identifier, :got "true" })
+        (assert-throw (str=>id "false") { :tag :err-identifier, :got "false" })
+        (assert-throw (str=>id "42") { :tag :err-identifier, :got "42" })
+        (assert-throw (str=>id "1.2") { :tag :err-identifier, :got "1.2" })
+        (assert-throw (str=>id "") { :tag :err-identifier, :got ""})
+        (assert-throw (str=>id "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-identifier, :got "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"})
+        (assert-throw (str=>id ":a") { :tag :err-identifier, :got ":a"})
+        (assert-throw (str=>id "ß") { :tag :err-identifier, :got "ß"})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str=>id? "foo") true)
+        (assert-eq (str=>id? "nil") false)
+        (assert-eq (str=>id? "true") false)
+        (assert-eq (str=>id? "false") false)
+        (assert-eq (str=>id? "42") false)
+        (assert-eq (str=>id? "-_") true)
+        (assert-eq (str=>id? "-42") false)
+        (assert-eq (str=>id? "1.2") false)
+        (assert-eq (str=>id? "") false)
+        (assert-eq (str=>id? "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") false)
+        (assert-eq (str=>id? "ß") false)
+        (assert-eq (str=>id? ":a") false)
+        "#);
+
+        test_example(r#"(assert-eq (id->str $foo) "foo")"#);
+    }
+
+    #[test]
+    fn test_toplevel_keyword() {
+        test_example(r#"
+        (assert-eq (str=>kw "foo") :foo)
+        (assert-eq (str=>kw "nil") :nil)
+        (assert-eq (str=>kw "42") :42)
+        (assert-throw (str=>kw "") { :tag :err-kw, :got ""})
+        (assert-throw (str=>kw "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-kw, :got "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"})
+        (assert-throw (str=>kw ":a") { :tag :err-kw, :got ":a"})
+        (assert-throw (str=>kw "ß") { :tag :err-kw, :got "ß"})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str=>kw? "foo") true)
+        (assert-eq (str=>kw? "nil") true)
+        (assert-eq (str=>kw? "42") true)
+        (assert-eq (str=>kw? "-_") true)
+        (assert-eq (str=>kw? "-42") true)
+        (assert-eq (str=>kw? "") false)
+        (assert-eq (str=>kw? "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") false)
+        (assert-eq (str=>kw? "ß") false)
+        (assert-eq (str=>kw? ":a") false)
+        "#);
+
+        test_example(r#"(assert-eq (kw->str :foo) "foo")"#);
+    }
+
+    #[test]
+    fn test_toplevel_array() {
+        test_example("
+        (assert-eq (arr-count []) 0)
+        (assert-eq (arr-count [nil]) 1)
+        (assert-eq (arr-count [0, 1, 2]) 3)
+        ");
+
+        test_example("
+        (assert-eq (arr-get [true] 0) true)
+        (assert-throw (arr-get [] 0) { :tag :err-lookup, :got 0})
+        ");
+
+        test_example("
+        (assert-eq (arr-insert [0 1] 0 42) [42 0 1])
+        (assert-eq (arr-insert [0 1] 1 42) [0 42 1])
+        (assert-eq (arr-insert [0 1] 2 42) [0 1 42])
+        (assert-throw (arr-insert [0 1] 3 42) { :tag :err-lookup, :got 3})
+        ");
+
+        test_example("
+        (assert-eq (arr-remove [0 1] 0) [1])
+        (assert-eq (arr-remove [0 1] 1) [0])
+        (assert-throw (arr-remove [0 1] 3) { :tag :err-lookup, :got 3})
+        ");
+
+        test_example("
+        (assert-eq (arr-update [0 1] 0 42) [42 1])
+        (assert-eq (arr-update [0 1] 1 42) [0 42])
+        (assert-throw (arr-update [0 1] 2 42) { :tag :err-lookup, :got 2})
+        ");
+
+        test_example("
+        (assert-eq (arr-slice [true false] 1 1) [])
+        (assert-eq (arr-slice [true false] 0 1) [true])
+        (assert-eq (arr-slice [true false] 1 2) [false])
+        (assert-eq (arr-slice [true false] 0 2) [true false])
+        (assert-throw (arr-slice [] 0 1) { :tag :err-lookup, :got 1})
+        (assert-throw (arr-slice [] 2 3) { :tag :err-lookup, :got 2})
+        (assert-throw (arr-slice [0 1 2 3] 2 1) { :tag :err-lookup, :got 1})
+        ");
+
+        test_example("
+        (assert-eq (arr-splice [0 1] 0 [10 11]) [10 11 0 1])
+        (assert-eq (arr-splice [0 1] 1 [10 11]) [0 10 11 1])
+        (assert-eq (arr-splice [0 1] 2 [10 11]) [0 1 10 11])
+        (assert-throw (arr-splice [0 1] 3 [10 11]) { :tag :err-lookup, :got 3})
+        ");
+
+        test_example("
+        (assert-eq (arr-concat [0 1] [2 3]) [0 1 2 3])
+        (assert-eq (arr-concat [] [0 1]) [0 1])
+        (assert-eq (arr-concat [0 1] []) [0 1])
+        ");
+
+        test_example("
+        (let (:mut product) 1 (do
+            (arr-iter [1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
+            (assert-eq product 24)
+        ))
+        (let (:mut product) 1 (do
+            (arr-iter [1 2 3 4] (fn [elem] (if
+                    (= elem 3) true
+                    (set! product (int-mul product elem))
+                )))
+            (assert-eq product 2)
+        ))
+        (assert-throw (arr-iter [0 1] (fn [n] (throw n))) 0)
+        ");
+
+        test_example("
+        (let (:mut product) 1 (do
+            (arr-iter-back [1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
+            (assert-eq product 24)
+        ))
+        (let (:mut product) 1 (do
+            (arr-iter-back [1 2 3 4] (fn [elem] (if
+                    (= elem 3) true
+                    (set! product (int-mul product elem))
+                )))
+            (assert-eq product 4)
+        ))
+        (assert-throw (arr-iter-back [0 1] (fn [n] (throw n))) 1)
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_application() {
+        test_example("
+        (assert-eq (app-count $()) 0)
+        (assert-eq (app-count $(nil)) 1)
+        (assert-eq (app-count $(0, 1, 2)) 3)
+        ");
+
+        test_example("
+        (assert-eq (app-get $(true) 0) true)
+        (assert-throw (app-get $() 0) { :tag :err-lookup, :got 0})
+        ");
+
+        test_example("
+        (assert-eq (app-insert $(0 1) 0 42) $(42 0 1))
+        (assert-eq (app-insert $(0 1) 1 42) $(0 42 1))
+        (assert-eq (app-insert $(0 1) 2 42) $(0 1 42))
+        (assert-throw (app-insert $(0 1) 3 42) { :tag :err-lookup, :got 3})
+        ");
+
+        test_example("
+        (assert-eq (app-remove $(0 1) 0) $(1))
+        (assert-eq (app-remove $(0 1) 1) $(0))
+        (assert-throw (app-remove $(0 1) 3) { :tag :err-lookup, :got 3})
+        ");
+
+        test_example("
+        (assert-eq (app-update $(0 1) 0 42) $(42 1))
+        (assert-eq (app-update $(0 1) 1 42) $(0 42))
+        (assert-throw (app-update $(0 1) 2 42) { :tag :err-lookup, :got 2})
+        ");
+
+        test_example("
+        (assert-eq (app-slice $(true false) 1 1) $())
+        (assert-eq (app-slice $(true false) 0 1) $(true))
+        (assert-eq (app-slice $(true false) 1 2) $(false))
+        (assert-eq (app-slice $(true false) 0 2) $(true false))
+        (assert-throw (app-slice $() 0 1) { :tag :err-lookup, :got 1})
+        (assert-throw (app-slice $() 2 3) { :tag :err-lookup, :got 2})
+        (assert-throw (app-slice $(0 1 2 3) 2 1) { :tag :err-lookup, :got 1})
+        ");
+
+        test_example("
+        (assert-eq (app-splice $(0 1) 0 $(10 11)) $(10 11 0 1))
+        (assert-eq (app-splice $(0 1) 1 $(10 11)) $(0 10 11 1))
+        (assert-eq (app-splice $(0 1) 2 $(10 11)) $(0 1 10 11))
+        (assert-throw (app-splice $(0 1) 3 $(10 11)) { :tag :err-lookup, :got 3})
+        ");
+
+        test_example("
+        (assert-eq (app-concat $(0 1) $(2 3)) $(0 1 2 3))
+        (assert-eq (app-concat $() $(0 1)) $(0 1))
+        (assert-eq (app-concat $(0 1) $()) $(0 1))
+        ");
+
+        test_example("
+        (let (:mut product) 1 (do
+            (app-iter $(1 2 3 4) (fn [elem] (set! product (int-mul product elem))))
+            (assert-eq product 24)
+        ))
+        (let (:mut product) 1 (do
+            (app-iter $(1 2 3 4) (fn [elem] (if
+                    (= elem 3) true
+                    (set! product (int-mul product elem))
+                )))
+            (assert-eq product 2)
+        ))
+        (assert-throw (app-iter $(0 1) (fn [n] (throw n))) 0)
+        ");
+
+        test_example("
+        (let (:mut product) 1 (do
+            (app-iter-back $(1 2 3 4) (fn [elem] (set! product (int-mul product elem))))
+            (assert-eq product 24)
+        ))
+        (let (:mut product) 1 (do
+            (app-iter-back $(1 2 3 4) (fn [elem] (if
+                    (= elem 3) true
+                    (set! product (int-mul product elem))
+                )))
+            (assert-eq product 4)
+        ))
+        (assert-throw (app-iter-back $(0 1) (fn [n] (throw n))) 1)
+        ");
+
+        // TODO uncomment when quasiquote has been implemented
+        test_example("
+        #(assert-eq (app-apply `(;int-add 1 2)) 3)
+        #(assert-throw (app-apply `(;int-add 1)) {:tag :err-num-args})
+        (assert-throw (app-apply $()) {:tag :err-lookup :got 0})
+        (assert-throw (app-apply $(42)) {:tag :err-type, :expected :function, :got :int})
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_set() {
+        test_example("
+        (assert-eq (set-count @{}) 0)
+        (assert-eq (set-count @{nil}) 1)
+        (assert-eq (set-count @{0, 1, 2}) 3)
+        ");
+
+        test_example("
+        (assert-eq (set-contains? @{ nil } nil) true)
+        (assert-eq (set-contains? @{ 42 } 43) false)
+        (assert-eq (set-contains? @{} nil) false)
+        ");
+
+        test_example("
+        (assert-eq (set-min @{ 4 3 }) 3)
+        (assert-throw (set-min @{}) { :tag :err-collection-empty })
+        ");
+
+        test_example("
+        (assert-eq (set-max @{ 4 3 }) 4)
+        (assert-throw (set-max @{}) { :tag :err-collection-empty })
+        ");
+
+        test_example("
+        (assert-eq (set-insert @{} nil) @{nil})
+        (assert-eq (set-insert @{nil} nil) @{nil})
+        ");
+
+        test_example("
+        (assert-eq (set-remove @{nil} nil) @{})
+        (assert-eq (set-remove @{} nil) @{})
+        ");
+
+        test_example("
+        (assert-eq (set-union @{1 2} @{2 3}) @{1 2 3})
+        (assert-eq (set-union @{1 2} @{}) @{1 2})
+        (assert-eq (set-union @{} @{2 3}) @{2 3})
+        (assert-eq (set-union @{} @{}) @{})
+        ");
+
+        test_example("
+        (assert-eq (set-intersection @{1 2} @{2 3}) @{2})
+        (assert-eq (set-intersection @{1 2} @{}) @{})
+        (assert-eq (set-intersection @{} @{2 3}) @{})
+        (assert-eq (set-intersection @{} @{}) @{})
+        ");
+
+        test_example("
+        (assert-eq (set-difference @{1 2} @{2 3}) @{1})
+        (assert-eq (set-difference @{1 2} @{}) @{1 2})
+        (assert-eq (set-difference @{} @{2 3}) @{})
+        (assert-eq (set-difference @{} @{}) @{})
+        ");
+
+        test_example("
+        (assert-eq (set-symmetric-difference @{1 2} @{2 3}) @{1 3})
+        (assert-eq (set-symmetric-difference @{1 2} @{}) @{1 2})
+        (assert-eq (set-symmetric-difference @{} @{2 3}) @{2 3})
+        (assert-eq (set-symmetric-difference @{} @{}) @{})
+        ");
+
+        test_example("
+        (let (:mut product) 1 (do
+            (set-iter @{4 2 3 1} (fn [elem] (set! product (int-mul product elem))))
+            (assert-eq product 24)
+        ))
+        (let (:mut product) 1 (do
+            (set-iter @{4 2 3 1} (fn [elem] (if
+                    (= elem 3) true
+                    (set! product (int-mul product elem))
+                )))
+            (assert-eq product 2)
+        ))
+        (assert-throw (set-iter @{0 1} (fn [n] (throw n))) 0)
+        ");
+
+        test_example("
+        (let (:mut product) 1 (do
+            (set-iter-back @{4 2 3 1} (fn [elem] (set! product (int-mul product elem))))
+            (assert-eq product 24)
+        ))
+        (let (:mut product) 1 (do
+            (set-iter-back @{4 2 3 1} (fn [elem] (if
+                    (= elem 3) true
+                    (set! product (int-mul product elem))
+                )))
+            (assert-eq product 4)
+        ))
+        (assert-throw (set-iter-back @{0 1} (fn [n] (throw n))) 1)
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_map() {
+        test_example("
+        (assert-eq (map-count {}) 0)
+        (assert-eq (map-count {{} nil}) 1)
+        (assert-eq (map-count {0 42, 1 41, 2 40}) 3)
+        ");
+
+        test_example("
+        (assert-eq (map-get {0 42} 0) 42)
+        (assert-throw (map-get {} 0) { :tag :err-lookup, :got 0})
+        ");
+
+        test_example("
+        (assert-eq (map-contains? { nil 0 } nil) true)
+        (assert-eq (map-contains? { 42 0 } 43) false)
+        (assert-eq (map-contains? {} nil) false)
+        ");
+
+        test_example("
+        (assert-eq (map-min {0 42, 1 41}) 42)
+        (assert-throw (map-min {}) { :tag :err-collection-empty })
+        ");
+
+        test_example("
+        (assert-eq (map-min-key {0 42, 1 41}) 0)
+        (assert-throw (map-min-key {}) { :tag :err-collection-empty })
+        ");
+
+        test_example("
+        (assert-eq (map-min-entry {0 42, 1 41}) [0 42])
+        (assert-throw (map-min-entry {}) { :tag :err-collection-empty })
+        ");
+
+        test_example("
+        (assert-eq (map-max {0 42, 1 41}) 41)
+        (assert-throw (map-max {}) { :tag :err-collection-empty })
+        ");
+
+        test_example("
+        (assert-eq (map-max-key {0 42, 1 41}) 1)
+        (assert-throw (map-max-key {}) { :tag :err-collection-empty })
+        ");
+
+        test_example("
+        (assert-eq (map-max-entry {0 42, 1 41}) [1 41])
+        (assert-throw (map-max-entry {}) { :tag :err-collection-empty })
+        ");
+
+        test_example("
+        (assert-eq (map-insert {} 0 42) {0 42})
+        (assert-eq (map-insert {0 42} 0 43) {0 43})
+        ");
+
+        test_example("
+        (assert-eq (map-remove {0 42} 0) {})
+        (assert-eq (map-remove {} 0) {})
+        ");
+
+        test_example("
+        (assert-eq (map-union {0 42, 1 41} {1 17, 2 40}) {0 42, 1 41, 2 40})
+        (assert-eq (map-union {0 42, 1 41} {}) {0 42, 1 41})
+        (assert-eq (map-union {} {1 41, 2 40}) {1 41, 2 40})
+        (assert-eq (map-union {} {}) {})
+        ");
+
+        test_example("
+        (assert-eq (map-intersection {0 42, 1 41} {1 17, 2 40}) {1 41})
+        (assert-eq (map-intersection {0 42, 1 41} {}) {})
+        (assert-eq (map-intersection {} {1 41, 2 40}) {})
+        (assert-eq (map-intersection {} {}) {})
+        ");
+
+        test_example("
+        (assert-eq (map-difference {0 42, 1 41} {1 17, 2 40}) {0 42})
+        (assert-eq (map-difference {0 42, 1 41} {}) {0 42, 1 41})
+        (assert-eq (map-difference {} {1 41, 2 40}) {})
+        (assert-eq (map-difference {} {}) {})
+        ");
+
+        test_example("
+        (assert-eq (map-symmetric-difference {0 42, 1 41} {1 17, 2 40}) {0 42, 2 40})
+        (assert-eq (map-symmetric-difference {0 42, 1 41} {}) {0 42, 1 41})
+        (assert-eq (map-symmetric-difference {} {1 41, 2 40}) {1 41, 2 40})
+        (assert-eq (map-symmetric-difference {} {}) {})
+        ");
+
+        test_example("
+        (let (:mut product) 1 (do
+            (map-iter {4 2, 3 1} (fn [key value] (set! product (int-mul product (int-mul key value)))))
+            (assert-eq product 24)
+        ))
+        (let (:mut product) 1 (do
+            (map-iter {4 2, 3 1} (fn [key value] (if
+                    (= key 3) true
+                    (set! product (int-mul product (int-mul key value)))
+                )))
+            (assert-eq product 1)
+        ))
+        (assert-throw (map-iter {0 1, 2 3} (fn [n m] (throw (int-mul n m)))) 0)
+        ");
+
+        test_example("
+        (let (:mut product) 1 (do
+            (map-iter-back {4 2, 3 1} (fn [key value] (set! product (int-mul product (int-mul key value)))))
+            (assert-eq product 24)
+        ))
+        (let (:mut product) 1 (do
+            (map-iter-back {4 2, 3 1} (fn [key value] (if
+                    (= key 3) true
+                    (set! product (int-mul product (int-mul key value)))
+                )))
+            (assert-eq product 8)
+        ))
+        (assert-throw (map-iter-back {0 1, 2 3} (fn [n m] (throw (int-mul n m)))) 6)
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_symbol() {
+        test_example("
+        (assert (let x (symbol) (= x x)))
+        (assert-not (= (symbol) (symbol)))
         ");
     }
 }
