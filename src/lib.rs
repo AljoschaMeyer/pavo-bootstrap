@@ -422,7 +422,6 @@ mod tests {
 
     #[test]
     fn test_static_sf_lambda() {
-        assert_any_static_error("(sf-lambda [a a] 0)");
         assert_any_static_error("(sf-lambda 0 1)");
         assert_any_static_error("(sf-lambda (:mut 0) 1)");
         assert_any_static_error("(sf-lambda [0] 1)");
@@ -435,6 +434,8 @@ mod tests {
         assert_any_static_error("(sf-lambda :mut)");
         assert_any_static_error("(sf-lambda :mut a)");
         assert_any_static_error("(sf-lambda :mut a 0 1)");
+        assert_any_static_error("(sf-lambda (:mut a))");
+        assert_any_static_error("(sf-lambda (:mut a) 0 1)");
         assert_any_static_error("(sf-lambda [])");
         assert_any_static_error("(sf-lambda [] 0 1)");
     }
@@ -449,12 +450,14 @@ mod tests {
         assert_ok("((sf-lambda [a] a) 0)", Value::int(0));
         assert_ok("((sf-lambda (:mut a) (sf-set! a 42)) 0)", Value::nil());
         assert_ok("(((sf-lambda a (sf-lambda (:mut a) (sf-set! a 0))) 0) 0)", Value::nil());
+        assert_ok("((sf-lambda [a (:mut a)] (sf-set! a 42)) 0 1)", Value::nil());
         assert_any_static_error("some-id");
         assert_any_static_error("[some-id]");
         assert_any_static_error("(sf-set! some-id 42)");
         assert_any_static_error("(sf-set! int-max-val 42)");
         assert_any_static_error("(sf-try 0 a (sf-set! a 42))");
         assert_any_static_error("(sf-lambda a (sf-set! a 42))");
+        assert_any_static_error("(sf-lambda [(:mut a) a] (sf-set! a 42))");
     }
 
     // ## Evaluation
@@ -540,6 +543,7 @@ mod tests {
         );
         assert_ok("((sf-lambda [a b] (int-add a b)) 1 2)", Value::int(3));
         assert_ok("((sf-lambda [a (:mut b)] (sf-do (sf-set! b 3) (int-add a b))) 1 2)", Value::int(4));
+        assert_ok("((sf-lambda [a a] a) 0 1)", Value::int(1));
     }
 
     // ## Toplevel Values

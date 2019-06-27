@@ -40,7 +40,6 @@ pub enum SpecialFormSyntaxError {
     Id(FormType, Value),
     SetBangId(Value),
     Binder(FormType, Value),
-    DuplicateArg(Id),
 }
 
 pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, SpecialFormSyntaxError> {
@@ -120,13 +119,6 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
 
                     for arg in args_arr.0.iter() {
                         args.push(mut_id(&arg, FormType::Lambda)?);
-                    }
-
-                    let mut uniques = BTreeSet::new();
-                    for (_, id) in args.iter() {
-                        if !uniques.insert(id.clone()) {
-                            return Err(SpecialFormSyntaxError::DuplicateArg((*id).clone()));
-                        }
                     }
 
                     return Ok(Some(SpecialForm::Lambda(Args::Destructured(args), &v.0[2])));

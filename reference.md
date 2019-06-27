@@ -382,7 +382,7 @@ An application literal whose first item is `(sf-try)` must have exactly four ite
 
 #### `sf-lambda`
 
-An application literal whose first item is `(sf-lambda)` must have exactly three items, the second of which is either a name, a two-element application containing the keyword `:mut` followed by a name, or an array that contains any number of either names or such two-element applications. In the case of an array, all names contained in it must be pairwaise unequal.
+An application literal whose first item is `(sf-lambda)` must have exactly three items, the second of which is either a name, a two-element application containing the keyword `:mut` followed by a name, or an array that contains any number of either names or such two-element applications.
 
 ```pavo
 (sf-lambda a 0)
@@ -394,7 +394,7 @@ An application literal whose first item is `(sf-lambda)` must have exactly three
 (sf-lambda [(:mut a) b] 0)
 (sf-lambda [a (:mut b)] 0)
 (sf-lambda [(:mut a) (:mut b)] 0)
-# (sf-lambda [a a] 0) is a static error because the argument names must be distinct
+(sf-lambda [a a] 0)
 # (sf-lambda 0 1) is a static error because the second item must be a name, array or :mut
 # (sf-lambda (:mut 0) 1) is a static error because the third item must be a name
 # (sf-lambda [0] 1) is a static error because the array may not contain arbitrary values
@@ -416,7 +416,7 @@ Checking bindings for a value proceeds recursively. If the value is a name (iden
 - `(sf-try <try-exp> (:mut <binder-name>) <caught-exp>)`: Check `<try-exp>` in the check-environment `E`. If successful, check `<caught-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to true.
 - `(sf-lambda <binder-name> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
 - `(sf-lambda (:mut <binder-name>) <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to true.
-- `(sf-lambda <args-array> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that all names directly contained in the `<args-array>` map to false, and those inside an application with the `:mut` keyword map to `true`.
+- `(sf-lambda <args-array> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that all names directly contained in the `<args-array>` map to false, and those inside an application with the `:mut` keyword map to `true`. For duplicate names, the mutability of the rightmost one is used.
 - Otherwise, all inner values are checked in the environment `E`.
 
 ```pavo
@@ -426,8 +426,10 @@ Checking bindings for a value proceeds recursively. If the value is a name (iden
 (sf-lambda a a)
 (sf-lambda (:mut a) (sf-set! a 42))
 (sf-lambda a (sf-lambda (:mut a) (sf-set! a 0)))
+(sf-lambda [a (:mut a)] (sf-set! a 42))
 # some-id, [some-id] and (sf-set! some-id 0) are static errors because the name is not bound
 # (sf-set! int-max-val 42), (sf-try 0 a (sf-set! a 42)) and (sf-lambda a (sf-set! a 42)) are static errors because the name is bound immutably
+# (sf-lambda [(:mut a) a] (sf-set! a 42)) is a static error because the name is bound immutably
 ```
 
 ## Evaluation
@@ -561,7 +563,7 @@ In the `(sf-lambda id body)` and `(sf-lambda (:mut id) body)` versions, when app
 (assert-eq ((sf-lambda (:mut foo) (sf-do (sf-set! foo 42) foo)) 0 1 2) 42)
 ```
 
-In the `(sf-lambda [<args>] body)` version, `[<args>]` is an array containing zero or more identifiers, each optionally preceded by the `:mut` keyword. When applying the function to some arguments, if the number of arguments does not match the number of identifiers in the function definition, `{ :tag :err-num-args, :expected <defined>, :got <supplied>}` is thrown, where `<defined>` is the number of identifiers in the `[<args>]` definition, and `<supplied>` is the number of arguments to which the function was applied. If the number of arguments matches, then each argument identifier is bound to the corresponding supplied value before evaluating the `body`. For identifiers that are prefixed with the `:mut` keyword, the binding is mutable.
+In the `(sf-lambda [<args>] body)` version, when applying the function to some arguments, if the number of arguments does not match the number of identifiers in the function definition, `{ :tag :err-num-args, :expected <defined>, :got <supplied>}` is thrown, where `<defined>` is the number of identifiers in the `[<args>]` definition, and `<supplied>` is the number of arguments to which the function was applied. If the number of arguments matches, then each argument identifier is bound to the corresponding supplied value before evaluating the `body`. For identifiers that are prefixed with the `:mut` keyword, the binding is mutable. In case of duplicate identifiers, the rightmost one wins.
 
 ```pavo
 (assert-eq (typeof (sf-lambda [] nil)) :function)
@@ -569,6 +571,7 @@ In the `(sf-lambda [<args>] body)` version, `[<args>]` is an array containing ze
 (assert-throw ((sf-lambda [] 42) :an-argument) {:tag :err-num-args, :expected 0, :got 1})
 (assert-eq ((sf-lambda [a b] (int-add a b)) 1 2) 3)
 (assert-eq ((sf-lambda [a (:mut b)] (sf-do (sf-set! b 3) (int-add a b))) 1 2) 4)
+(assert-eq ((sf-lambda [a a] a) 0 1) 1)
 ```
 
 Pavo guarantees tail-call optimization, (mutually) recursive function calls in tail position only take up a bounded amount of stack space. The tail positions are exactly the following:
@@ -2089,20 +2092,22 @@ Returns whether applying `bits=>float` to the float `n` would wrk (`true`) or th
 
 ### Identifiers
 
+TODO bla
+
 #### `(str=>id s)`
 
 Returns an identifier created from the string `s`.
 
-Throws `{ :tag :err-identifier, :got s}` if it would not be a valid identifier (empty, longer than 255 characters, or containing invalid characters).
+Throws `{ :tag :err-identifier, :got s}` if it would not be a valid identifier (empty, longer than 255 characters, or containing invalid characters). TODO other errors: nil, bools, numbers
 
 Time: O(n) where n is `(str-count s)`.
 
 ```pavo
 (assert-eq (str=>id "foo") $foo)
-(assert-eq (str=>id "nil") $nil)
-(assert-eq (str=>id "42") $42)
+(assert-eq (str=>id "nil") $nil) XXX
+(assert-eq (str=>id "42") $42) XXX
 (assert-throw (str=>id "") { :tag :err-identifier, :got ""})
-(assert-throw (str=>id "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-identifier, :got ""})
+(assert-throw (str=>id "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-identifier, :got "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"})
 (assert-throw (str=>id ":a") { :tag :err-identifier, :got ":a"})
 (assert-throw (str=>id "ß") { :tag :err-identifier, :got "ß"})
 ```
@@ -2133,6 +2138,8 @@ Returns the string that corresponds to the given identfier `id.
 
 ### Keywords
 
+TODO bla
+
 #### `(str=>kw s)`
 
 Returns the keyword `<:s>` created from the string `s`.
@@ -2146,7 +2153,7 @@ Time: O(n) where n is `(str-count s)`.
 (assert-eq (str=>kw "nil") :nil)
 (assert-eq (str=>kw "42") :42)
 (assert-throw (str=>kw "") { :tag :err-kw, :got ""})
-(assert-throw (str=>kw "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-kw, :got ""})
+(assert-throw (str=>kw "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-kw, :got "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"})
 (assert-throw (str=>kw ":a") { :tag :err-kw, :got ":a"})
 (assert-throw (str=>kw "ß") { :tag :err-kw, :got "ß"})
 ```
