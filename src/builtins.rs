@@ -2152,6 +2152,32 @@ pub fn symbol(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
 
 /////////////////////////////////////////////////////////////////////////////
 
+pub fn cell(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    Ok(Value::cell(&args.0[0], cx))
+}
+
+pub fn cell_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    match args.0[0].as_cell() {
+        None => Err(type_error(&args.0[0], "cell")),
+        Some(inner) => Ok(inner.borrow().clone()),
+    }
+}
+
+pub fn cell_set(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    match args.0[0].as_cell() {
+        None => Err(type_error(&args.0[0], "cell")),
+        Some(inner) => {
+            *inner.borrow_mut() = args.0[1].clone();
+            Ok(Value::nil())
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
 pub fn pavo_eq(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
     Ok(Value::bool_(args.0[0] == args.0[1]))

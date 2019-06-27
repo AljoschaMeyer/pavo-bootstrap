@@ -1,8 +1,6 @@
 // Static typing for special forms to help implementing them. This doesn't actually *do*
 // anything, its just a convenient/checked way of accessing special forms. The first
 // attempt at implementing pavo without this layer very quickly turned into spaghetti.
-use std::collections::BTreeSet;
-
 use crate::gc_foreign::Vector;
 use crate::value::{Value, Id};
 

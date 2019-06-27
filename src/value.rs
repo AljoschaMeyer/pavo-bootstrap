@@ -5,7 +5,7 @@ use std::{
     num::FpCategory,
 };
 
-use gc::GcCell;
+use gc::{Gc, GcCell};
 use gc_derive::{Trace, Finalize};
 use im_rc::{
     Vector as ImVector,
@@ -28,7 +28,7 @@ pub enum Value {
     Set(OrdSet<Value>),
     Map(OrdMap<Value, Value>),
     Fun(Fun),
-    Cell(Box<GcCell<Value>>, u64),
+    Cell(Gc<GcCell<Value>>, u64),
 }
 
 impl Value {
@@ -141,7 +141,7 @@ impl Value {
     }
 
     pub fn cell(v: &Value, cx: &mut Context) -> Value {
-        Value::Cell(Box::new(GcCell::new(v.clone())), cx.next_cell_id())
+        Value::Cell(Gc::new(GcCell::new(v.clone())), cx.next_cell_id())
     }
 
     pub fn as_id(&self) -> Option<&Id> {
@@ -203,6 +203,13 @@ impl Value {
     pub fn as_fun(&self) -> Option<&Fun> {
         match self {
             Value::Fun(fun) => Some(fun),
+            _ => None,
+        }
+    }
+
+    pub fn as_cell(&self) -> Option<&GcCell<Value>> {
+        match self {
+            Value::Cell(the_gc, _) => Some(the_gc),
             _ => None,
         }
     }
@@ -472,6 +479,10 @@ impl Fun {
             Fun::Builtin(Builtin::MapIterBack) => builtins::map_iter_back(args, cx),
 
             Fun::Builtin(Builtin::Symbol) => builtins::symbol(args, cx),
+
+            Fun::Builtin(Builtin::Cell) => builtins::cell(args, cx),
+            Fun::Builtin(Builtin::CellGet) => builtins::cell_get(args, cx),
+            Fun::Builtin(Builtin::CellSet) => builtins::cell_set(args, cx),
 
             Fun::Builtin(Builtin::Eq) => builtins::pavo_eq(args, cx),
 

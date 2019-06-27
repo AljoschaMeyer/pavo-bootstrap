@@ -1780,4 +1780,19 @@ mod tests {
         (assert-not (= (symbol) (symbol)))
         ");
     }
+
+    #[test]
+    fn test_toplevel_cell() {
+        test_example("
+        (assert (let x (cell 42) (= x x)))
+        (assert-not (= (cell 42) (cell 42)))
+        ");
+
+        test_example("(assert-eq (cell-get (cell 42)) 42)");
+
+        test_example("
+        #(assert-eq (cell-set (cell 42) 43) nil)
+        (assert-eq ((sf-lambda [x] (sf-do (cell-set x 43) (cell-get x))) (cell 42)) 43)
+        ");
+    }
 }

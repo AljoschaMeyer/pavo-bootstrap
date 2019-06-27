@@ -2619,7 +2619,7 @@ Throws `{ :tag :err-collection-full }` if the resulting set would contain 2^63 o
 (assert-eq (set-union @{} @{}) @{})
 ```
 
-Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+Time: O(n log m), where n is the `set-count` of the smaller input and m is the `set-count` of the larger input.
 
 #### `(set-intersection lhs rhs)`
 
@@ -2632,7 +2632,7 @@ Returns the set that contains all the elements contained in both the set `lhs` a
 (assert-eq (set-intersection @{} @{}) @{})
 ```
 
-Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+Time: O((n + m) log (n + m)), where n is `(set-count lhs)` and m is `(set-count rhs)`.
 
 #### `(set-difference lhs rhs)`
 
@@ -2645,11 +2645,11 @@ Returns the set that contains all the elements contained in the set `lhs` but no
 (assert-eq (set-difference @{} @{}) @{})
 ```
 
-Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+Time: O(m log n), where n is `(set-count lhs)` and m is `(set-count rhs)`.
 
 #### `(set-symmetric-difference lhs rhs)`
 
-Returns the set that contains all the elements exactly one of the sets `lhs` and `rhs`.
+Returns the set that contains all the elements in exactly one of the sets `lhs` and `rhs`.
 
 ```pavo
 (assert-eq (set-symmetric-difference @{1 2} @{2 3}) @{1 3})
@@ -2658,7 +2658,7 @@ Returns the set that contains all the elements exactly one of the sets `lhs` and
 (assert-eq (set-symmetric-difference @{} @{}) @{})
 ```
 
-Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+Time: O((n + m) log (n + m)), where n is `(set-count lhs)` and m is `(set-count rhs)`.
 
 #### `(set-iter set fun)`
 
@@ -2858,7 +2858,7 @@ Throws `{ :tag :err-collection-full }` if the resulting map would contain 2^63 o
 (assert-eq (map-union {} {}) {})
 ```
 
-Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+Time: O(n log m), where n is the `map-count` of the smaller input and m is the `map-count` of the larger input.
 
 #### `(map-intersection lhs rhs)`
 
@@ -2871,7 +2871,7 @@ Returns the map that contains all the entries in the map `lhs` whose key is also
 (assert-eq (map-intersection {} {}) {})
 ```
 
-Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+Time: O((n + m) log (n + m)), where n is `(map-count lhs)` and m is `(map-count rhs)`.
 
 #### `(map-difference lhs rhs)`
 
@@ -2884,7 +2884,7 @@ Returns the map that contains all the entries in the map `lhs` whose key is not 
 (assert-eq (map-difference {} {}) {})
 ```
 
-Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+Time: O(m log n), where n is `(map-count lhs)` and m is `(map-count rhs)`.
 
 #### `(map-symmetric-difference lhs rhs)`
 
@@ -2897,7 +2897,7 @@ Returns the map that contains all the entries in the maps `lhs` and `rhs` whose 
 (assert-eq (map-symmetric-difference {} {}) {})
 ```
 
-Time: O((n + m) log (n + m)), where n is `(set-count left)` and m is `(set-count right)`. TODO this can probably be stricter?
+Time: O((n + m) log (n + m)), where n is `(map-count lhs)` and m is `(map-count rhs)`.
 
 #### `(map-iter map fun)`
 
@@ -2960,7 +2960,7 @@ Returns a fresh symbol that is only equal to itself.
 
 ### Cells
 
-TODO max number, ordering
+A cell is a mutable storage location, a persistent identity that can refer to different values over time.
 
 #### `(cell x)`
 
@@ -2981,9 +2981,10 @@ Returns the value contained in the cell.
 
 #### `(cell-set cl x)`
 
-Updates the cell `cl` to now contain the value `x`.
+Updates the cell `cl` to now contain the value `x`. Returns `nil`.
 
 ```pavo
+(assert-eq (cell-set (cell 42) 43) nil)
 (assert-eq ((sf-lambda [x] (sf-do (cell-set x 43) (cell-get x))) (cell 42)) 43)
 ```
 
