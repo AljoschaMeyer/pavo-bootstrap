@@ -1,5 +1,6 @@
 use im_rc::{OrdMap as ImOrdMap, Vector as ImVector};
 use ropey::Rope as Ropey;
+use math::round;
 use nom::types::CompleteStr;
 
 use crate::context::Context;
@@ -243,6 +244,15 @@ macro_rules! string {
     )
 }
 
+macro_rules! float {
+    ($v:expr) => (
+        match &$v {
+            Value::Atomic(Atomic::Float(n)) => (*n).0.into_inner(),
+            _ => return Err(type_error(&$v, "float")),
+        }
+    )
+}
+
 macro_rules! byte {
     ($v:expr) => (
         match int!($v) {
@@ -335,6 +345,20 @@ fn num_args(args: &Vector<Value>, expected: usize) -> Result<(), Value> {
         Ok(())
     } else {
         Err(num_args_error(expected, args.0.len()))
+    }
+}
+
+fn ret_float(x: f64) -> Result<Value, Value> {
+    match x.classify() {
+        std::num::FpCategory::Nan => Err(Value::kw_str("nan")),
+        std::num::FpCategory::Infinite => {
+            if x.is_sign_positive() {
+                Err(Value::kw_str("inf"))
+            } else {
+                Err(Value::kw_str("-inf"))
+            }
+        }
+        _ => Ok(Value::float(x))
     }
 }
 
@@ -1089,6 +1113,339 @@ pub fn str_iter_utf8_back(args: Vector<Value>, cx: &mut Context) -> Result<Value
     }
 
     Ok(Value::nil())
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn float_add(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = float!(args.0[0]);
+    let m = float!(args.0[1]);
+
+    ret_float(n + m)
+}
+
+pub fn float_sub(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = float!(args.0[0]);
+    let m = float!(args.0[1]);
+
+    ret_float(n - m)
+}
+
+pub fn float_mul(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = float!(args.0[0]);
+    let m = float!(args.0[1]);
+
+    ret_float(n * m)
+}
+
+pub fn float_div(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = float!(args.0[0]);
+    let m = float!(args.0[1]);
+
+    ret_float(n / m)
+}
+
+pub fn float_mul_add(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let n = float!(args.0[0]);
+    let m = float!(args.0[1]);
+    let o = float!(args.0[2]);
+
+    ret_float(n.mul_add(m, o))
+}
+
+pub fn float_neg(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(-n)
+}
+
+pub fn float_floor(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.floor())
+}
+
+pub fn float_ceil(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.ceil())
+}
+
+pub fn float_round(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let x = float!(args.0[0]);
+
+    ret_float(round::half_to_even(x, 0))
+}
+
+pub fn float_trunc(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.trunc())
+}
+
+pub fn float_fract(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.fract())
+}
+
+pub fn float_abs(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.abs())
+}
+
+pub fn float_signum(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    if n == 0.0f64 {
+        return Ok(Value::float(0.0));
+    } else {
+        ret_float(n.signum())
+    }
+}
+
+pub fn float_pow(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = float!(args.0[0]);
+    let m = float!(args.0[1]);
+
+    ret_float(n.powf(m))
+}
+
+pub fn float_sqrt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.sqrt())
+}
+
+pub fn float_exp(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.exp())
+}
+
+pub fn float_exp2(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.exp2())
+}
+
+pub fn float_ln(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.ln())
+}
+
+pub fn float_log2(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.log2())
+}
+
+pub fn float_log10(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.log10())
+}
+
+pub fn float_hypot(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = float!(args.0[0]);
+    let m = float!(args.0[1]);
+
+    ret_float(n.hypot(m))
+}
+
+pub fn float_sin(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.sin())
+}
+
+pub fn float_cos(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.cos())
+}
+
+pub fn float_tan(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.tan())
+}
+
+pub fn float_asin(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.asin())
+}
+
+pub fn float_acos(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.acos())
+}
+
+pub fn float_atan(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.atan())
+}
+
+pub fn float_atan2(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let n = float!(args.0[0]);
+    let m = float!(args.0[1]);
+
+    ret_float(n.atan2(m))
+}
+
+pub fn float_exp_m1(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.exp_m1())
+}
+
+pub fn float_ln_1p(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.ln_1p())
+}
+
+pub fn float_sinh(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.sinh())
+}
+
+pub fn float_cosh(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.cosh())
+}
+
+pub fn float_tanh(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.tanh())
+}
+
+pub fn float_asinh(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.asinh())
+}
+
+pub fn float_acosh(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.acosh())
+}
+
+pub fn float_atanh(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.atanh())
+}
+
+pub fn float_is_normal(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    Ok(Value::bool_(n.is_normal()))
+}
+
+pub fn float_to_degrees(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.to_degrees())
+}
+
+pub fn float_to_radians(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    ret_float(n.to_radians())
+}
+
+pub fn float_to_int(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    if n >= (std::i64::MAX as f64) {
+        return Ok(Value::int(std::i64::MAX));
+    } else if n <= (std::i64::MIN as f64) {
+        return Ok(Value::int(std::i64::MIN));
+    } else {
+        return Ok(Value::int(n as i64));
+    }
+}
+
+pub fn int_to_float(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = int!(args.0[0]);
+
+    Ok(Value::float(n as f64))
+}
+
+pub fn float_to_bits(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    if n == 0.0 { // also catches negative zero, which is why we need a special case
+        Ok(Value::int(0))
+    } else {
+        Ok(Value::int(n.to_bits() as i64))
+    }
+}
+
+pub fn bits_to_float(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = int!(args.0[0]);
+
+    ret_float(f64::from_bits(n as u64))
+}
+
+pub fn is_bits_to_float(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = int!(args.0[0]);
+
+    Ok(Value::bool_(f64::from_bits(n as u64).is_finite()))
 }
 
 /////////////////////////////////////////////////////////////////////////////

@@ -103,8 +103,7 @@ pub fn default() -> HashMap<Id, Value> {
     env_add(&mut m, "float-fract", Builtin::FloatFract);
     env_add(&mut m, "float-abs", Builtin::FloatAbs);
     env_add(&mut m, "float-signum", Builtin::FloatSignum);
-    env_add(&mut m, "float-powi", Builtin::FloatPowi);
-    env_add(&mut m, "float-powf", Builtin::FloatPowf);
+    env_add(&mut m, "float-pow", Builtin::FloatPow);
     env_add(&mut m, "float-sqrt", Builtin::FloatSqrt);
     env_add(&mut m, "float-exp", Builtin::FloatExp);
     env_add(&mut m, "float-exp2", Builtin::FloatExp2);
@@ -127,10 +126,9 @@ pub fn default() -> HashMap<Id, Value> {
     env_add(&mut m, "float-asinh", Builtin::FloatAsinH);
     env_add(&mut m, "float-acosh", Builtin::FloatAcosH);
     env_add(&mut m, "float-atanh", Builtin::FloatAtanH);
-    env_add(&mut m, "float-classify", Builtin::FloatClassify);
-    env_add(&mut m, "float-recip", Builtin::FloatRecip);
+    env_add(&mut m, "float-normal?", Builtin::FloatIsNormal);
     env_add(&mut m, "float->degrees", Builtin::FloatToDegrees);
-    env_add(&mut m, "float-radians", Builtin::FloatToRadians);
+    env_add(&mut m, "float->radians", Builtin::FloatToRadians);
     env_add(&mut m, "float->int", Builtin::FloatToInt);
     env_add(&mut m, "int->float", Builtin::IntToFloat);
     env_add(&mut m, "float->bits", Builtin::FloatToBits);

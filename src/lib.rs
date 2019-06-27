@@ -1,5 +1,7 @@
 #![feature(reverse_bits)]
 #![feature(euclidean_division)]
+#![feature(copysign)]
+
 use std::collections::HashMap;
 
 use nom::types::CompleteStr;
@@ -1109,5 +1111,212 @@ mod tests {
         ))
         (assert-throw (str-iter-utf8-back "abc" (fn [b] (throw b))) 99)
         "#);
+    }
+
+    #[test]
+    fn test_toplevel_float() {
+        test_example("
+        (assert-eq float-max-val 1.7976931348623157e308)
+        (assert-throw (float-mul float-max-val 2.0) :inf)
+        ");
+
+        test_example("
+        (assert-eq float-min-val -1.7976931348623157e308)
+        (assert-throw (float-mul float-min-val 2.0) :-inf)
+        ");
+
+        test_example("
+        (assert-eq (float-add 1.0 2.0) 3.0)
+        (assert-eq (float-add 1.0 -2.0) -1.0)
+        (assert-eq (float-add 0.1 0.2) 0.30000000000000004)
+        ");
+
+        test_example("
+        (assert-eq (float-sub 1.0 2.0) -1.0)
+        (assert-eq (float-sub 1.0 -2.0) 3.0)
+        ");
+
+        test_example("
+        (assert-eq (float-mul 2.0 3.0) 6.0)
+        (assert-eq (float-mul 2.0 -3.0) -6.0)
+        ");
+
+        test_example("
+        (assert-eq (float-div 8.0 3.0) 2.6666666666666665)
+        ");
+
+        test_example("
+        (assert-eq (float-div 8.0 3.0) 2.6666666666666665)
+        (assert-throw (float-div 1.0 0.0) :inf)
+        (assert-throw (float-div 1.0 -0.0) :inf)
+        (assert-throw (float-div 0.0 0.0) :nan)
+        ");
+
+        test_example("(assert-eq (float-mul-add 1.2 3.4 5.6) 9.68)");
+
+        test_example("
+        (assert-eq (float-neg 1.2) -1.2)
+        (assert-eq (float-neg -1.2) 1.2)
+        (assert-eq (float-neg 0.0) 0.0)
+        ");
+
+        test_example("
+        (assert-eq (float-floor 1.9) 1.0)
+        (assert-eq (float-floor 1.0) 1.0)
+        (assert-eq (float-floor -1.1) -2.0)
+        ");
+
+        test_example("
+        (assert-eq (float-ceil 1.1) 2.0)
+        (assert-eq (float-ceil 1.0) 1.0)
+        (assert-eq (float-ceil -1.9) -1.0)
+        ");
+
+        test_example("
+        (assert-eq (float-round 1.0) 1.0)
+        (assert-eq (float-round 1.49) 1.0)
+        (assert-eq (float-round 1.51) 2.0)
+        (assert-eq (float-round 1.5) 2.0)
+        (assert-eq (float-round 2.5) 2.0)
+        ");
+
+        test_example("
+        (assert-eq (float-trunc 1.0) 1.0)
+        (assert-eq (float-trunc 1.49) 1.0)
+        (assert-eq (float-trunc 1.51) 1.0)
+        (assert-eq (float-trunc -1.51) -1.0)
+        ");
+
+        test_example("
+        (assert-eq (float-fract 1.0) 0.0)
+        (assert-eq (float-fract 1.49) 0.49)
+        (assert-eq (float-fract 1.51) 0.51)
+        (assert-eq (float-fract -1.51) -0.51)
+        ");
+
+        test_example("
+        (assert-eq (float-abs 1.2) 1.2)
+        (assert-eq (float-abs -1.2) 1.2)
+        (assert-eq (float-abs 0.0) 0.0)
+        ");
+
+        test_example("
+        (assert-eq (float-signum 99.2) 1.0)
+        (assert-eq (float-signum -99.2) -1.0)
+        (assert-eq (float-signum 0.0) 0.0)
+        (assert-eq (float-signum -0.0) 0.0)
+        ");
+
+        test_example("(assert-eq (float-pow 1.2 3.4) 1.858729691979481)");
+
+        test_example("
+        (assert-eq (float-sqrt 1.2) 1.0954451150103321)
+        (assert-throw (float-sqrt -1.0) :nan)
+        ");
+
+        test_example("(assert-eq (float-exp 1.2) 3.3201169227365472)");
+
+        test_example("(assert-eq (float-exp2 1.2) 2.2973967099940698)");
+
+        test_example("(assert-eq (float-ln 1.2) 0.1823215567939546)");
+
+        test_example("(assert-eq (float-log2 1.2) 0.2630344058337938)");
+
+        test_example("(assert-eq (float-log10 1.2) 0.07918124604762482)");
+
+        test_example("
+        (assert-eq (float-hypot 1.2 3.4) 3.605551275463989)
+        (assert-eq (float-hypot 1.2 -3.4) 3.605551275463989)
+        (assert-eq (float-hypot -1.2 3.4) 3.605551275463989)
+        (assert-eq (float-hypot -1.2 -3.4) 3.605551275463989)
+        ");
+
+        test_example("(assert-eq (float-sin 1.2) 0.9320390859672263)");
+
+        test_example("(assert-eq (float-cos 1.2) 0.3623577544766736)");
+
+        test_example("(assert-eq (float-tan 1.2) 2.5721516221263188)");
+
+        test_example("
+        (assert-eq (float-asin 0.8) 0.9272952180016123)
+        (assert-throw (float-asin 1.2) :nan)
+        ");
+
+        test_example("
+        (assert-eq (float-acos 0.8) 0.6435011087932843)
+        (assert-throw (float-acos 1.2) :nan)
+        ");
+
+        test_example("(assert-eq (float-atan 1.2) 0.8760580505981934)");
+
+        test_example("(assert-eq (float-atan2 1.2 3.4) 0.3392926144540447)");
+
+        test_example("(assert-eq (float-exp-m1 1.2) 2.3201169227365472)");
+
+        test_example("(assert-eq (float-ln-1p 1.2) 0.7884573603642702)");
+
+        test_example("(assert-eq (float-sinh 1.2) 1.5094613554121725)");
+
+        test_example("(assert-eq (float-cosh 1.2) 1.8106555673243747)");
+
+        test_example("(assert-eq (float-tanh 1.2) 0.8336546070121552)");
+
+        test_example("(assert-eq (float-asinh 1.2) 1.015973134179692)");
+
+        test_example("(assert-eq (float-acosh 1.2) 0.6223625037147785)");
+
+        test_example("
+        (assert-eq (float-atanh 0.8) 1.0986122886681098)
+        (assert-throw (float-atanh 1.2) :nan)
+        ");
+
+        test_example("
+        (assert-eq (float-normal? 1.0) true)
+        (assert-eq (float-normal? 1.0e-308) false) # subnormal
+        (assert-eq (float-normal? 0.0) false)
+        ");
+
+        test_example("(assert-eq (float->degrees 1.2) 68.75493541569878)");
+
+        test_example("(assert-eq (float->radians 1.2) 0.020943951023931952)");
+
+        test_example("
+        (assert-eq (float->int 0.0) 0)
+        (assert-eq (float->int 1.0) 1)
+        (assert-eq (float->int -1.0) -1)
+        (assert-eq (float->int 1.9) 1)
+        (assert-eq (float->int -1.9) -1)
+        (assert-eq (float->int float-max-val) int-max-val)
+        (assert-eq (float->int float-min-val) int-min-val)
+        ");
+
+        test_example("
+        (assert-eq (int->float 0) 0.0)
+        (assert-eq (int->float 1) 1.0)
+        (assert-eq (int->float -1) -1.0)
+        (assert-eq (int->float 9007199254740993) 9007199254740992.0)
+        (assert-eq (int->float -9007199254740993) -9007199254740992.0)
+        ");
+
+        test_example("
+        (assert-eq (float->bits 1.2) 4608083138725491507)
+        (assert-eq (float->bits -1.2) -4615288898129284301)
+        (assert-eq (float->bits 0.0) 0)
+        (assert-eq (float->bits -0.0) 0)
+        ");
+
+        test_example("
+        (assert-eq (bits=>float 42) 2.08e-322)
+        (assert-throw (bits=>float -42) :nan)
+        (assert-throw (bits=>float 9218868437227405312) :inf)
+        (assert-throw (bits=>float -4503599627370496) :-inf)
+        ");
+
+        test_example("
+        (assert-eq (bits=>float? 42) true)
+        (assert-eq (bits=>float? -42) false)
+        (assert-eq (bits=>float? 9218868437227405312) false)
+        (assert-eq (bits=>float? -4503599627370496) false)
+        ");
     }
 }

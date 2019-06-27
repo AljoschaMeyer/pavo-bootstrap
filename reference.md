@@ -1348,6 +1348,8 @@ Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
 
 ### Chars
 
+A char is a [unicode scalar value](http://www.unicode.org/glossary/#unicode_scalar_value).
+
 #### `char-max-val`
 
 The largest char (numerically the largest unicode scalar value).
@@ -1385,6 +1387,8 @@ Returns the unicode scalar value of the char `c` as an int.
 ```
 
 ### Strings
+
+Strings are conceptually sequences of chars. Unless otherwise noted, operations in general (and indexing in particular) are defined in terms of chars. There are however a few functions that deal with raw bytes of the utf-8 encoding of a string, and the maximum size of strings is defined in term of its utf8 encoding (at most `2^63 - 1` bytes).
 
 #### `(str-count s)`
 
@@ -1650,16 +1654,17 @@ Time: Iteration takes amortized O(n), where n is `(str-count-utf8 s)`.
 
 ### Floats
 
-TODO bla
+Floats are IEEE 754 64 bit floating point numbers, except that there are no NaNs, no infinities, and no negative zero. All operations are carried out as per the standard, that is the results are determined as if the numbers had infinite precision, and are then rounded to the nearest representable number. The rounding mode is always [round to nearest, ties to even](https://en.wikipedia.org/wiki/Rounding#Round_half_to_even). If an operation would produce positive infinity under regular IEEE 754 semantcis (regardless whether by definition or through rounding), the corresponding pavo function throws `:inf` instead. Analogously `:-inf` is thrown instead of returning negative infinity, and `:nan` is thrown instead of returning any NaN. Any operation that would produce negative zero produces positive zero instead.
 
-All functions that operate on floats throw `:inf` if the result would be infinity under IEEE754 semantics, `:-inf` if the result would be negative infinity under IEEE754 semantics, and `:nan` if the result would be not-a-number under IEEE753 semantics.
+The examples in this section are not very exhaustive, since all operations are well-defined in the standard.
 
 #### `float-max-val`
 
 The largest float.
 
 ```pavo
-(assert-throw (float-mul float-max-val 2) :inf)
+(assert-eq float-max-val 1.7976931348623157e308)
+(assert-throw (float-mul float-max-val 2.0) :inf)
 ```
 
 #### `float-min-val`
@@ -1667,12 +1672,13 @@ The largest float.
 The smallest float.
 
 ```pavo
-(assert-throw (float-mul float-min-val 1) :-inf)
+(assert-eq float-min-val -1.7976931348623157e308)
+(assert-throw (float-mul float-min-val 2.0) :-inf)
 ```
 
-#### `(float-add n m)`
+#### `(float-add x y)`
 
-Adds the float `n` to the float `m`.
+Adds the float `x` to the float `y`.
 
 ```pavo
 (assert-eq (float-add 1.0 2.0) 3.0)
@@ -1680,161 +1686,406 @@ Adds the float `n` to the float `m`.
 (assert-eq (float-add 0.1 0.2) 0.30000000000000004)
 ```
 
-#### `(float-sub n m)`
+#### `(float-sub x y)`
 
-Subtracts the float `m` from the float `n`.
+Subtracts the float `y` from the float `x`.
 
 ```pavo
 (assert-eq (float-sub 1.0 2.0) -1.0)
 (assert-eq (float-sub 1.0 -2.0) 3.0)
 ```
 
-#### `(float-mul n m)`
+#### `(float-mul x y)`
 
-Multiplies the float `n` with the int `m`.
+Multiplies the float `x` with the int `y`.
 
 ```pavo
 (assert-eq (float-mul 2.0 3.0) 6.0)
 (assert-eq (float-mul 2.0 -3.0) -6.0)
 ```
 
-#### `(float-div n m)`
+#### `(float-div x y)`
 
-Divides the float `n` by the float `m`.
+Divides the float `x` by the float `y`.
 
 ```pavo
 (assert-eq (float-div 8.0 3.0) 2.6666666666666665)
+(assert-throw (float-div 1.0 0.0) :inf)
+(assert-throw (float-div 1.0 -0.0) :inf) # non :-inf, since -0.0 is positive zero
+(assert-throw (float-div 0.0 0.0) :nan)
 ```
 
-#### `(float-mul-add a b c)`
-TODO (a*b) + c
+#### `(float-mul-add x y z)`
+
+Computes `x * y + z` on the floats `x`, `y` and `z` with perfect precision and then rounds the result to the nearest float. This is more accurate than (and thus not equivalent to) `(float-add (float-mul x y) z)`. Also known as fused multiply-add.
+
+```pavo
+(assert-eq (float-mul-add 1.2 3.4 5.6) 9.68)
+```
 
 #### `(float-neg x)`
-TODO
+
+Negates the float `x`. Zero remains unchanged.
+
+```pavo
+(assert-eq (float-neg 1.2) -1.2)
+(assert-eq (float-neg -1.2) 1.2)
+(assert-eq (float-neg 0.0) 0.0)
+```
 
 #### `(float-floor x)`
-TODO
+
+Returns the largest integral float less than or equal to the float `x`.
+
+```pavo
+(assert-eq (float-floor 1.9) 1.0)
+(assert-eq (float-floor 1.0) 1.0)
+(assert-eq (float-floor -1.1) -2.0)
+```
 
 #### `(float-ceil x)`
-TODO
+
+Returns the smallest integral float greater than or equal to the float `x`.
+
+```pavo
+(assert-eq (float-ceil 1.1) 2.0)
+(assert-eq (float-ceil 1.0) 1.0)
+(assert-eq (float-ceil -1.9) -1.0)
+```
 
 #### `(float-round x)`
-TODO
+
+Rounds the float `x` towards the nearest integral float, rounding towards the even one in case of a tie.
+
+```pavo
+(assert-eq (float-round 1.0) 1.0)
+(assert-eq (float-round 1.49) 1.0)
+(assert-eq (float-round 1.51) 2.0)
+(assert-eq (float-round 1.5) 2.0)
+(assert-eq (float-round 2.5) 2.0)
+```
 
 #### `(float-trunc x)`
-TODO
+
+Returns the integer part of the float `x` as a float.
+
+```pavo
+(assert-eq (float-trunc 1.0) 1.0)
+(assert-eq (float-trunc 1.49) 1.0)
+(assert-eq (float-trunc 1.51) 1.0)
+(assert-eq (float-trunc -1.51) -1.0)
+```
 
 #### `(float-fract x)`
-TODO
+
+Returns the fractional part of the float `x` (negative for negative `x`).
+
+```pavo
+(assert-eq (float-fract 1.0) 0.0)
+(assert-eq (float-fract 1.49) 0.49)
+(assert-eq (float-fract 1.51) 0.51)
+(assert-eq (float-fract -1.51) -0.51)
+```
 
 #### `(float-abs x)`
-TODO
+
+Returns the absolute value of the float `x`.
+
+```pavo
+(assert-eq (float-abs 1.2) 1.2)
+(assert-eq (float-abs -1.2) 1.2)
+(assert-eq (float-abs 0.0) 0.0)
+(assert-eq (float-abs -0.0) 0.0)
+```
 
 #### `(float-signum x)`
-TODO
 
-#### `(float-powi x n)`
-TODO
+Returns `1.0` if the float `x` is greater than zero, `0.0` if it is equal to zero, `-1.0` if it is less than zero.
 
-#### `(float-powf x y)`
-TODO
+```pavo
+(assert-eq (float-signum 99.2) 1.0)
+(assert-eq (float-signum -99.2) -1.0)
+(assert-eq (float-signum 0.0) 0.0)
+(assert-eq (float-signum -0.0) 0.0)
+```
+
+#### `(float-pow x y)`
+
+Raises the float `x` to the power of the float `y`.
+
+```pavo
+(assert-eq (float-pow 1.2 3.4) 1.858729691979481)
+```
 
 #### `(float-sqrt x)`
-TODO
+
+Computes the square root of the float `x`.
+
+```pavo
+(assert-eq (float-sqrt 1.2) 1.0954451150103321)
+(assert-throw (float-sqrt -1.0) :nan)
+```
 
 #### `(float-exp x)`
-TODO
+
+Returns [e](https://en.wikipedia.org/wiki/E_(mathematical_constant)) to the power of the float `x`.
+
+```pavo
+(assert-eq (float-exp 1.2) 3.3201169227365472)
+```
 
 #### `(float-exp2 x)`
-TODO
+
+Returns 2.0 to the power of the float `x`.
+
+```pavo
+(assert-eq (float-exp2 1.2) 2.2973967099940698)
+```
 
 #### `(float-ln x)`
-TODO
+
+Returns the [natural logarithm](https://en.wikipedia.org/wiki/Natural_logarithm) of the float `x`.
+
+```pavo
+(assert-eq (float-ln 1.2) 0.1823215567939546)
+```
 
 #### `(float-log2 x)`
-TODO
+
+Returns the [binary logarithm](https://en.wikipedia.org/wiki/Binary_logarithm) of the float `x`.
+
+```pavo
+(assert-eq (float-log2 1.2) 0.2630344058337938)
+```
 
 #### `(float-log10 x)`
-TODO
+
+Returns the base 10 logarithm of the float `x`.
+
+```pavo
+(assert-eq (float-log10 1.2) 0.07918124604762482)
+```
 
 #### `(float-hypot x y)`
-TODO
+
+Calculates the length of the hypotenuse of a right-angle triangle given legs of the float lengths `x` and `y`.
+
+```pavo
+(assert-eq (float-hypot 1.2 3.4) 3.605551275463989)
+(assert-eq (float-hypot 1.2 -3.4) 3.605551275463989)
+(assert-eq (float-hypot -1.2 3.4) 3.605551275463989)
+(assert-eq (float-hypot -1.2 -3.4) 3.605551275463989)
+```
 
 #### `(float-sin x)`
-TODO
+
+Computes the sine of the float `x` (in radians).
+
+```pavo
+(assert-eq (float-sin 1.2) 0.9320390859672263)
+```
 
 #### `(float-cos x)`
-TODO
+
+Computes the cosine of the float `x` (in radians).
+
+```pavo
+(assert-eq (float-cos 1.2) 0.3623577544766736)
+```
 
 #### `(float-tan x)`
-TODO
+
+Computes the tangent of the float `x` (in radians).
+
+```pavo
+(assert-eq (float-tan 1.2) 2.5721516221263188)
+```
 
 #### `(float-asin x)`
-TODO
+
+Computes the arcsine of the float `x`, in radians in the range `[-pi/2, pi/2]`. Throws `:nan` if `x` is outside the range `[-1, 1]`.
+
+```pavo
+(assert-eq (float-asin 0.8) 0.9272952180016123)
+(assert-throw (float-asin 1.2) :nan)
+```
 
 #### `(float-acos x)`
-TODO
+
+Computes the arccosine of the float `x`, in radians in the range `[-pi/2, pi/2]`. Throws `:nan` if `x` is outside the range `[-1, 1]`.
+
+```pavo
+(assert-eq (float-acos 0.8) 0.6435011087932843)
+(assert-throw (float-acos 1.2) :nan)
+```
 
 #### `(float-atan x)`
-TODO
+
+Computes the arctangent of the float `x`, in radians in the range `[-pi/2, pi/2]`.
+
+```pavo
+(assert-eq (float-atan 1.2) 0.8760580505981934)
+```
 
 #### `(float-atan2 x y)`
-TODO
+
+Computes [atan2](https://en.wikipedia.org/wiki/Atan2) of the float `x` and the float `y`.
+
+```pavo
+(assert-eq (float-atan2 1.2 3.4) 0.3392926144540447)
+```
 
 #### `(float-exp-m1 x)`
-TODO
+
+Returns [e](https://en.wikipedia.org/wiki/E_(mathematical_constant)) to the power of the float `x`, minus one, i.e. `(e^x) - 1`.
+
+```pavo
+(assert-eq (float-exp-m1 1.2) 2.3201169227365472)
+```
 
 #### `(float-ln-1p x)`
-TODO
+
+Returns the [natural logarithm](https://en.wikipedia.org/wiki/Natural_logarithm) of one plus the float `x`, i.e. `ln(1 + x)`
+
+```pavo
+(assert-eq (float-ln-1p 1.2) 0.7884573603642702)
+```
 
 #### `(float-sinh x)`
-TODO
+
+Computes the [hyperbolic sine](https://en.wikipedia.org/wiki/Hyperbolic_function) of the float `x`.
+
+```pavo
+(assert-eq (float-sinh 1.2) 1.5094613554121725)
+```
 
 #### `(float-cosh x)`
-TODO
+
+Computes the [hyperbolic cosine](https://en.wikipedia.org/wiki/Hyperbolic_function) of the float `x`.
+
+```pavo
+(assert-eq (float-cosh 1.2) 1.8106555673243747)
+```
 
 #### `(float-tanh x)`
-TODO
+
+Computes the [hyperbolic tangent](https://en.wikipedia.org/wiki/Hyperbolic_function) of the float `x`.
+
+```pavo
+(assert-eq (float-tanh 1.2) 0.8336546070121552)
+```
 
 #### `(float-asinh x)`
-TODO
+
+Computes the [inverse hyperbolic sine](https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions) of the float `x`.
+
+```pavo
+(assert-eq (float-asinh 1.2) 1.015973134179692)
+```
 
 #### `(float-acosh x)`
-TODO
+
+Computes the [inverse hyperbolic cosine](https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions) of the float `x`.
+
+```pavo
+(assert-eq (float-acosh 1.2) 0.6223625037147785)
+```
 
 #### `(float-atanh x)`
-TODO
 
-#### `(float-classify x)`
-TODO :zero :subnormal :normal
+Computes the [inverse hyperbolic tangent](https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions) of the float `x`.
 
-#### `(float-recip x)`
-TODO
+```pavo
+(assert-eq (float-atanh 0.8) 1.0986122886681098)
+(assert-throw (float-atanh 1.2) :nan)
+```
+
+#### `(float-normal? x)`
+
+Returns `true` if the float `x` is neither zero nor [subnormal](https://en.wikipedia.org/wiki/Denormal_number), false otherwise.
+
+```pavo
+(assert-eq (float-normal? 1.0) true)
+(assert-eq (float-normal? 1.0e-308) false) # subnormal
+(assert-eq (float-normal? 0.0) false)
+```
 
 #### `(float->degrees x)`
-TODO
+
+Converts the float `x` from radians to degrees.
+
+```pavo
+(assert-eq (float->degrees 1.2) 68.75493541569878)
+```
 
 #### `(float->radians x)`
-TODO
+
+Converts the float `x` from degrees to radians.
+
+```pavo
+(assert-eq (float->radians 1.2) 0.020943951023931952)
+```
 
 #### `(float->int x)`
-Truncate towards zero, yields int-max-val if too large or int-min-val if too small
-TODO
+
+Converts the float `x` to an int, rounding towards zero.
+
+```pavo
+(assert-eq (float->int 0.0) 0)
+(assert-eq (float->int 1.0) 1)
+(assert-eq (float->int -1.0) -1)
+(assert-eq (float->int 1.9) 1)
+(assert-eq (float->int -1.9) -1)
+(assert-eq (float->int float-max-val) int-max-val)
+(assert-eq (float->int float-min-val) int-min-val)
+```
 
 #### `(int->float n)`
-The usual rounding if the int can't be represented exactly
-TODO
+
+Converts the int `n` to a float, using the usual rounding rules if it can not be represented exactly ([round to nearest, ties to even](https://en.wikipedia.org/wiki/Rounding#Round_half_to_even)).
+
+```pavo
+(assert-eq (int->float 0) 0.0)
+(assert-eq (int->float 1) 1.0)
+(assert-eq (int->float -1) -1.0)
+(assert-eq (int->float 9007199254740993) 9007199254740992.0)
+(assert-eq (int->float -9007199254740993) -9007199254740992.0)
+```
 
 #### `(float->bits x)`
-https://doc.rust-lang.org/std/primitive.f64.html#method.to_bits
-TODO
+
+Returns the int with the same bit pattern as the bit pattern of the float `x`. The sign bit of the float is the most significant bit of the resulting int, the least significant bit of the float's mantissa is the least significant bit of the resulting int.
+
+```pavo
+(assert-eq (float->bits 1.2) 4608083138725491507)
+(assert-eq (float->bits -1.2) -4615288898129284301)
+(assert-eq (float->bits 0.0) 0)
+(assert-eq (float->bits -0.0) 0)
+```
 
 #### `(bits=>float n)`
-https://doc.rust-lang.org/std/primitive.f64.html#method.from_bits
-TODO
+
+Returns the float with the same bit pattern as the bit pattern of the int `n`. The most significant bit of `n` is the sign bit of the float, the least significant bit of `n` is the least significant bit of the float's mantissa.
+
+Throws `:nan`, `:inf` or `:-inf` if the bit pattern represents on of these in IEEE 754.
+
+```pavo
+(assert-eq (bits=>float 42) 2.08e-322)
+(assert-throw (bits=>float -42) :nan)
+(assert-throw (bits=>float 9218868437227405312) :inf)
+(assert-throw (bits=>float -4503599627370496) :-inf)
+```
 
 #### `(bits=>float? n)`
-TODO
+
+Returns whether applying `bits=>float` to the float `n` would wrk (`true`) or throw an error (`false`).
+
+```pavo
+(assert-eq (bits=>float? 42) true)
+(assert-eq (bits=>float? -42) false)
+(assert-eq (bits=>float? 9218868437227405312) false)
+(assert-eq (bits=>float? -4503599627370496) false)
+```
 
 ### Identifiers
 
