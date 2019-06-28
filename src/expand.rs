@@ -27,7 +27,8 @@ impl From<E> for ExpandError {
 
 pub fn expand(v: &Value, env: &HashMap<Id, Value>, macros: &ImOrdMap<Id, Value>, cx: &mut Context) -> Result<Value, ExpandError> {
     match v {
-        Value::Atomic(..) | Value::Id(..) | Value::Fun(..) | Value::Cell(..)  => Ok(v.clone()),
+        Value::Atomic(..) | Value::Id(..) | Value::Fun(..) | Value::Cell(..)
+        | Value::Opaque(..)  => Ok(v.clone()),
 
         Value::Arr(ref vals) => {
             let mut expanded = Vec::with_capacity(vals.0.len());

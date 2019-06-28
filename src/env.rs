@@ -205,6 +205,7 @@ pub fn default() -> HashMap<Id, Value> {
 
     env_add(&mut m, "opaque", Builtin::Opaque);
 
+    env_add(&mut m, "cmp", Builtin::Cmp);
     env_add(&mut m, "=", Builtin::Eq);
     env_add(&mut m, "<", Builtin::Lt);
     env_add(&mut m, "<=", Builtin::Lte);

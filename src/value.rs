@@ -14,12 +14,12 @@ use im_rc::{
 };
 use ropey::Rope as Ropey;
 
-use crate::builtins::{self, type_error};
+use crate::builtins::{self, type_error, type_error_, num_args_error};
 use crate::context::Context;
 use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
 use crate::vm::Closure;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
+#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
 pub enum Value {
     Atomic(Atomic),
     Id(Id),
@@ -29,6 +29,126 @@ pub enum Value {
     Map(OrdMap<Value, Value>),
     Fun(Fun),
     Cell(Gc<GcCell<Value>>, u64),
+    Opaque(Box<Value>, u64),
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Value) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Value {
+    fn cmp(&self, other: &Value) -> Ordering {
+        match self {
+            Value::Atomic(Atomic::Nil) => match other {
+                Value::Atomic(Atomic::Nil) => Ordering::Equal,
+                _ => Ordering::Less,
+            }
+
+            Value::Atomic(Atomic::Bool(lhs)) => match other {
+                Value::Atomic(Atomic::Nil) => Ordering::Greater,
+                Value::Atomic(Atomic::Bool(rhs)) => lhs.cmp(rhs),
+                _ => Ordering::Less,
+            }
+
+            Value::Atomic(Atomic::Int(lhs)) => match other {
+                Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(..)) => Ordering::Greater,
+                Value::Atomic(Atomic::Int(rhs)) => lhs.cmp(rhs),
+                _ => Ordering::Less,
+            }
+
+            Value::Atomic(Atomic::Float(lhs)) => match other {
+                Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(..)) | Value::Atomic(Atomic::Int(..)) => Ordering::Greater,
+                Value::Atomic(Atomic::Float(rhs)) => lhs.cmp(rhs),
+                _ => Ordering::Less,
+            }
+
+            Value::Atomic(Atomic::Keyword(lhs)) => match other {
+                Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(..)) | Value::Atomic(Atomic::Int(..)) | Value::Atomic(Atomic::Float(..)) => Ordering::Greater,
+                Value::Atomic(Atomic::Keyword(rhs)) => lhs.cmp(rhs),
+                _ => Ordering::Less,
+            }
+
+            Value::Id(Id::User(lhs)) => match other {
+                Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(..)) | Value::Atomic(Atomic::Int(..)) | Value::Atomic(Atomic::Float(..)) | Value::Atomic(Atomic::Keyword(..)) => Ordering::Greater,
+                Value::Id(Id::User(rhs)) => lhs.cmp(rhs),
+                _ => Ordering::Less,
+            }
+
+            Value::Id(Id::Symbol(lhs)) => match other {
+                Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(..)) | Value::Atomic(Atomic::Int(..)) | Value::Atomic(Atomic::Float(..)) | Value::Atomic(Atomic::Keyword(..)) | Value::Id(Id::User(..)) => Ordering::Greater,
+                Value::Id(Id::Symbol(rhs)) => lhs.cmp(rhs),
+                _ => Ordering::Less,
+            }
+
+            Value::Atomic(Atomic::Char(lhs)) => match other {
+                Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(..)) | Value::Atomic(Atomic::Int(..)) | Value::Atomic(Atomic::Float(..)) | Value::Atomic(Atomic::Keyword(..)) | Value::Id(Id::User(..)) | Value::Id(Id::Symbol(..)) => Ordering::Greater,
+                Value::Atomic(Atomic::Char(rhs)) => lhs.cmp(rhs),
+                _ => Ordering::Less,
+            }
+
+            Value::Atomic(Atomic::String(lhs)) => match other {
+                Value::Opaque(..) | Value::Cell(..) | Value::Fun(..) | Value::Map(..) | Value::Set(..) | Value::App(..) | Value::Arr(..) | Value::Atomic(Atomic::Bytes(..)) => Ordering::Less,
+                Value::Atomic(Atomic::String(rhs)) => lhs.cmp(rhs),
+                _ => Ordering::Greater,
+            }
+
+            Value::Atomic(Atomic::Bytes(lhs)) => match other {
+                Value::Opaque(..) | Value::Cell(..) | Value::Fun(..) | Value::Map(..) | Value::Set(..) | Value::App(..) | Value::Arr(..) => Ordering::Less,
+                Value::Atomic(Atomic::Bytes(rhs)) => lhs.cmp(rhs),
+                _ => Ordering::Greater,
+            }
+
+            Value::Arr(lhs) => match other {
+                Value::Opaque(..) | Value::Cell(..) | Value::Fun(..) | Value::Map(..) | Value::Set(..) | Value::App(..) => Ordering::Less,
+                Value::Arr(rhs) => lhs.cmp(rhs),
+                _ => Ordering::Greater,
+            }
+
+            Value::App(lhs) => match other {
+                Value::Opaque(..) | Value::Cell(..) | Value::Fun(..) | Value::Map(..) | Value::Set(..) => Ordering::Less,
+                Value::App(rhs) => lhs.cmp(rhs),
+                _ => Ordering::Greater,
+            }
+
+            Value::Set(lhs) => match other {
+                Value::Opaque(..) | Value::Cell(..) | Value::Fun(..) | Value::Map(..) => Ordering::Less,
+                Value::Set(rhs) => lhs.cmp(rhs),
+                _ => Ordering::Greater,
+            }
+
+            Value::Map(lhs) => match other {
+                Value::Opaque(..) | Value::Cell(..) | Value::Fun(..) => Ordering::Less,
+                Value::Map(rhs) => lhs.cmp(rhs),
+                _ => Ordering::Greater,
+            }
+
+            Value::Fun(lhs) => match other {
+                Value::Opaque(..) | Value::Cell(..) => Ordering::Less,
+                Value::Fun(rhs) => lhs.cmp(rhs),
+                _ => Ordering::Greater,
+            }
+
+            Value::Cell(_, left_id) => match other {
+                Value::Opaque(..) => Ordering::Less,
+                Value::Cell(_, right_id) => left_id.cmp(right_id),
+                _ => Ordering::Greater,
+            }
+
+            Value::Opaque(left_inner, left_type) => match other {
+                Value::Opaque(right_inner, right_type) => {
+                    match left_type.cmp(right_type) {
+                        Ordering::Less => return Ordering::Less,
+                        Ordering::Greater => return Ordering::Greater,
+                        Ordering::Equal => return left_inner.cmp(right_inner),
+                    }
+                }
+
+                _ => Ordering::Greater,
+            }
+        }
+    }
 }
 
 impl Value {
@@ -136,6 +256,22 @@ impl Value {
         Value::Fun(Fun::Builtin(b))
     }
 
+    pub fn hide(type_id: u64, cx: &mut Context) -> Value {
+        Value::Fun(Fun::Opaque {
+            hide: true,
+            fun_id: cx.next_fun_id(),
+            type_id: type_id,
+        })
+    }
+
+    pub fn unhide(type_id: u64, cx: &mut Context) -> Value {
+        Value::Fun(Fun::Opaque {
+            hide: false,
+            fun_id: cx.next_fun_id(),
+            type_id: type_id,
+        })
+    }
+
     pub fn symbol(cx: &mut Context) -> Value {
         Value::Id(Id::Symbol(cx.next_symbol_id()))
     }
@@ -154,6 +290,13 @@ impl Value {
     pub fn as_user_id(&self) -> Option<&str> {
         match self {
             Value::Id(Id::User(id)) => Some(id),
+            _ => None,
+        }
+    }
+
+    pub fn as_symbol(&self) -> Option<u64> {
+        match self {
+            Value::Id(Id::Symbol(id)) => Some(*id),
             _ => None,
         }
     }
@@ -214,6 +357,13 @@ impl Value {
         }
     }
 
+    pub fn as_opaque(&self) -> Option<(&Value, u64)> {
+        match self {
+            Value::Opaque(the_box, type_id) => Some((the_box, *type_id)),
+            _ => None,
+        }
+    }
+
     pub fn truthy(&self) -> bool {
         match self {
             Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(false)) => false,
@@ -236,10 +386,10 @@ pub enum Atomic {
     Bool(bool),
     Int(i64),
     Float(NotNan),
+    Keyword(String),
     Char(char),
     String(Rope),
     Bytes(Vector<u8>),
-    Keyword(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize, Hash)]
@@ -258,6 +408,7 @@ impl Id {
 pub enum Fun {
     Closure(Closure, u64),
     Builtin(Builtin),
+    Opaque { hide: bool, fun_id: u64, type_id: u64 },
 }
 
 impl PartialEq for Fun {
@@ -265,6 +416,9 @@ impl PartialEq for Fun {
         match (self, other) {
             (Fun::Builtin(a), Fun::Builtin(b)) => a.eq(b),
             (Fun::Closure(_, id_a), Fun::Closure(_, id_b)) => id_a.eq(id_b),
+            (Fun::Opaque { fun_id: id_a, ..}, Fun::Opaque { fun_id: id_b, ..}) => id_a.eq(id_b),
+            (Fun::Opaque { fun_id: id_a, ..}, Fun::Closure(_, id_b)) => id_a.eq(id_b),
+            (Fun::Closure(_, id_a), Fun::Opaque { fun_id: id_b, ..}) => id_a.eq(id_b),
             _ => false,
         }
     }
@@ -276,9 +430,13 @@ impl Ord for Fun {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
             (Fun::Builtin(a), Fun::Builtin(b)) => a.cmp(b),
-            (Fun::Builtin(..), Fun::Closure(..)) => Ordering::Less,
+            (Fun::Builtin(..), _) => Ordering::Less,
             (Fun::Closure(..), Fun::Builtin(..)) => Ordering::Greater,
+            (Fun::Opaque {..}, Fun::Builtin(..)) => Ordering::Greater,
             (Fun::Closure(_, id_a), Fun::Closure(_, id_b)) => id_a.cmp(id_b),
+            (Fun::Opaque { fun_id: id_a, ..}, Fun::Opaque { fun_id: id_b, ..}) => id_a.cmp(id_b),
+            (Fun::Opaque { fun_id: id_a, ..}, Fun::Closure(_, id_b)) => id_a.cmp(id_b),
+            (Fun::Closure(_, id_a), Fun::Opaque { fun_id: id_b, ..}) => id_a.cmp(id_b),
         }
     }
 }
@@ -293,6 +451,28 @@ impl Fun {
     pub fn compute(&self, args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
         match self {
             Fun::Closure(c, _) => c.compute(args, cx),
+
+            Fun::Opaque { hide, type_id, ..} => {
+                if args.0.len() != 1 {
+                    return Err(num_args_error());
+                }
+
+                if *hide {
+                    return Ok(Value::Opaque(Box::new(args.0[0].clone()), *type_id));
+                } else {
+                    let arg = &args.0[0];
+                    match arg.as_opaque() {
+                        None => return Err(type_error_(arg, &Value::Id(Id::Symbol(*type_id)))),
+                        Some((inner, actual_type_id)) => {
+                            if actual_type_id == *type_id {
+                                return Ok(inner.clone());
+                            } else {
+                                return Err(type_error_(arg, &Value::Id(Id::Symbol(*type_id))));
+                            }
+                        }
+                    }
+                }
+            }
 
             Fun::Builtin(Builtin::BoolNot) => builtins::bool_not(args, cx),
             Fun::Builtin(Builtin::BoolAnd) => builtins::bool_and(args, cx),
@@ -484,6 +664,9 @@ impl Fun {
             Fun::Builtin(Builtin::CellGet) => builtins::cell_get(args, cx),
             Fun::Builtin(Builtin::CellSet) => builtins::cell_set(args, cx),
 
+            Fun::Builtin(Builtin::Opaque) => builtins::opaque(args, cx),
+
+            Fun::Builtin(Builtin::Cmp) => builtins::pavo_cmp(args, cx),
             Fun::Builtin(Builtin::Eq) => builtins::pavo_eq(args, cx),
 
             Fun::Builtin(Builtin::Typeof) => builtins::typeof_(args, cx),
@@ -501,227 +684,236 @@ impl Fun {
     }
 }
 
-// TODO, FIXME, XXX: Sort summands lexicographically by their pavo name
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub enum Builtin {
-    BoolNot,
+    Lt,
+    Lte,
+    Eq,
+    Gt,
+    Gte,
+
+    AppApply,
+    AppConcat,
+    AppCount,
+    AppGet,
+    AppInsert,
+    AppIter,
+    AppIterBack,
+    AppRemove,
+    AppSlice,
+    AppSplice,
+    AppUpdate,
+
+    ArrConcat,
+    ArrCount,
+    ArrGet,
+    ArrInsert,
+    ArrIter,
+    ArrIterBack,
+    ArrRemove,
+    ArrSlice,
+    ArrSplice,
+    ArrUpdate,
+
     BoolAnd,
-    BoolOr,
     BoolIf,
     BoolIff,
+    BoolNot,
+    BoolOr,
     BoolXor,
 
-    IntCountOnes,
-    IntCountZeros,
-    IntLeadingOnes,
-    IntLeadingZeros,
-    IntTrailingOnes,
-    IntTrailingZeros,
-    IntRotateLeft,
-    IntRotateRight,
-    IntReverseBytes,
-    IntReverseBits,
-    IntAdd,
-    IntSub,
-    IntMul,
-    IntDiv,
-    IntDivTrunc,
-    IntMod,
-    IntModTrunc,
-    IntNeg,
-    IntShl,
-    IntShr,
-    IntAbs,
-    IntPow,
-    IntAddSat,
-    IntSubSat,
-    IntMulSat,
-    IntPowSat,
-    IntAddWrap,
-    IntSubWrap,
-    IntMulWrap,
-    IntDivWrap,
-    IntDivTruncWrap,
-    IntModWrap,
-    IntModTruncWrap,
-    IntNegWrap,
-    IntAbsWrap,
-    IntPowWrap,
-    IntSignum,
-
+    BytesConcat,
     BytesCount,
     BytesGet,
     BytesInsert,
-    BytesRemove,
-    BytesUpdate,
-    BytesSlice,
-    BytesSplice,
-    BytesConcat,
     BytesIter,
     BytesIterBack,
+    BytesRemove,
+    BytesSlice,
+    BytesSplice,
+    BytesUpdate,
+
+    Cell,
+    CellGet,
+    CellSet,
+
+    CharToInt,
+
+    Check,
+
+    Cmp,
+
+    Diverge,
+
+    Eval,
+    Exval,
+
+    FloatToBits,
+    FloatToDegrees,
+    FloatToInt,
+    FloatToRadians,
+
+    FloatAbs,
+    FloatAcos,
+    FloatAcosH,
+    FloatAdd,
+    FloatAsin,
+    FloatAsinH,
+    FloatAtan,
+    FloatAtanH,
+    FloatAtan2,
+    FloatCeil,
+    FloatCos,
+    FloatCosH,
+    FloatDiv,
+    FloatExp,
+    FloatExpM1,
+    FloatExp2,
+    FloatFloor,
+    FloatFract,
+    FloatHypot,
+    FloatLn,
+    FloatLn1P,
+    FloatLog10,
+    FloatLog2,
+    FloatMul,
+    FloatMulAdd,
+    FloatNeg,
+    FloatIsNormal,
+    FloatPow,
+    FloatRound,
+    FloatSignum,
+    FloatSin,
+    FloatSinH,
+    FloatSqrt,
+    FloatSub,
+    FloatTan,
+    FloatTanH,
+    FloatTrunc,
+
+    BitsToFloat,
+    IsBitsToFloat,
+
+    Expand,
+
+    IdToStr,
+
+    IntToFloat,
+
+    IntAbs,
+    IntAbsWrap,
+    IntAdd,
+    IntAddSat,
+    IntAddWrap,
+    IntCountOnes,
+    IntCountZeros,
+    IntDiv,
+    IntDivTrunc,
+    IntDivTruncWrap,
+    IntDivWrap,
+    IntLeadingOnes,
+    IntLeadingZeros,
+    IntNeg,
+    IntNegWrap,
+    IntMod,
+    IntModTrunc,
+    IntModTruncWrap,
+    IntModWrap,
+    IntMul,
+    IntMulSat,
+    IntMulWrap,
+    IntPow,
+    IntPowSat,
+    IntPowWrap,
+    IntReverseBits,
+    IntReverseBytes,
+    IntRotateLeft,
+    IntRotateRight,
+    IntShl,
+    IntShr,
+    IntSignum,
+    IntSub,
+    IntSubWrap,
+    IntSubSat,
+    IntTrailingOnes,
+    IntTrailingZeros,
 
     IntToChar,
     IsIntToChar,
-    CharToInt,
 
+    KwToStr,
+
+    MacroDo,
+    MacroFn,
+    MacroIf,
+    MacroLet,
+    MacroQuote,
+    MacroSetBang,
+    MacroThrow,
+
+    MapContains,
+    MapCount,
+    MapDifference,
+    MapGet,
+    MapInsert,
+    MapIntersection,
+    MapIter,
+    MapIterBack,
+    MapMax,
+    MapMaxEntry,
+    MapMaxKey,
+    MapMin,
+    MapMinEntry,
+    MapMinKey,
+    MapRemove,
+    MapSymmetricDifference,
+    MapUnion,
+
+    Not,
+
+    Opaque,
+
+    Read,
+    Require,
+
+    SetContains,
+    SetCount,
+    SetDifference,
+    SetInsert,
+    SetIntersection,
+    SetIterBack,
+    SetIter,
+    SetMax,
+    SetMin,
+    SetRemove,
+    SetSymmetricDifference,
+    SetUnion,
+
+    StrConcat,
     StrCount,
     StrCountUtf8,
     StrGet,
     StrGetUtf8,
     StrIndexCharToUtf8,
     StrIndexUtf8ToChar,
-    StrInsert,
-    StrRemove,
-    StrUpdate,
-    StrSlice,
-    StrSplice,
-    StrConcat,
     StrIter,
     StrIterBack,
     StrIterUtf8,
     StrIterUtf8Back,
-
-    FloatAdd,
-    FloatSub,
-    FloatMul,
-    FloatDiv,
-    FloatMulAdd,
-    FloatNeg,
-    FloatFloor,
-    FloatCeil,
-    FloatRound,
-    FloatTrunc,
-    FloatFract,
-    FloatAbs,
-    FloatSignum,
-    FloatPow,
-    FloatSqrt,
-    FloatExp,
-    FloatExp2,
-    FloatLn,
-    FloatLog2,
-    FloatLog10,
-    FloatHypot,
-    FloatSin,
-    FloatCos,
-    FloatTan,
-    FloatAsin,
-    FloatAcos,
-    FloatAtan,
-    FloatAtan2,
-    FloatExpM1,
-    FloatLn1P,
-    FloatSinH,
-    FloatCosH,
-    FloatTanH,
-    FloatAsinH,
-    FloatAcosH,
-    FloatAtanH,
-    FloatIsNormal,
-    FloatToDegrees,
-    FloatToRadians,
-    FloatToInt,
-    IntToFloat,
-    FloatToBits,
-    BitsToFloat,
-    IsBitsToFloat,
+    StrInsert,
+    StrRemove,
+    StrSlice,
+    StrSplice,
+    StrUpdate,
 
     StrToId,
     IsStrToId,
-    IdToStr,
-
     StrToKw,
     IsStrToKw,
-    KwToStr,
-
-    ArrCount,
-    ArrGet,
-    ArrInsert,
-    ArrRemove,
-    ArrUpdate,
-    ArrSlice,
-    ArrSplice,
-    ArrConcat,
-    ArrIter,
-    ArrIterBack,
-
-    AppCount,
-    AppGet,
-    AppInsert,
-    AppRemove,
-    AppUpdate,
-    AppSlice,
-    AppSplice,
-    AppConcat,
-    AppIter,
-    AppIterBack,
-    AppApply,
-
-    SetCount,
-    SetContains,
-    SetMin,
-    SetMax,
-    SetInsert,
-    SetRemove,
-    SetUnion,
-    SetIntersection,
-    SetDifference,
-    SetSymmetricDifference,
-    SetIter,
-    SetIterBack,
-
-    MapCount,
-    MapGet,
-    MapContains,
-    MapMin,
-    MapMinKey,
-    MapMinEntry,
-    MapMax,
-    MapMaxKey,
-    MapMaxEntry,
-    MapInsert,
-    MapRemove,
-    MapUnion,
-    MapIntersection,
-    MapDifference,
-    MapSymmetricDifference,
-    MapIter,
-    MapIterBack,
 
     Symbol,
 
-    Cell,
-    CellGet,
-    CellSet,
-
-    Opaque,
-
-    Eq,
-    Lt,
-    Lte,
-    Gt,
-    Gte,
-
-    Read,
-    Write,
-    Expand,
-    Check,
-    Eval,
-    Exval,
-
     Typeof,
-    Not,
-    Diverge,
 
-    Require,
-
-    MacroQuote,
-    MacroDo,
-    MacroSetBang,
-    MacroThrow,
-    MacroIf,
-    MacroLet,
-    MacroFn,
-
-    // TODO macros as functions
+    Write,
 }

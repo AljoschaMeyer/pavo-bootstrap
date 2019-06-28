@@ -2990,28 +2990,169 @@ Updates the cell `cl` to now contain the value `x`. Returns `nil`.
 
 ### Opaques
 
+An opaque value is one whose internals are hidden. A consumer can operate on them via pre-provided functions. Each opaque value has an associated *type* (a symbol) so that opaques of different types can be distinguished.
+
+Note that the ordering on opaques "leaks" information about the inner values, so they are not "truly" opaque. If your use case requires absolutely 100% encapsulation, roll your own instead of using the built-in opaques.
+
 #### `(opaque)`
 
-Returns an array containing two functions: One that takes a value and returns an opaque value, and one that inverts it (but throws `{:tag :err-opaque}` if its input has not been produced by the first function).
+This function allows user code to introduce new opaque types. It returns a map containing three entries:
 
-TODO
+- `:type` is mapped to the symbol that designates the new type
+- `:hide` is mapped to a function that maps a value to an opaque value of the new type containing the input value
+- `:unhide` is mapped to a function that maps an opaque value of the new type to the contained value (and throws a type error if the input is not an opaque value of the new type)
+
+```pavo
+(let o (opaque) (sf-do
+    (assert-eq ((map-get o :unhide) ((map-get o :hide) 42)) 42)
+    (assert-eq (typeof ((map-get o :hide) 42)) (map-get o :type))
+    (assert-throw ((map-get o :unhide) 42) {:tag :err-type :expected (map-get o :type) :got :int})
+))
+(assert-eq (= (map-get (opaque) :type) (map-get (opaque) :type)) false)
+```
 
 #### Equality and Ordering
-TODO introduction, explain equality and the total order over all values, talk about determinism
+
+Pavo defines a [total order](https://en.wikipedia.org/wiki/Total_order) over all values. The order is defined via the `cmp` function that takes two arguments and returns whether the first is `:less`, `:equal` or `greater` than the second.
+
+Since pavo has deterministic semantics, the ordering can not be established according to implementation details such as the numeric value of pointers. Instead, whenever the ordering is essentially arbitrary, the creation order of the values is used.
+
+The precise definition of the ordering is the reflexive, transitive closure of the following relation:
+
+- `nil` < any bool
+- `false` < `true`
+- `true` < any int
+- any int < any float
+- any float < any keyword
+- any keyword < any identifier
+- any identifier < any symbol
+- any symbol < any character
+- any character < any string
+- any string < any bytes
+- any bytes < any array
+- any array < any application
+- any application < any set
+- any set < any map
+- any map < any function
+- any function < any cell
+- any cell < any opaque
+- two ints are compared by the usual ordering on mathematical integers
+- two floats are compared by the usual ordering on the precise rational numbers that they denote
+- two keywords are compared [lexicographically](https://en.wikipedia.org/wiki/Lexicographical_order) based on the numeric [ASCII](https://en.wikipedia.org/wiki/ASCII) values of their characters
+- two identifiers are compared lexicographically based on the numeric [ASCII](https://en.wikipedia.org/wiki/ASCII) values of their characters
+- two symbols are equal if they are the same value, otherwise the one that was created first (through a call to `(symbol)` or `(opaque)`) is less than the other one
+- two characters are compared by the usual ordering on natural numbers of the scalar values they denote
+- two strings are compared [lexicographically](https://en.wikipedia.org/wiki/Lexicographical_order) based on the ordering on their characters
+- two bytes are compared [lexicographically](https://en.wikipedia.org/wiki/Lexicographical_order) based on the ordering on their byte values
+- two arrays are compared [lexicographically](https://en.wikipedia.org/wiki/Lexicographical_order) based on the ordering on the contained values
+- two applications are compared [lexicographically](https://en.wikipedia.org/wiki/Lexicographical_order) based on the ordering on the contained values
+- two sets are compared [lexicographically](https://en.wikipedia.org/wiki/Lexicographical_order) based on the ordering on the contained values, the order in which the items are compared is [from smallest to largest](https://en.wikipedia.org/wiki/Lexicographical_order#Functions_over_a_well-ordered_set)
+- two maps are compared as follows (simple extension of lexicographical ordering):
+  - the empty map is equal to the empty map
+  - the empty map is less than any non-empty map
+  - given two nonempty maps whose least keys are not equal, the map with the lesser least key is less than the other map
+  - given two nonempty maps whose least keys are equal and whose corresponding values are not equal, the map with the lesser value is less than the other map
+  - given two nonempty maps whose least keys are equal and whose corresponding values are equal, the ordering is the same as that on the two maps without their least entries
+- two functions are equal if they are the same value, otherwise the one that was created first is less than the other one
+  - builtin functions are less than any functions that were created dynamically
+  - the ordering on the builtin functions is the lexicographical ordering on their identifiers (this choice is completely arbitrary, but has the nice property that a human doesn't need to look anything up)
+- two cells are equal if they are the same value, otherwise the one that was created first (through a call to `(cell v)`) is less than the other one
+- two opaques of different types are ordered according to the order on their types
+- two opaques of the same type are ordered according to the order on their contained values
+
+Note that the ordering on opaques "leaks" information about the inner values, so they are not "truly" opaque. If your use case requires absolutely 100% encapsulation, roll your own instead of using the built-in opaques.
+
+For examples, see the documentation for `(cmp v w)` below.
+
+#### `(cmp v w)`
+
+Returns `:<` if the value `v` is less than the value `w`, `:=` if they are equal, and `:>` if `v` is greater than `w`.
+
+```pavo
+(assert-eq (cmp nil false) :<)
+(assert-eq (cmp false true) :<)
+(assert-eq (cmp true -1) :<)
+(assert-eq (cmp 999 -1.2) :<)
+(assert-eq (cmp 1.2 :zero) :<)
+(assert-eq (cmp :bcd $abc) :<)
+(assert-eq (cmp $abc (symbol)) :<)
+(assert-eq (cmp (symbol) 'a') :<)
+(assert-eq (cmp 'b' "a") :<)
+(assert-eq (cmp "zzz" @[0]) :<)
+(assert-eq (cmp @[1] [0]) :<)
+(assert-eq (cmp [1 2 3] $(1)) :<)
+(assert-eq (cmp $(1 2 3) @{1}) :<)
+(assert-eq (cmp @{1 2 3} {1 2}) :<)
+(assert-eq (cmp {1 2} cmp) :<)
+(assert-eq (cmp cmp (cell 42)) :<)
+(assert-eq (cmp (cell 42) ((map-get (opaque) :hide) 42)) :<)
+(assert-eq (cmp -1 0) :<)
+(assert-eq (cmp 0 1) :<)
+(assert-eq (cmp -0 0) :=)
+(assert-eq (cmp -1.0 0.0) :<)
+(assert-eq (cmp 0.0 1.0) :<)
+(assert-eq (cmp -0.0 0.0) :=)
+(assert-eq (cmp :a :b) :<)
+(assert-eq (cmp :a :bc) :<)
+(assert-eq (cmp :aa :ab) :<)
+(assert-eq (cmp :aa :b) :<)
+(assert-eq (cmp $a $b) :<)
+(assert-eq (cmp $a $bc) :<)
+(assert-eq (cmp $aa $ab) :<)
+(assert-eq (cmp $aa $b) :<)
+(assert-eq (cmp (symbol) (symbol)) :<)
+(assert-eq (cmp (map-get (opaque) :type) (symbol)) :<)
+(assert-eq (cmp (symbol) (map-get (opaque) :type)) :<)
+(assert-eq (cmp 'a' 'b') :<)
+(assert-eq (cmp 'A' 'a') :<)
+(assert-eq (cmp '#' 'ß') :<)
+(assert-eq (cmp "a" "b") :<)
+(assert-eq (cmp "a" "bc") :<)
+(assert-eq (cmp "aa" "ab") :<)
+(assert-eq (cmp "aa" "b") :<)
+(assert-eq (cmp @[0] @[1]) :<)
+(assert-eq (cmp @[0] @[1 2]) :<)
+(assert-eq (cmp @[0 0] @[0 1]) :<)
+(assert-eq (cmp @[0 0] @[1]) :<)
+(assert-eq (cmp [0] [1]) :<)
+(assert-eq (cmp [0] [1 2]) :<)
+(assert-eq (cmp [0 0] [0 1]) :<)
+(assert-eq (cmp [0 0] [1]) :<)
+(assert-eq (cmp $(0) $(1)) :<)
+(assert-eq (cmp $(0) $(1 2)) :<)
+(assert-eq (cmp $(0 0) $(0 1)) :<)
+(assert-eq (cmp $(0 0) $(1)) :<)
+(assert-eq (cmp @{0} @{1}) :<)
+(assert-eq (cmp @{0} @{1 2}) :<)
+(assert-eq (cmp @{0 1} @{0 2}) :<)
+(assert-eq (cmp @{0 1} @{2}) :<)
+(assert-eq (cmp {} {}) :=)
+(assert-eq (cmp {} {0 1}) :<)
+(assert-eq (cmp {0 99} {1 2}) :<)
+(assert-eq (cmp {0 1} {0 2}) :<)
+(assert-eq (cmp {0 1, 2 3} {0 1, 2 4}) :<)
+(assert-eq (cmp {0 1} {0 1, 2 3}) :<)
+(assert-eq (cmp cmp cmp) :=)
+(assert-eq (cmp app-apply cmp) :<)
+(assert-eq (cmp cmp (sf-lambda [] nil)) :<)
+(assert-eq (cmp (sf-lambda [] nil) (sf-lambda [] nil)) :<)
+(assert-eq (cmp (cell 42) (cell 41)) :<)
+
+(let o1 (opaque) (let o2 (opaque)
+    (let hide1 (map-get o1 :hide) (let hide2 (map-get o2 :hide)
+        (sf-do
+            (assert-eq (cmp (hide1 42) (hide2 41)) :<)
+            (assert-eq (cmp (hide1 41) (hide1 42)) :<)
+            (assert-eq (cmp (hide1 42) (hide1 42)) :=)
+            (assert-eq (cmp (hide1 42) (hide1 41)) :>)
+        )
+        ))
+    ))
+```
 
 #### `(= x y)`
 
-Returns `true` if `x` and `y` are equal, `false` otherwise. For two values to be equal, they must have the same type. The specific semantics vary by type:
-
-- atomic values (`nil`, bools, ints, floats, chars, strings, bytes, keywords and identifiers) are equal iff they denote the same value.
-- identifiers are equal iff they consist of the same characters
-  - in particular, identifier equality does not reflect bindings, scoping or macro expansion phases
-- arrays are equal iff they have the same length and for all indexes i the i-th entry of both arrays is equal.
-- applications are equal iff they have the same length and for all indexes i the i-th entry of both arrays is equal.
-- maps are equal iff they have the same length, the smalles key of both maps is equal, the value associated with the smallest key of both maps is equal, and the maps without their entries with the smalles key are equal.
-- sets are equal iff they have the same length, the smallest element of both sets is equal, and the sets without their smallest elements are equal.
-- symbols are only equal to themselves
-- functions are only equal to themselves
+Returns `true` if `x` and `y` are equal, `false` otherwise. For two values to be equal, they must have the same type.
 
 `=` is an [equivalence relation](https://en.wikipedia.org/wiki/Equivalence_relation).
 
@@ -3247,8 +3388,6 @@ TODO floats... those are fun!
 TODO trace
 
 TODO require (dynamic linking, *not* loading)
-
-TODO syntax sugar
 
 ---
 

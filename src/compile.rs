@@ -127,7 +127,7 @@ pub fn compile<'a>(
 
 fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
     match v {
-        Value::Atomic(..) | Value::Fun(..) | Value::Cell(..) => {
+        Value::Atomic(..) | Value::Fun(..) | Value::Cell(..) | Value::Opaque(..) => {
             if push {
                 bbb.append(Literal(v.clone()));
             }

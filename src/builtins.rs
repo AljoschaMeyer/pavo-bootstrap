@@ -26,6 +26,7 @@ pub fn typeof__(v: &Value) -> Value {
         Value::Map(..) => Value::kw_str("map"),
         Value::Set(..) => Value::kw_str("set"),
         Value::Cell(..) => Value::kw_str("cell"),
+        Value::Opaque(_, id) => Value::Id(Id::Symbol(*id)),
     }
 }
 
@@ -47,12 +48,16 @@ pub fn coll_empty_error() -> Value {
         ])))
 }
 
-pub fn type_error(got: &Value, expected: &str) -> Value {
+pub fn type_error_(got: &Value, expected: &Value) -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-type")),
-            (Value::kw_str("expected"), Value::kw_str(expected)),
+            (Value::kw_str("expected"), expected.clone()),
             (Value::kw_str("got"), typeof__(got)),
         ])))
+}
+
+pub fn type_error(got: &Value, expected: &str) -> Value {
+    type_error_(got, &Value::kw_str(expected))
 }
 
 pub fn byte_error(got: &Value) -> Value {
@@ -80,14 +85,6 @@ pub fn id_error(got: &Value) -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-identifier")),
             (Value::kw_str("got"), got.clone()),
-        ])))
-}
-
-pub fn type_error_(got: &Value, expected: &Value) -> Value {
-    Value::map(OrdMap(ImOrdMap::from(vec![
-            (Value::kw_str("tag"), Value::kw_str("err-type")),
-            (Value::kw_str("expected"), expected.clone()),
-            (Value::kw_str("got"), typeof__(got)),
         ])))
 }
 
@@ -2178,6 +2175,31 @@ pub fn cell_set(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> 
 
 /////////////////////////////////////////////////////////////////////////////
 
+pub fn opaque(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 0)?;
+
+    let s = Value::symbol(cx);
+    let id = s.as_symbol().unwrap();
+
+    return Ok(Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("type"), s),
+            (Value::kw_str("hide"), Value::hide(id, cx)),
+            (Value::kw_str("unhide"), Value::unhide(id, cx)),
+        ]))));
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn pavo_cmp(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+
+    match args.0[0].cmp(&args.0[1]) {
+        std::cmp::Ordering::Less => Ok(Value::kw_str("<")),
+        std::cmp::Ordering::Equal => Ok(Value::kw_str("=")),
+        std::cmp::Ordering::Greater => Ok(Value::kw_str(">")),
+    }
+}
+
 pub fn pavo_eq(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
     Ok(Value::bool_(args.0[0] == args.0[1]))
@@ -2382,6 +2404,7 @@ pub fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
             out.push_str("}");
             Ok(())
         }
-        Value::Id(Id::Symbol(..)) | Value::Fun(..) | Value::Cell(..) => Err(unwritable_error()),
+        Value::Id(Id::Symbol(..)) | Value::Fun(..)
+        | Value::Cell(..) | Value::Opaque(..) => Err(unwritable_error()),
     }
 }

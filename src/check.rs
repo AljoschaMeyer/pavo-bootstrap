@@ -39,7 +39,7 @@ fn do_check(
     bindings: &OrdMap<Id, bool /*mutability*/>
 ) -> Result<(), StaticError> {
     match v {
-        Value::Atomic(..) | Value::Fun(..) | Value::Cell(..) => Ok(()),
+        Value::Atomic(..) | Value::Fun(..) | Value::Cell(..) | Value::Opaque(..) => Ok(()),
 
         Value::Id(id) => match bindings.get(id) {
             Some(_) => Ok(()),

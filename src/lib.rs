@@ -1795,4 +1795,97 @@ mod tests {
         (assert-eq ((sf-lambda [x] (sf-do (cell-set x 43) (cell-get x))) (cell 42)) 43)
         ");
     }
+
+    #[test]
+    fn test_toplevel_opaque() {
+        test_example("
+        (let o (opaque) (sf-do
+            (assert-eq ((map-get o :unhide) ((map-get o :hide) 42)) 42)
+            (assert-eq (typeof ((map-get o :hide) 42)) (map-get o :type))
+            (assert-throw ((map-get o :unhide) 42) {:tag :err-type :expected (map-get o :type) :got :int})
+        ))
+        (assert-eq (= (map-get (opaque) :type) (map-get (opaque) :type)) false)
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_ordering() {
+        test_example(r#"
+        (assert-eq (cmp nil false) :<)
+        (assert-eq (cmp false true) :<)
+        (assert-eq (cmp true -1) :<)
+        (assert-eq (cmp 999 -1.2) :<)
+        (assert-eq (cmp 1.2 :zero) :<)
+        (assert-eq (cmp :bcd $abc) :<)
+        (assert-eq (cmp $abc (symbol)) :<)
+        (assert-eq (cmp (symbol) 'a') :<)
+        (assert-eq (cmp 'b' "a") :<)
+        (assert-eq (cmp "zzz" @[0]) :<)
+        (assert-eq (cmp @[1] [0]) :<)
+        (assert-eq (cmp [1 2 3] $(1)) :<)
+        (assert-eq (cmp $(1 2 3) @{1}) :<)
+        (assert-eq (cmp @{1 2 3} {1 2}) :<)
+        (assert-eq (cmp {1 2} cmp) :<)
+        (assert-eq (cmp cmp (cell 42)) :<)
+        (assert-eq (cmp (cell 42) ((map-get (opaque) :hide) 42)) :<)
+        (assert-eq (cmp -1 0) :<)
+        (assert-eq (cmp 0 1) :<)
+        (assert-eq (cmp -0 0) :=)
+        (assert-eq (cmp -1.0 0.0) :<)
+        (assert-eq (cmp 0.0 1.0) :<)
+        (assert-eq (cmp -0.0 0.0) :=)
+        (assert-eq (cmp :a :b) :<)
+        (assert-eq (cmp :a :bc) :<)
+        (assert-eq (cmp :aa :ab) :<)
+        (assert-eq (cmp :aa :b) :<)
+        (assert-eq (cmp $a $b) :<)
+        (assert-eq (cmp $a $bc) :<)
+        (assert-eq (cmp $aa $ab) :<)
+        (assert-eq (cmp $aa $b) :<)
+        (assert-eq (cmp (symbol) (symbol)) :<)
+        (assert-eq (cmp (map-get (opaque) :type) (symbol)) :<)
+        (assert-eq (cmp (symbol) (map-get (opaque) :type)) :<)
+        (assert-eq (cmp 'a' 'b') :<)
+        (assert-eq (cmp 'A' 'a') :<)
+        (assert-eq (cmp '#' 'ß') :<)
+        (assert-eq (cmp "a" "b") :<)
+        (assert-eq (cmp "a" "bc") :<)
+        (assert-eq (cmp "aa" "ab") :<)
+        (assert-eq (cmp "aa" "b") :<)
+        (assert-eq (cmp @[0] @[1]) :<)
+        (assert-eq (cmp @[0] @[1 2]) :<)
+        (assert-eq (cmp @[0 0] @[0 1]) :<)
+        (assert-eq (cmp @[0 0] @[1]) :<)
+        (assert-eq (cmp [0] [1]) :<)
+        (assert-eq (cmp [0] [1 2]) :<)
+        (assert-eq (cmp [0 0] [0 1]) :<)
+        (assert-eq (cmp [0 0] [1]) :<)
+        (assert-eq (cmp @{0} @{1}) :<)
+        (assert-eq (cmp @{0} @{1 2}) :<)
+        (assert-eq (cmp @{0 1} @{0 2}) :<)
+        (assert-eq (cmp @{0 1} @{2}) :<)
+        (assert-eq (cmp {} {}) :=)
+        (assert-eq (cmp {} {0 1}) :<)
+        (assert-eq (cmp {0 99} {1 2}) :<)
+        (assert-eq (cmp {0 1} {0 2}) :<)
+        (assert-eq (cmp {0 1, 2 3} {0 1, 2 4}) :<)
+        (assert-eq (cmp {0 1} {0 1, 2 3}) :<)
+        (assert-eq (cmp cmp cmp) :=)
+        (assert-eq (cmp app-apply cmp) :<)
+        (assert-eq (cmp cmp (sf-lambda [] nil)) :<)
+        (assert-eq (cmp (sf-lambda [] nil) (sf-lambda [] nil)) :<)
+        (assert-eq (cmp (cell 42) (cell 41)) :<)
+
+        (let o1 (opaque) (let o2 (opaque)
+            (let hide1 (map-get o1 :hide) (let hide2 (map-get o2 :hide)
+                (sf-do
+                    (assert-eq (cmp (hide1 42) (hide2 41)) :<)
+                    (assert-eq (cmp (hide1 41) (hide1 42)) :<)
+                    (assert-eq (cmp (hide1 42) (hide1 42)) :=)
+                    (assert-eq (cmp (hide1 42) (hide1 41)) :>)
+                )
+                ))
+            ))
+        "#);
+    }
 }
