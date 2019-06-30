@@ -25,7 +25,7 @@ impl From<E> for ExpandError {
     }
 }
 
-pub fn expand(v: &Value, env: &HashMap<Id, Value>, macros: &ImOrdMap<Id, Value>, cx: &mut Context) -> Result<Value, ExpandError> {
+pub fn expand(v: &Value, env: &HashMap<Id, (Value, bool)>, macros: &ImOrdMap<Id, Value>, cx: &mut Context) -> Result<Value, ExpandError> {
     match v {
         Value::Atomic(..) | Value::Id(..) | Value::Fun(..) | Value::Cell(..)
         | Value::Opaque(..)  => Ok(v.clone()),
@@ -134,7 +134,7 @@ fn match_macro(body: &Value, pattern: &Value, macros: &ImOrdMap<Id, Value>) -> R
                     for (pattern_key, pattern_val) in pattern_map.0.iter() {
                         match body_map.0.get(pattern_key) {
                             None => return Err(ExpandError::Pattern { pattern: pattern.clone(), body: body.clone()}),
-                            Some(body_val) => ret = match_macro(body_val, pattern_val, macros)?,
+                            Some(body_val) => ret = match_macro(body_val, pattern_val, macros)?.union(ret),
                         }
                     }
 

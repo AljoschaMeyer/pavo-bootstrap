@@ -47,7 +47,7 @@ impl Stack {
         unreachable!("Always at least one environment, id can not be unused (caught by static checks)");
     }
 
-    fn from_toplevel(toplevel: &HashMap<Id, Value>) -> Stack {
+    fn from_toplevel(toplevel: &HashMap<Id, (Value, bool)>) -> Stack {
         let mut ret = Stack::new();
         ret.push_scope();
 
@@ -111,7 +111,7 @@ impl BBB {
 
 pub fn compile<'a>(
     v: &Value,
-    toplevel: &HashMap<Id, Value>,
+    toplevel: &HashMap<Id, (Value, bool)>,
 ) -> Result<Closure, StaticError> {
     check_toplevel(v, toplevel)?;
 

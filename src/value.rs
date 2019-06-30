@@ -668,6 +668,17 @@ impl Fun {
 
             Fun::Builtin(Builtin::Cmp) => builtins::pavo_cmp(args, cx),
             Fun::Builtin(Builtin::Eq) => builtins::pavo_eq(args, cx),
+            Fun::Builtin(Builtin::Lt) => builtins::pavo_lt(args, cx),
+            Fun::Builtin(Builtin::Lte) => builtins::pavo_lte(args, cx),
+            Fun::Builtin(Builtin::Gt) => builtins::pavo_gt(args, cx),
+            Fun::Builtin(Builtin::Gte) => builtins::pavo_gte(args, cx),
+
+            Fun::Builtin(Builtin::Read) => builtins::read(args, cx),
+            Fun::Builtin(Builtin::Write) => builtins::write(args, cx),
+            Fun::Builtin(Builtin::Check) => builtins::check(args, cx),
+            Fun::Builtin(Builtin::Eval) => builtins::eval(args, cx),
+            Fun::Builtin(Builtin::Expand) => builtins::expand(args, cx),
+            Fun::Builtin(Builtin::Exval) => builtins::exval(args, cx),
 
             Fun::Builtin(Builtin::Typeof) => builtins::typeof_(args, cx),
 
@@ -715,6 +726,9 @@ pub enum Builtin {
     ArrSplice,
     ArrUpdate,
 
+    BitsToFloat,
+    IsBitsToFloat,
+
     BoolAnd,
     BoolIf,
     BoolIff,
@@ -746,6 +760,7 @@ pub enum Builtin {
     Diverge,
 
     Eval,
+    Expand,
     Exval,
 
     FloatToBits,
@@ -790,11 +805,6 @@ pub enum Builtin {
     FloatTan,
     FloatTanH,
     FloatTrunc,
-
-    BitsToFloat,
-    IsBitsToFloat,
-
-    Expand,
 
     IdToStr,
 

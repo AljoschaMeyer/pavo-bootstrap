@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::value::{Value, Id, Builtin};
 
-pub fn default() -> HashMap<Id, Value> {
+pub fn default() -> HashMap<Id, (Value, bool)> {
     let mut m = HashMap::new();
 
     // TODO macro functions
@@ -229,23 +229,23 @@ pub fn default() -> HashMap<Id, Value> {
 }
 
 fn env_add(
-    m: &mut HashMap<Id, Value>,
+    m: &mut HashMap<Id, (Value, bool)>,
     name: &str,
     b: Builtin,
 ) {
     m.insert(
         Id::user(name),
-        Value::builtin(b),
+        (Value::builtin(b), false),
     );
 }
 
 fn env_add_val(
-    m: &mut HashMap<Id, Value>,
+    m: &mut HashMap<Id, (Value, bool)>,
     name: &str,
     v: Value,
 ) {
     m.insert(
         Id::user(name),
-        v,
+        (v, false),
     );
 }

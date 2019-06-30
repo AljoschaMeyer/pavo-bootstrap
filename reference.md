@@ -417,7 +417,7 @@ Checking bindings for a value proceeds recursively. If the value is a name (iden
 - `(sf-lambda <binder-name> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
 - `(sf-lambda (:mut <binder-name>) <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to true.
 - `(sf-lambda <args-array> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that all names directly contained in the `<args-array>` map to false, and those inside an application with the `:mut` keyword map to `true`. For duplicate names, the mutability of the rightmost one is used.
-- Otherwise, all inner values are checked in the environment `E`.
+- Otherwise, all inner values are checked in the check-environment `E`.
 
 ```pavo
 (sf-quote a)
@@ -588,7 +588,53 @@ Pavo guarantees tail-call optimization, (mutually) recursive function calls in t
 
 Macro expansion turns a value into a different value, usually before it is checked and evaluated.
 
-TODO
+In addition to the value to be expanded, macro expansion needs two further pieces of information: a mapping from identifiers to values (the *macro-environment*) and a regular environment (mapping identifiers to values and mutabilities, the *definition-environment*). The basic idea is that each application that begins with an identifier in the macro-environment gets replaced with the result of applying the macro to the remaining arguments of the application. The definition-environment is the environment that is used in the definition of the macros.
+
+The actual definition of the expansion process is inductive as usual: nil, bools, ints, floats, chars, strings, bytes, keywords, functions, cells and opaques remain unchanged. Arrays and sets are expanded by expanding the contained values in iteration order. Maps are expanded by expanding the contained entries in iteration order (key first, corresponding value second, repeat over all keys in ascending order). Apps are where the fun stuff happens.
+
+If the first item of an application is the identifier `sf-quote`, the expansion of the application is the application itself.
+
+If the first item of an application is an identifier other than `macro` or `quote`, and if that identifier is a key in the macro-environment, the expansion of the application is obtained by applying the corresponding value in the macro environment to the items of the application (without the leading identifier). If the macro value is not a function, if the number of arguments is not correct, or if the function throws, the macro expansion errors.
+
+If the first item of an application is the identifier `macro`, this defines a new macro. If the application does not have exactly four items, the macro expansion errors. The second item of the application must be either an identifier or a map whose entries may have arbitrary keys but the values must again be either identifiers or such a map. This item is called the *pattern*. The third item of the application can be any value. This value is evaluated in the definition-environment, the resulting value is called the *definition*. If it throws, the macro expansion errors. Otherwise, the expanded form of the application is the expanded form of the fourth item, using the same definition-environment, but a new macro-environment obtained as follows:
+
+- start with the old macro-environment
+- if the *pattern* is an identifier, update the macro-environment by mapping that identifier to the *definition*
+- if the *pattern* is a map
+  - if the *definition* is not a map, the macro expansion errors
+  - else, for all entries in the current *pattern* (in iteration order):
+    - if the *definition* does not contain the key, the macro expansion errors
+    - if it does, treat the value of the *pattern*'s entry as a new pattern, and the corresponding value in the *definition* as a new definition, and recur
+
+For all other applications, the expanded value is an application containing the expanded values of the items of the original application.
+
+```pavo
+(assert-eq (expand 42 {}) 42)
+(assert-eq (expand $throw {}) $throw)
+(assert-eq (expand $(sf-quote (macro)) {}) $(sf-quote (macro)))
+(assert-eq (expand $(throw) {}) $(sf-throw nil))
+(assert-eq (expand $(x y) {}) $(x y))
+(assert-eq (expand $(x (throw)) {}) $(x (sf-throw nil)))
+(assert-eq (expand (macro
+    foo
+    (sf-lambda [] 42)
+    (foo)
+    ) {}) 42)
+(assert-eq (expand (macro
+    { :foo foo, :bar {:baz baz}}
+    { :foo (sf-lambda [] 42), :bar {:baz (sf-lambda [a] (int-add a 3))}, :zonk 42}
+    [1, (foo), (baz 17)]
+    ) {}) [1, 42, 20])
+(assert-eq (expand (macro
+    {:2 a, :1 {:9 a}}
+    { :1 {:9 (sf-lambda [] :nope)}, :2 (sf-lambda [] :yup)}
+    (a)
+    ) {}) :yup)
+(assert-throw (expand $(macro) {}) {:tag :err-expand})
+(assert-throw (expand $(throw 1 2) {}) {:tag :err-expand})
+(assert-throw (expand $(macro foo 42 (foo)) {}) {:tag :err-expand})
+(assert-throw (expand $(macro {:foo foo} {} 42) {}) {:tag :err-expand})
+```
 
 ## Toplevel Macros
 
@@ -3066,7 +3112,7 @@ For examples, see the documentation for `(cmp v w)` below.
 
 #### `(cmp v w)`
 
-Returns `:<` if the value `v` is less than the value `w`, `:=` if they are equal, and `:>` if `v` is greater than `w`.
+Returns `:<` if the value `v` is less than the value `w`, `:=` if they are equal, and `:>` if `v` is greater than `w`. The ordering relation is defined above.
 
 ```pavo
 (assert-eq (cmp nil false) :<)
@@ -3150,55 +3196,57 @@ Returns `:<` if the value `v` is less than the value `w`, `:=` if they are equal
     ))
 ```
 
-#### `(= x y)`
+#### `(= v w)`
 
-Returns `true` if `x` and `y` are equal, `false` otherwise. For two values to be equal, they must have the same type.
-
-`=` is an [equivalence relation](https://en.wikipedia.org/wiki/Equivalence_relation).
+Returns `true` if `v` and `w` are equal, `false` otherwise. See `(cmp v w)` for more details.
 
 ```pavo
-(assert (= nil nil))
-(assert-not (= nil false))
-(assert-not (= 0 1))
-(assert (= 0 -0))
-(assert (= 17 0x10))
-(assert (= 0.0 -0.0))
-(assert (= 0.30000000000000004 0.30000000000000005)) # different float literals can round to equal values
-(assert (= [[]] [[]]))
-(assert-not (= [1] [2]))
-(assert (= `(()) `(())))
-(assert-not (= [] `()))
-(assert (= {1 2} {1 2}))
-(assert (= @{[]} @{[]}))
-(assert-not (= (fn [x] x) (fn [x] x)))
-(assert (= = =))
-(assert-not (= (symbol) (symbol)))
-(assert (let x (symbol) (= x x)))
+(assert-eq (= 0 0) true)
+(assert-eq (= 0.0 -0.0) true)
+(assert-eq (= 0 0.0) false)
 ```
 
-#### `(< x y)`
+#### `(< v w)`
 
-Returns `true` if x is less than y, `false` otherwise. This is *not* just constrained to numbers, there is a [total order](https://en.wikipedia.org/wiki/Total_order) among *all* pavo values. It is possible to compare values of different types.
-
-The total order is defined as follows: TODO
-
-`<` is a [strict total order](https://en.wikipedia.org/wiki/Total_order#Strict_total_order).
+Returns `true` if `v` is less than `w`, `false` otherwise.  See `(cmp v w)` for more details.
 
 ```pavo
-(assert (< 0 1))
-(assert (< false true))
-(assert (< true 0))
-(assert (< 42 0.1)) # ints are less than floats in the order over all values
+(assert-eq (< 0 1) true)
+(assert-eq (< false true) true)
+(assert-eq (< true 0) true)
+(assert-eq (< 42 0.1) true) # ints are less than floats in the order over all values
 ```
 
-#### `(<= x y)`
-TODO
+#### `(<= v w)`
 
-#### `(> x y)`
-TODO
+Returns `true` if `v` is less than or equal to `w`, `false` otherwise.  See `(cmp v w)` for more details.
 
-#### `(>= x y)`
-TODO
+```pavo
+(assert-eq (<= 0 1) true)
+(assert-eq (<= 0 0) true)
+(assert-eq (<= 42 0.1) true)
+```
+
+#### `(> v w)`
+
+Returns `true` if `v` is greater than `w`, `false` otherwise.  See `(cmp v w)` for more details.
+
+```pavo
+(assert-eq (> 0 1) false)
+(assert-eq (> false true) false)
+(assert-eq (> true 0) false)
+(assert-eq (> 42 0.1) false) # ints are less than floats in the order over all values
+```
+
+#### `(>= v w)`
+
+Returns `true` if `v` is greater than or equal to `w`, `false` otherwise.  See `(cmp v w)` for more details.
+
+```pavo
+(assert-eq (>= 0 1) false)
+(assert-eq (>= 0 0) true)
+(assert-eq (>= 42 0.1) false)
+```
 
 ### Code as Data
 
@@ -3220,7 +3268,7 @@ Time: O(n), where n is `(string-count <prefix>)`, where `<prefix>` is the longes
 
 Returns a string `s` such that `(read s)` equals the value `v`. The precise definition is given at the end of this document.
 
-Throws `{ :tag :err-not-writable }` if no such string exists. This is the case if `v` is or contains a function or a symbol.
+Throws `{ :tag :err-not-writable }` if no such string exists. This is the case if `v` is or contains a function, symbol, cell or opaque.
 Throws `{ :tag :err-collection-full }` if the resulting string would contain 2^63 or more elements.
 
 Time: Linear in the length of the returned string. Yeah, that's not a proper definition...
@@ -3231,7 +3279,155 @@ Time: Linear in the length of the returned string. Yeah, that's not a proper def
 (assert-throw (write (symbol)) { :tag :err-not-writable })
 ```
 
-TODO expand, check, eval, exval (expand then eval)
+#### `(check v options)`
+
+Returns whether the value `v` passes the static checks of pavo (special form syntax and binding correctness), with the check-environment determined from the map `options` as follows:
+
+- start out with a check-environment mapping the default toplevel values to false
+- if the `options` map contains an entry with key `:remove`:
+  - if the corresponding value is not a set, throw a type error
+  - otherwise, for each value in the set (in ascending order):
+    - if the value is not an identifier, throw a type error
+    - otherwise, update the check-environment by removing the identifier if it was in there before
+- then, if the `options` map contains an entry with key `:mutable`:
+  - if the corresponding value is not a set, throw a type error
+  - otherwise, for each value in the set (in ascending order):
+    - if the value is not an identifier, throw a type error
+    - otherwise, update the check-environment by mapping the identifier to true
+- then, if the `options` map contains an entry with key `:immutable`:
+  - if the corresponding value is not a set, throw a type error
+  - otherwise, for each value in the set (in ascending order):
+    - if the value is not an identifier, throw a type error
+    - otherwise, update the check-environment by mapping the identifier to false
+
+```pavo
+(assert-eq (check 42 {}) true)
+(assert-eq (check $int-add {}) true)
+(assert-eq (check $int-add {:ignored-key 42}) true)
+(assert-eq (check $int-add {:remove @{$int-add}}) false)
+(assert-eq (check $foo {}) false)
+(assert-eq (check $foo {:immutable @{$foo}}) true)
+(assert-eq (check $int-add {:immutable @{$int-add} :remove @{$int-add}}) true)
+(assert-eq (check $(sf-set! int-add 42) {}) false)
+(assert-eq (check $(sf-set! int-add 42) {:mutable @{$int-add}}) true)
+(assert-eq (check $(sf-set! int-add 42) {:immutable @{$int-add}, :mutable @{$int-add}}) false)
+
+(assert-throw (check 42 {:remove :foo}) {:tag :err-type :expected :set :got :keyword})
+(assert-throw (check 42 {:remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+(assert-throw (check 42 {:mutable :foo}) {:tag :err-type :expected :set :got :keyword})
+(assert-throw (check 42 {:mutable @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+(assert-throw (check 42 {:immutable :foo}) {:tag :err-type :expected :set :got :keyword})
+(assert-throw (check 42 {:immutable @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+```
+
+#### `(eval v options)`
+
+Performs static checks on the value v and then evaluates it, with the environments depending on the map `options` as follows:
+
+- the evaluation environment starts out as the default toplevel environment (all bindings described in this document, all immutable).
+- if the `options` map contains an entry with key `:remove`:
+  - if the corresponding value is not a set, throw a type error
+  - otherwise, for each value in the set (in ascending order):
+    - if the value is not an identifier, throw a type error
+    - otherwise, update the environment by removing the identifier if it was a key before
+- then, if the `options` map contains an entry with key `:mutable`:
+  - if the corresponding value is not a map, throw a type error
+  - otherwise, for each entry in the map (in order of ascending keys):
+    - if the key is not an identifier, throw a type error
+    - otherwise, update the environment by mutably binding the key to its value
+- then, if the `options` map contains an entry with key `:immutable`:
+  - if the corresponding value is not a map, throw a type error
+  - otherwise, for each entry in the map (in order of ascending keys):
+    - if the key is not an identifier, throw a type error
+    - otherwise, update the environment by immutably binding the key to its value
+
+The value is then checked with the check-environment corresponding to the evaluation environment. If the check is unsuccessfull, throw `{:tag :err-static}`. Otherwise, evaluate `v` in the evaluation environment. If it evaluates successfully, return the result. If it throws some value `<x>`, throw `{:tag :err-eval, :cause <x>}`.
+
+```pavo
+(assert-eq (eval 42 {}) 42)
+(assert-throw (eval $(sf-throw 17) {}) {:tag :err-eval, :cause 17})
+(assert-eq (eval $int-add {}) int-add)
+(assert-eq (eval $int-add {:ignored-key 42}) int-add)
+(assert-throw (eval $int-add {:remove @{$int-add}}) {:tag :err-static})
+(assert-throw (eval $foo {}) {:tag :err-static})
+(assert-eq (eval $foo {:immutable {$foo 42}}) 42)
+(assert-eq (eval $foo {:mutable {$foo 42}}) 42)
+(assert-eq (eval $foo {:immutable {$foo 42} :mutable {$foo 43}}) 42)
+(assert-eq (eval $int-add {:immutable {$int-add eval}}) eval)
+(assert-eq (eval $int-add {:immutable {$int-add eval} :remove @{$int-add}}) eval)
+(assert-throw (eval $(sf-set! int-add 42) {}) {:tag :err-static})
+(assert-eq (eval $(sf-set! int-add 42) {:mutable {$int-add int-add}}) nil)
+(assert-throw (eval $(sf-set! int-add 42) {:immutable {$int-add int-add}, :mutable {$int-add int-add}}) {:tag :err-static})
+
+(assert-throw (eval 42 {:remove :foo}) {:tag :err-type :expected :set :got :keyword})
+(assert-throw (eval 42 {:remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+(assert-throw (eval 42 {:mutable :foo}) {:tag :err-type :expected :map :got :keyword})
+(assert-throw (eval 42 {:mutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+(assert-throw (eval 42 {:immutable :foo}) {:tag :err-type :expected :map :got :keyword})
+(assert-throw (eval 42 {:immutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+```
+
+#### `(expand v options)`
+
+Performs macro expansion of the value `v`, according to the given options.
+
+The definition environment (the environment in which macro definitions are evaluated) depends on the map `options` as follows (this is identical to `eval` with changed keys):
+
+- the definition environment starts out as the default toplevel environment (all bindings described in this document, all immutable).
+- if the `options` map contains an entry with key `:def-remove`:
+  - if the corresponding value is not a set, throw a type error
+  - otherwise, for each value in the set (in ascending order):
+    - if the value is not an identifier, throw a type error
+    - otherwise, update the environment by removing the identifier if it was a key before
+- then, if the `options` map contains an entry with key `:def-mutable`:
+  - if the corresponding value is not a map, throw a type error
+  - otherwise, for each entry in the map (in order of ascending keys):
+    - if the key is not an identifier, throw a type error
+    - otherwise, update the environment by mutably binding the key to its value
+- then, if the `options` map contains an entry with key `:def-immutable`:
+  - if the corresponding value is not a map, throw a type error
+  - otherwise, for each entry in the map (in order of ascending keys):
+    - if the key is not an identifier, throw a type error
+    - otherwise, update the environment by immutably binding the key to its value
+
+The macro environment (the identifiers to expand and the corresponding macro values) depends on the map `options` as follows:
+
+- the macro environment starts out as the default macro environment
+- if the `options` map contains an entry with key `:macro-remove`:
+  - if the corresponding value is not a set, throw a type error
+  - otherwise, for each value in the set (in ascending order):
+    - if the value is not an identifier, throw a type error
+    - otherwise, update the environment by removing the identifier if it was a key before
+- then, if the `options` map contains an entry with key `:macro-add`:
+  - if the corresponding value is not a map, throw a type error
+  - otherwise, for each entry in the map (in order of ascending keys):
+    - if the key is not an identifier, throw a type error
+    - otherwise, update the environment by mapping the key to its value
+
+If the macro expansion succeeds, the expanded value is returned. If it errors, this function throws `{:tag :err-expand}`.
+
+```pavo
+(assert-eq (expand $(throw) {}) $(sf-throw nil))
+(assert-eq (expand $(throw) {:macro-remove @{$throw}}) $(throw))
+(assert-eq (expand $(foo 1 2) {:macro-add {$foo int-add}}) 3)
+(assert-eq (expand $(macro a (sf-lambda [] foo) (a)) {:def-mutable {$foo 42}}) 42)
+(assert-throw (expand $(macro a (sf-lambda [] int-max-val) (a)) {:def-remove @{$int-max-val}}) {:tag :err-expand})
+
+(assert-throw (expand 42 {:macro-remove :foo}) {:tag :err-type :expected :set :got :keyword})
+(assert-throw (expand 42 {:macro-remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+(assert-throw (expand 42 {:macro-add :foo}) {:tag :err-type :expected :map :got :keyword})
+(assert-throw (expand 42 {:macro-add {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+(assert-throw (expand 42 {:def-remove :foo}) {:tag :err-type :expected :set :got :keyword})
+(assert-throw (expand 42 {:def-remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+(assert-throw (expand 42 {:def-mutable :foo}) {:tag :err-type :expected :map :got :keyword})
+(assert-throw (expand 42 {:def-mutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+(assert-throw (expand 42 {:def-immutable :foo}) {:tag :err-type :expected :map :got :keyword})
+(assert-throw (expand 42 {:def-immutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+```
+
+#### `(exval v options)`
+
+Semantically equivalent to `(eval (expand v options) options)`.
 
 ### Miscellaneous
 
@@ -3282,8 +3478,6 @@ Note that this is different from a program terminating through an uncaught throw
 
 ## Appendix: Precise Definition of `(write v)`
 
-TODO rewrite this, explain with recursion rather than induction...
-
 This section defines the return value of `(write v)` for any expression `v`, defined through structural induction (examples/tests are below).
 
 ### Base Cases
@@ -3294,6 +3488,7 @@ This section defines the return value of `(write v)` for any expression `v`, def
 - `(= (typeof v) :int)`:
   - `(>= v 0)`: The decimal representation of the integer (without sign).
   - `(< v 0)`: The minus sign `-` followed by the decimal representation of the absolute value of the integer.
+- `(= (typeof v) :int)`: Printed as specified in [ECMAScript 2015](https://www.ecma-international.org/ecma-262/6.0/#sec-tostring-applied-to-the-number-type), except that if the resulting string would not be a float literal, the missing `.0` is inserted
 - `(= (typeof v) :char)`:
   - `(= v '\\')`: `"'\\'"`
   - `(= v '\'')`: `"'\''"`
@@ -3314,7 +3509,7 @@ This section defines the return value of `(write v)` for any expression `v`, def
 - `(= (typeof v) :symbol)`: throw `{ :tag :err-not-writable }`
 - `(= (typeof v) :function)`: throw `{ :tag :err-not-writable }`
 - `(= (typeof v) :cell)`: throw `{ :tag :err-not-writable }`
-- `(= (typeof v) :opaque)`: throw `{ :tag :err-not-writable }`
+- `(= (typeof (typeof v)) :symbol)`: throw `{ :tag :err-not-writable }`
 
 ### Induction Steps
 
@@ -3332,8 +3527,13 @@ Collections serialize their components and separate them by a single space (ther
 (assert-eq (write -1) "-1")
 (assert-eq (write -0) "0")
 
+(assert-eq (write 0.0) "0.0")
+(assert-eq (write -0.0) "0.0")
+(assert-eq (write 2.0E40) "2.0e+40")
+(assert-eq (write 2.0E-40) "2.0e-40")
+
 (assert-eq (write 'a') "'a'")
-(assert-eq (write '"') "'"'")
+(assert-eq (write '"') "'\"'")
 (assert-eq (write '🌃') "'🌃'")
 (assert-eq (write '\t') "'\\t'")
 (assert-eq (write '\n') "'\\n'")
@@ -3348,7 +3548,7 @@ Collections serialize their components and separate them by a single space (ther
 (assert-eq (write "\t") "\"\\t\"")
 (assert-eq (write "\n") "\"\\n\"")
 (assert-eq (write "\\") "\"\\\\\"")
-(assert-eq (write "\"") "\"\\"\"")
+(assert-eq (write "\"") "\"\\\"\"")
 
 (assert-eq (write @[ ]) "@[]")
 (assert-eq (write @[ 0x11 ]) "@[17]")
@@ -3360,7 +3560,7 @@ Collections serialize their components and separate them by a single space (ther
 
 (assert-throw (write (symbol)) {:tag :err-not-writable})
 (assert-throw (write write) {:tag :err-not-writable})
-# TODO example with an opaque value here
+(assert-throw (write ((map-get (opaque) :hide) 42)) {:tag :err-not-writable})
 
 (assert-eq (write [ ]) "[]")
 (assert-eq (write [ 2]) "[2]")
@@ -3371,8 +3571,7 @@ Collections serialize their components and separate them by a single space (ther
 (assert-eq (write $(2, 4)) "(2 4)")
 
 (assert-eq (write @{}) "@{}")
-(assert-eq (write @{1}) "@{1}")
-(assert-eq (write @{1 1}) "@{1}")
+(assert-eq (write @{1 }) "@{1}")
 (assert-eq (write @{2 , 1  3}) "@{1 2 3}")
 
 (assert-eq (write {}) "{}")
@@ -3381,13 +3580,17 @@ Collections serialize their components and separate them by a single space (ther
 (assert-eq (write {2 nil , 1 nil  3 nil}) "{1 nil 2 nil 3 nil}")
 ```
 
-TODO floats... those are fun!
-
 ---
 
 TODO trace
 
+TODO float-integer?
+
+TODO rework iterators (stateful, opaque, bidirectional, start at arbitrary offset)
+
 TODO require (dynamic linking, *not* loading)
+
+TODO raw string literals `r##"foo\bla"##`
 
 ---
 

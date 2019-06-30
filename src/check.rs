@@ -26,15 +26,17 @@ impl From<SpecialFormSyntaxError> for StaticError {
     }
 }
 
-pub fn check_toplevel(v: &Value, env: &HashMap<Id, Value>) -> Result<(), StaticError> {
-    let mut bindings = OrdMap::new();
-    for id in env.keys() {
-        bindings.insert(id.clone(), false);
+pub fn check_toplevel(v: &Value, bindings: &HashMap<Id, (Value, bool)>) -> Result<(), StaticError> {
+    let mut env = OrdMap::new();
+
+    for (key, (_, mutability)) in bindings.iter() {
+        env.insert(key.clone(), *mutability);
     }
-    do_check(v, &bindings)
+
+    return check(v, &env);
 }
 
-fn do_check(
+pub fn check(
     v: &Value,
     bindings: &OrdMap<Id, bool /*mutability*/>
 ) -> Result<(), StaticError> {
@@ -48,22 +50,22 @@ fn do_check(
 
         Value::Arr(vals) => {
             for val in vals.0.iter() {
-                do_check(val, bindings)?
+                check(val, bindings)?
             }
             Ok(())
         }
 
         Value::Map(m) => {
             for entry in m.0.iter() {
-                do_check(&entry.0, bindings)?;
-                do_check(&entry.1, bindings)?;
+                check(&entry.0, bindings)?;
+                check(&entry.1, bindings)?;
             }
             Ok(())
         }
 
         Value::Set(vals) => {
             for val in vals.0.iter() {
-                do_check(val, bindings)?
+                check(val, bindings)?
             }
             Ok(())
         }
@@ -80,7 +82,7 @@ fn do_check(
                     match special(params)? {
                         Some(SpecialForm::Do(stmts)) => {
                             for stmt in stmts.iter() {
-                                do_check(stmt, bindings)?;
+                                check(stmt, bindings)?;
                             }
                             Ok(())
                         }
@@ -93,26 +95,26 @@ fn do_check(
                             }
                         }
                         Some(SpecialForm::If(cond, then, else_)) => {
-                            do_check(cond, bindings)?;
-                            do_check(then, bindings)?;
-                            do_check(else_, bindings)
+                            check(cond, bindings)?;
+                            check(then, bindings)?;
+                            check(else_, bindings)
                         }
-                        Some(SpecialForm::Throw(thrown)) => do_check(thrown, bindings),
+                        Some(SpecialForm::Throw(thrown)) => check(thrown, bindings),
                         Some(SpecialForm::Try(try_, mutable, bound, catch)) => {
-                            let _ = do_check(try_, bindings)?;
-                            do_check(catch, &bindings.update(bound.clone(), mutable))
+                            let _ = check(try_, bindings)?;
+                            check(catch, &bindings.update(bound.clone(), mutable))
                         }
                         Some(SpecialForm::Lambda(args, body)) => {
                             match args {
                                 Args::All(mutable, bound) => {
-                                    do_check(body, &bindings.update((*bound).clone(), mutable))
+                                    check(body, &bindings.update((*bound).clone(), mutable))
                                 }
                                 Args::Destructured(the_args) => {
                                     let mut fn_bindings = bindings.clone();
                                     for (mutable, bound) in the_args {
                                         fn_bindings = fn_bindings.update((*bound).clone(), mutable);
                                     }
-                                    do_check(body, &fn_bindings)
+                                    check(body, &fn_bindings)
                                 }
                             }
                         }
@@ -120,7 +122,7 @@ fn do_check(
                             match bindings.get(id) {
                                 Some(_) => {
                                     for param in params.0.iter() {
-                                        do_check(param, bindings)?;
+                                        check(param, bindings)?;
                                     }
                                     Ok(())
                                 }
@@ -133,7 +135,7 @@ fn do_check(
                 // First element is not an identifier.
                 _ => {
                     for param in params.0.iter() {
-                        do_check(param, bindings)?;
+                        check(param, bindings)?;
                     }
                     Ok(())
                 },

@@ -71,9 +71,9 @@ impl From<Value> for E {
 
 pub fn exval(
     v: &Value,
-    m_env: &HashMap<Id, Value>,
+    m_env: &HashMap<Id, (Value, bool)>,
     macros: &ImOrdMap<Id, Value>,
-    env: &HashMap<Id, Value>,
+    env: &HashMap<Id, (Value, bool)>,
     cx: &mut Context,
 ) -> Result<Value, E> {
     let expanded = expand::expand(v, m_env, macros, cx)?;
@@ -1886,6 +1886,201 @@ mod tests {
                 )
                 ))
             ))
+        "#);
+
+        test_example("
+        (assert-eq (= 0 0) true)
+        (assert-eq (= 0.0 -0.0) true)
+        (assert-eq (= 0 0.0) false)
+        ");
+
+        test_example("
+        (assert-eq (< 0 1) true)
+        (assert-eq (< false true) true)
+        (assert-eq (< true 0) true)
+        (assert-eq (< 42 0.1) true)
+        ");
+
+        test_example("
+        (assert-eq (<= 0 1) true)
+        (assert-eq (<= 0 0) true)
+        (assert-eq (<= 42 0.1) true)
+        ");
+
+        test_example("
+        (assert-eq (> 0 1) false)
+        (assert-eq (> false true) false)
+        (assert-eq (> true 0) false)
+        (assert-eq (> 42 0.1) false)
+        ");
+
+        test_example("
+        (assert-eq (>= 0 1) false)
+        (assert-eq (>= 0 0) true)
+        (assert-eq (>= 42 0.1) false)
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_code_as_data() {
+        test_example(r#"
+        (assert-eq (read "42") 42)
+        (assert-eq (read "(a) ") $(a))
+        (assert-throw (read "(a) b") { :tag :err-not-expression })
+        "#);
+
+        test_example(r#"
+        (assert-eq (write 42) "42")
+        (assert-eq (write $(a )) "(a)")
+        (assert-throw (write (symbol)) { :tag :err-not-writable })
+
+        (assert-eq (write nil) "nil")
+        (assert-eq (write true) "true")
+        (assert-eq (write false) "false")
+
+        (assert-eq (write 0) "0")
+        (assert-eq (write 1) "1")
+        (assert-eq (write -1) "-1")
+        (assert-eq (write -0) "0")
+
+        (assert-eq (write 0.0) "0.0")
+        (assert-eq (write -0.0) "0.0")
+        (assert-eq (write 2.0E40) "2.0e+40")
+        (assert-eq (write 2.0E-40) "2.0e-40")
+
+        (assert-eq (write 'a') "'a'")
+        (assert-eq (write '"') "'\"'")
+        (assert-eq (write '🌃') "'🌃'")
+        (assert-eq (write '\t') "'\\t'")
+        (assert-eq (write '\n') "'\\n'")
+        (assert-eq (write '\\') "'\\\\'")
+        (assert-eq (write '\'') "'\\''")
+
+        (assert-eq (write "a") "\"a\"")
+        (assert-eq (write "'") "\"'\"")
+        (assert-eq (write "🌃") "\"🌃\"")
+        (assert-eq (write "") "\"\"")
+        (assert-eq (write "ab") "\"ab\"")
+        (assert-eq (write "\t") "\"\\t\"")
+        (assert-eq (write "\n") "\"\\n\"")
+        (assert-eq (write "\\") "\"\\\\\"")
+        (assert-eq (write "\"") "\"\\\"\"")
+
+        (assert-eq (write @[ ]) "@[]")
+        (assert-eq (write @[ 0x11 ]) "@[17]")
+        (assert-eq (write @[1, 2]) "@[1 2]")
+
+        (assert-eq (write :foo) ":foo")
+
+        (assert-eq (write $foo) "foo")
+
+        (assert-throw (write (symbol)) {:tag :err-not-writable})
+        (assert-throw (write write) {:tag :err-not-writable})
+        (assert-throw (write ((map-get (opaque) :hide) 42)) {:tag :err-not-writable})
+
+        (assert-eq (write [ ]) "[]")
+        (assert-eq (write [ 2]) "[2]")
+        (assert-eq (write [ 2, 4 ]) "[2 4]")
+
+        (assert-eq (write $()) "()")
+        (assert-eq (write $(2)) "(2)")
+        (assert-eq (write $(2, 4)) "(2 4)")
+
+        (assert-eq (write @{}) "@{}")
+        (assert-eq (write @{1 }) "@{1}")
+        (assert-eq (write @{2 , 1  3}) "@{1 2 3}")
+
+        (assert-eq (write {}) "{}")
+        (assert-eq (write {1 nil}) "{1 nil}")
+        (assert-eq (write {1 nil 1 nil}) "{1 nil}")
+        (assert-eq (write {2 nil , 1 nil  3 nil}) "{1 nil 2 nil 3 nil}")
+        "#);
+
+        test_example(r#"
+        (assert-eq (check 42 {}) true)
+        (assert-eq (check $int-add {}) true)
+        (assert-eq (check $int-add {:ignored-key 42}) true)
+        (assert-eq (check $int-add {:remove @{$int-add}}) false)
+        (assert-eq (check $foo {}) false)
+        (assert-eq (check $foo {:immutable @{$foo}}) true)
+        (assert-eq (check $int-add {:immutable @{$int-add} :remove @{$int-add}}) true)
+        (assert-eq (check $(sf-set! int-add 42) {}) false)
+        (assert-eq (check $(sf-set! int-add 42) {:mutable @{$int-add}}) true)
+        (assert-eq (check $(sf-set! int-add 42) {:immutable @{$int-add}, :mutable @{$int-add}}) false)
+        (assert-throw (check 42 {:remove :foo}) {:tag :err-type :expected :set :got :keyword})
+        (assert-throw (check 42 {:remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (check 42 {:mutable :foo}) {:tag :err-type :expected :set :got :keyword})
+        (assert-throw (check 42 {:mutable @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (check 42 {:immutable :foo}) {:tag :err-type :expected :set :got :keyword})
+        (assert-throw (check 42 {:immutable @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+        "#);
+
+        test_example(r#"
+        (assert-eq (eval 42 {}) 42)
+        (assert-throw (eval $(sf-throw 17) {}) {:tag :err-eval, :cause 17})
+        (assert-eq (eval $int-add {}) int-add)
+        (assert-eq (eval $int-add {:ignored-key 42}) int-add)
+        (assert-throw (eval $int-add {:remove @{$int-add}}) {:tag :err-static})
+        (assert-throw (eval $foo {}) {:tag :err-static})
+        (assert-eq (eval $foo {:immutable {$foo 42}}) 42)
+        (assert-eq (eval $foo {:mutable {$foo 42}}) 42)
+        (assert-eq (eval $foo {:immutable {$foo 42} :mutable {$foo 43}}) 42)
+        (assert-eq (eval $int-add {:immutable {$int-add eval}}) eval)
+        (assert-eq (eval $int-add {:immutable {$int-add eval} :remove @{$int-add}}) eval)
+        (assert-throw (eval $(sf-set! int-add 42) {}) {:tag :err-static})
+        (assert-eq (eval $(sf-set! int-add 42) {:mutable {$int-add int-add}}) nil)
+        (assert-throw (eval $(sf-set! int-add 42) {:immutable {$int-add int-add}, :mutable {$int-add int-add}}) {:tag :err-static})
+        (assert-throw (eval 42 {:remove :foo}) {:tag :err-type :expected :set :got :keyword})
+        (assert-throw (eval 42 {:remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (eval 42 {:mutable :foo}) {:tag :err-type :expected :map :got :keyword})
+        (assert-throw (eval 42 {:mutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (eval 42 {:immutable :foo}) {:tag :err-type :expected :map :got :keyword})
+        (assert-throw (eval 42 {:immutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+        "#);
+
+        test_example(r#"
+        (assert-eq (expand 42 {}) 42)
+        (assert-eq (expand $throw {}) $throw)
+        (assert-eq (expand $(sf-quote (macro)) {}) $(sf-quote (macro)))
+        (assert-eq (expand $(throw) {}) $(sf-throw nil))
+        (assert-eq (expand $(x y) {}) $(x y))
+        (assert-eq (expand $(x (throw)) {}) $(x (sf-throw nil)))
+        (assert-eq (expand (macro
+            foo
+            (sf-lambda [] 42)
+            (foo)
+            ) {}) 42)
+        (assert-eq (expand (macro
+            { :foo foo, :bar {:baz baz}}
+            { :foo (sf-lambda [] 42), :bar {:baz (sf-lambda [a] (int-add a 3))}, :zonk 42}
+            [1, (foo), (baz 17)]
+            ) {}) [1, 42, 20])
+        (assert-eq (expand (macro
+            {:2 a, :1 {:9 a}}
+            { :1 {:9 (sf-lambda [] :nope)}, :2 (sf-lambda [] :yup)}
+            (a)
+            ) {}) :yup)
+        (assert-throw (expand $(macro) {}) {:tag :err-expand})
+        (assert-throw (expand $(throw 1 2) {}) {:tag :err-expand})
+        (assert-throw (expand $(macro foo 42 (foo)) {}) {:tag :err-expand})
+        (assert-throw (expand $(macro {:foo foo} {} 42) {}) {:tag :err-expand})
+
+        (assert-eq (expand $(throw) {}) $(sf-throw nil))
+        (assert-eq (expand $(throw) {:macro-remove @{$throw}}) $(throw))
+        (assert-eq (expand $(foo 1 2) {:macro-add {$foo int-add}}) 3)
+        (assert-eq (expand $(macro a (sf-lambda [] foo) (a)) {:def-mutable {$foo 42}}) 42)
+        (assert-throw (expand $(macro a (sf-lambda [] int-max-val) (a)) {:def-remove @{$int-max-val}}) {:tag :err-expand})
+
+        (assert-throw (expand 42 {:macro-remove :foo}) {:tag :err-type :expected :set :got :keyword})
+        (assert-throw (expand 42 {:macro-remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (expand 42 {:macro-add :foo}) {:tag :err-type :expected :map :got :keyword})
+        (assert-throw (expand 42 {:macro-add {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (expand 42 {:def-remove :foo}) {:tag :err-type :expected :set :got :keyword})
+        (assert-throw (expand 42 {:def-remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (expand 42 {:def-mutable :foo}) {:tag :err-type :expected :map :got :keyword})
+        (assert-throw (expand 42 {:def-mutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (expand 42 {:def-immutable :foo}) {:tag :err-type :expected :map :got :keyword})
+        (assert-throw (expand 42 {:def-immutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
         "#);
     }
 }

@@ -1,12 +1,20 @@
-use im_rc::{OrdMap as ImOrdMap, Vector as ImVector};
+use std::collections::HashMap;
+
+use im_rc::{OrdMap as ImOrdMap, Vector as ImVector, OrdSet as ImOrdSet};
 use ropey::Rope as Ropey;
 use math::round;
 use nom::types::CompleteStr;
+use ryu_ecmascript::Buffer;
 
 use crate::context::Context;
 use crate::gc_foreign::{OrdMap, OrdSet, Vector, Rope};
 use crate::value::{Value, Atomic, Id};
-use crate::read::{is_id_char, parse_id};
+use crate::read::{is_id_char, parse_id, read as read_};
+use crate::expand::expand as expand_;
+use crate::check::check as check_;
+use crate::env;
+use crate::macros;
+use crate::compile::compile as compile_;
 
 pub fn typeof__(v: &Value) -> Value {
     match v {
@@ -28,6 +36,31 @@ pub fn typeof__(v: &Value) -> Value {
         Value::Cell(..) => Value::kw_str("cell"),
         Value::Opaque(_, id) => Value::Id(Id::Symbol(*id)),
     }
+}
+
+pub fn static_error() -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-static")),
+        ])))
+}
+
+pub fn eval_error(err: Value) -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-eval")),
+            (Value::kw_str("cause"), err),
+        ])))
+}
+
+pub fn expand_error() -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-expand")),
+        ])))
+}
+
+pub fn not_expression_error() -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-not-expression")),
+        ])))
 }
 
 pub fn num_args_error() -> Value {
@@ -267,6 +300,15 @@ macro_rules! arr {
 }
 
 macro_rules! id {
+    ($v:expr) => (
+        match &$v {
+            Value::Id(id) => id.clone(),
+            _ => return Err(type_error(&$v, "identifier")),
+        }
+    )
+}
+
+macro_rules! user_id {
     ($v:expr) => (
         match &$v {
             Value::Id(Id::User(id)) => id.clone(),
@@ -1475,7 +1517,7 @@ pub fn is_str_to_id(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Val
 
 pub fn id_to_str(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 1)?;
-    let id = id!(args.0[0]);
+    let id = user_id!(args.0[0]);
     Ok(Value::string_from_str(&id))
 }
 
@@ -2205,34 +2247,198 @@ pub fn pavo_eq(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     Ok(Value::bool_(args.0[0] == args.0[1]))
 }
 
-// pub fn pavo_lt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::bool_(args.0[0] < args.0[1]))
-// }
-//
-// pub fn pavo_lte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::bool_(args.0[0] <= args.0[1]))
-// }
-//
-// pub fn pavo_gt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::bool_(args.0[0] > args.0[1]))
-// }
-//
-// pub fn pavo_gte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(Value::bool_(args.0[0] >= args.0[1]))
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
-//
-// pub fn write(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     let mut buf = String::new();
-//
-//     write_(&args.0[0], &mut buf)?;
-//     if buf.len() >= i64::max as usize {
-//         return Err(coll_full_error());
-//     }
-//
-//     Ok(Value::string(Rope(Ropey::from(&buf[..]))))
-// }
+pub fn pavo_lt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    Ok(Value::bool_(args.0[0] < args.0[1]))
+}
+
+pub fn pavo_lte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    Ok(Value::bool_(args.0[0] <= args.0[1]))
+}
+
+pub fn pavo_gt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    Ok(Value::bool_(args.0[0] > args.0[1]))
+}
+
+pub fn pavo_gte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    Ok(Value::bool_(args.0[0] >= args.0[1]))
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn read(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let s = string!(args.0[0]);
+
+    match read_(CompleteStr(&s.0.to_string())) {
+        Ok(v) => return Ok(v),
+        Err(_) => return Err(not_expression_error()),
+    }
+}
+
+pub fn write(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let mut buf = String::new();
+
+    write_(&args.0[0], &mut buf)?;
+    if buf.len() >= i64::max as usize {
+        return Err(coll_full_error());
+    }
+
+    Ok(Value::string(Rope(Ropey::from(&buf[..]))))
+}
+
+pub fn check(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let v = &args.0[0];
+    let map = map!(args.0[1]);
+
+    let mut check_env = ImOrdMap::new();
+    for key in env::default().keys() {
+        check_env.insert(key.clone(), false);
+    }
+
+    let remove = match map.0.get(&Value::kw_str("remove")) {
+        Some(tmp) => set!(tmp).0,
+        None => ImOrdSet::new(),
+    };
+    for val in remove.iter() {
+        check_env.remove(&id!(val));
+    }
+
+    let mutable = match map.0.get(&Value::kw_str("mutable")) {
+        Some(tmp) => set!(tmp).0,
+        None => ImOrdSet::new(),
+    };
+    for val in mutable.iter() {
+        check_env.insert(id!(val), true);
+    }
+
+    let immutable = match map.0.get(&Value::kw_str("immutable")) {
+        Some(tmp) => set!(tmp).0,
+        None => ImOrdSet::new(),
+    };
+    for val in immutable.iter() {
+        check_env.insert(id!(val), false);
+    }
+
+    match check_(&v, &check_env) {
+        Ok(()) => return Ok(Value::bool_(true)),
+        Err(_) => return Ok(Value::bool_(false)),
+    }
+}
+
+pub fn eval(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let v = &args.0[0];
+    let map = map!(args.0[1]);
+
+    let mut env = env::default();
+
+    let remove = match map.0.get(&Value::kw_str("remove")) {
+        Some(tmp) => set!(tmp).0,
+        None => ImOrdSet::new(),
+    };
+    for val in remove.iter() {
+        env.remove(&id!(val));
+    }
+
+    let mutable = match map.0.get(&Value::kw_str("mutable")) {
+        Some(tmp) => map!(tmp).0,
+        None => ImOrdMap::new(),
+    };
+    for (key, val) in mutable.iter() {
+        env.insert(id!(key), (val.clone(), true));
+    }
+
+    let immutable = match map.0.get(&Value::kw_str("immutable")) {
+        Some(tmp) => map!(tmp).0,
+        None => ImOrdMap::new(),
+    };
+    for (key, val) in immutable.iter() {
+        env.insert(id!(key), (val.clone(), false));
+    }
+
+    match compile_(v, &env) {
+        Err(_) => return Err(static_error()),
+        Ok(c) => match c.compute(Vector(ImVector::new()), cx) {
+            Ok(yay) => return Ok(yay),
+            Err(err) => return Err(eval_error(err)),
+        }
+    }
+}
+
+pub fn expand(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let v = &args.0[0];
+    let map = map!(args.0[1]);
+
+    let mut def_env = env::default();
+    let mut macro_env = macros::default();
+
+    let def_remove = match map.0.get(&Value::kw_str("def-remove")) {
+        Some(tmp) => set!(tmp).0,
+        None => ImOrdSet::new(),
+    };
+    for val in def_remove.iter() {
+        def_env.remove(&id!(val));
+    }
+
+    let def_mutable = match map.0.get(&Value::kw_str("def-mutable")) {
+        Some(tmp) => map!(tmp).0,
+        None => ImOrdMap::new(),
+    };
+    for (key, val) in def_mutable.iter() {
+        def_env.insert(id!(key), (val.clone(), true));
+    }
+
+    let def_immutable = match map.0.get(&Value::kw_str("def-immutable")) {
+        Some(tmp) => map!(tmp).0,
+        None => ImOrdMap::new(),
+    };
+    for (key, val) in def_immutable.iter() {
+        def_env.insert(id!(key), (val.clone(), false));
+    }
+
+    let macro_remove = match map.0.get(&Value::kw_str("macro-remove")) {
+        Some(tmp) => set!(tmp).0,
+        None => ImOrdSet::new(),
+    };
+    for val in macro_remove.iter() {
+        macro_env.remove(&id!(val));
+    }
+
+    let macro_mutable = match map.0.get(&Value::kw_str("macro-add")) {
+        Some(tmp) => map!(tmp).0,
+        None => ImOrdMap::new(),
+    };
+    for (key, val) in macro_mutable.iter() {
+        macro_env.insert(id!(key), val.clone());
+    }
+
+    match expand_(&args.0[0], &def_env, &macro_env, cx) {
+        Err(_) => return Err(expand_error()),
+        Ok(yay) => return Ok(yay),
+    }
+}
+
+pub fn exval(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let options = args.0[1].clone();
+
+    match expand(args, cx) {
+        Err(err) => return Err(err),
+        Ok(expanded) => {
+            let mut eval_args = ImVector::new();
+            eval_args.push_back(expanded);
+            eval_args.push_back(options);
+            return eval(Vector(eval_args), cx);
+        }
+    }
+}
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -2316,7 +2522,28 @@ pub fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
         Value::Atomic(Atomic::Bool(true)) => Ok(out.push_str("true")),
         Value::Atomic(Atomic::Bool(false)) => Ok(out.push_str("false")),
         Value::Atomic(Atomic::Int(n)) => Ok(out.push_str(&n.to_string())),
-        Value::Atomic(Atomic::Float(n)) => unimplemented!(),
+        Value::Atomic(Atomic::Float(n)) => {
+            let mut b = Buffer::new();
+            let ecmaliteral = b.format(n.0.into_inner());
+
+            match ecmaliteral.find('.') {
+                Some(_) => Ok(out.push_str(ecmaliteral)),
+                None => {
+                    match ecmaliteral.find('e') {
+                        Some(index) => {
+                            let (fst, snd) = ecmaliteral.split_at(index);
+                            out.push_str(fst);
+                            out.push_str(".0");
+                            Ok(out.push_str(snd))
+                        }
+                        None => {
+                            out.push_str(ecmaliteral);
+                            Ok(out.push_str(".0"))
+                        }
+                    }
+                }
+            }
+        }
         Value::Atomic(Atomic::Char('\\')) => Ok(out.push_str("'\\\\'")),
         Value::Atomic(Atomic::Char('\'')) => Ok(out.push_str("'\\''")),
         Value::Atomic(Atomic::Char('\t')) => Ok(out.push_str("'\\t'")),
@@ -2331,10 +2558,10 @@ pub fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
             out.push('"');
             for c in chars.0.chars() {
                 match c {
-                    '\\' => out.push_str("\\"),
-                    '\"' => out.push_str("\""),
-                    '\n' => out.push_str("\\"),
-                    '\t' => out.push_str("\\"),
+                    '\\' => out.push_str("\\\\"),
+                    '\"' => out.push_str("\\\""),
+                    '\n' => out.push_str("\\n"),
+                    '\t' => out.push_str("\\t"),
                     _ => out.push(c),
                 }
             }

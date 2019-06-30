@@ -176,10 +176,10 @@ impl Environment {
         }))
     }
 
-    pub fn from_toplevel(toplevel: &HashMap<Id, Value>) -> Gc<GcCell<Environment>> {
+    pub fn from_toplevel(toplevel: &HashMap<Id, (Value, bool)>) -> Gc<GcCell<Environment>> {
         let ret = Environment::root();
 
-        for (id, val) in toplevel.values().enumerate() {
+        for (id, (val, _)) in toplevel.values().enumerate() {
             ret.borrow_mut().set(DeBruijn { up: 0, id}, val.clone());
         }
 
