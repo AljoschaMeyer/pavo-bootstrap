@@ -238,32 +238,32 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "require", Builtin::Require);
 
     env_add_val(&mut m, "cursor-arr-type", Value::Id(Id::Symbol(value::CURSOR_ARR_ID)));
-    env_add(&mut m, "cursor-arr-next", Builtin::CursorArrNext);
-    env_add(&mut m, "cursor-arr-prev", Builtin::CursorArrPrev);
+    env_add(&mut m, "cursor-arr-next!", Builtin::CursorArrNext);
+    env_add(&mut m, "cursor-arr-prev!", Builtin::CursorArrPrev);
 
     env_add_val(&mut m, "cursor-app-type", Value::Id(Id::Symbol(value::CURSOR_APP_ID)));
-    env_add(&mut m, "cursor-app-next", Builtin::CursorAppNext);
-    env_add(&mut m, "cursor-app-prev", Builtin::CursorAppPrev);
+    env_add(&mut m, "cursor-app-next!", Builtin::CursorAppNext);
+    env_add(&mut m, "cursor-app-prev!", Builtin::CursorAppPrev);
 
     env_add_val(&mut m, "cursor-bytes-type", Value::Id(Id::Symbol(value::CURSOR_BYTES_ID)));
-    env_add(&mut m, "cursor-bytes-next", Builtin::CursorBytesNext);
-    env_add(&mut m, "cursor-bytes-prev", Builtin::CursorBytesPrev);
+    env_add(&mut m, "cursor-bytes-next!", Builtin::CursorBytesNext);
+    env_add(&mut m, "cursor-bytes-prev!", Builtin::CursorBytesPrev);
 
     env_add_val(&mut m, "cursor-str-type", Value::Id(Id::Symbol(value::CURSOR_STRING_CHARS_ID)));
-    env_add(&mut m, "cursor-str-next", Builtin::CursorStrNext);
-    env_add(&mut m, "cursor-str-prev", Builtin::CursorStrPrev);
+    env_add(&mut m, "cursor-str-next!", Builtin::CursorStrNext);
+    env_add(&mut m, "cursor-str-prev!", Builtin::CursorStrPrev);
 
     env_add_val(&mut m, "cursor-str-utf8-type", Value::Id(Id::Symbol(value::CURSOR_STRING_UTF8_ID)));
-    env_add(&mut m, "cursor-str-utf8-next", Builtin::CursorStrUtf8Next);
-    env_add(&mut m, "cursor-str-utf8-prev", Builtin::CursorStrUtf8Prev);
+    env_add(&mut m, "cursor-str-utf8-next!", Builtin::CursorStrUtf8Next);
+    env_add(&mut m, "cursor-str-utf8-prev!", Builtin::CursorStrUtf8Prev);
 
     env_add_val(&mut m, "cursor-set-type", Value::Id(Id::Symbol(value::CURSOR_SET_ID)));
-    env_add(&mut m, "cursor-set-next", Builtin::CursorSetNext);
-    env_add(&mut m, "cursor-set-prev", Builtin::CursorSetPrev);
+    env_add(&mut m, "cursor-set-next!", Builtin::CursorSetNext);
+    env_add(&mut m, "cursor-set-prev!", Builtin::CursorSetPrev);
 
     env_add_val(&mut m, "cursor-map-type", Value::Id(Id::Symbol(value::CURSOR_MAP_ID)));
-    env_add(&mut m, "cursor-map-next", Builtin::CursorMapNext);
-    env_add(&mut m, "cursor-map-prev", Builtin::CursorMapPrev);
+    env_add(&mut m, "cursor-map-next!", Builtin::CursorMapNext);
+    env_add(&mut m, "cursor-map-prev!", Builtin::CursorMapPrev);
 
     m
 }

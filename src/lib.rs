@@ -913,10 +913,10 @@ mod tests {
 
         test_example("
         (assert-throw (bytes-cursor @[0 1 2] -1) {:tag :err-lookup, :got -1})
-        (assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 0)) 0)
-        (assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 1)) 1)
-        (assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 2)) 2)
-        (assert-throw (cursor-bytes-next (bytes-cursor @[0 1 2] 3)) :cursor-end)
+        (assert-eq (cursor-bytes-next! (bytes-cursor @[0 1 2] 0)) 0)
+        (assert-eq (cursor-bytes-next! (bytes-cursor @[0 1 2] 1)) 1)
+        (assert-eq (cursor-bytes-next! (bytes-cursor @[0 1 2] 2)) 2)
+        (assert-throw (cursor-bytes-next! (bytes-cursor @[0 1 2] 3)) :cursor-end)
         (assert-throw (bytes-cursor @[0 1 2] 4) {:tag :err-lookup, :got 4})
         ");
     }
@@ -927,21 +927,21 @@ mod tests {
 
         test_example("
         (let cursor (bytes-cursor @[0 1 2] 0) (do
-            (assert-eq (cursor-bytes-next cursor) 0)
-            (assert-eq (cursor-bytes-next cursor) 1)
-            (assert-eq (cursor-bytes-next cursor) 2)
-            (assert-throw (cursor-bytes-next cursor) :cursor-end)
-            (assert-throw (cursor-bytes-next cursor) :cursor-end)
+            (assert-eq (cursor-bytes-next! cursor) 0)
+            (assert-eq (cursor-bytes-next! cursor) 1)
+            (assert-eq (cursor-bytes-next! cursor) 2)
+            (assert-throw (cursor-bytes-next! cursor) :cursor-end)
+            (assert-throw (cursor-bytes-next! cursor) :cursor-end)
         ))
         ");
 
         test_example("
         (let cursor (bytes-cursor @[0 1 2] 3) (do
-            (assert-eq (cursor-bytes-prev cursor) 2)
-            (assert-eq (cursor-bytes-prev cursor) 1)
-            (assert-eq (cursor-bytes-prev cursor) 0)
-            (assert-throw (cursor-bytes-prev cursor) :cursor-end)
-            (assert-throw (cursor-bytes-prev cursor) :cursor-end)
+            (assert-eq (cursor-bytes-prev! cursor) 2)
+            (assert-eq (cursor-bytes-prev! cursor) 1)
+            (assert-eq (cursor-bytes-prev! cursor) 0)
+            (assert-throw (cursor-bytes-prev! cursor) :cursor-end)
+            (assert-throw (cursor-bytes-prev! cursor) :cursor-end)
         ))
         ");
     }
@@ -1053,21 +1053,21 @@ mod tests {
 
         test_example(r#"
         (assert-throw (str-cursor "a⚗c" -1) {:tag :err-lookup, :got -1})
-        (assert-eq (cursor-str-next (str-cursor "a⚗c" 0)) 'a')
-        (assert-eq (cursor-str-next (str-cursor "a⚗c" 1)) '⚗')
-        (assert-eq (cursor-str-next (str-cursor "a⚗c" 2)) 'c')
-        (assert-throw (cursor-str-next (str-cursor "a⚗c" 3)) :cursor-end)
+        (assert-eq (cursor-str-next! (str-cursor "a⚗c" 0)) 'a')
+        (assert-eq (cursor-str-next! (str-cursor "a⚗c" 1)) '⚗')
+        (assert-eq (cursor-str-next! (str-cursor "a⚗c" 2)) 'c')
+        (assert-throw (cursor-str-next! (str-cursor "a⚗c" 3)) :cursor-end)
         (assert-throw (str-cursor "a⚗c" 4) {:tag :err-lookup, :got 4})
         "#);
 
         test_example(r#"
         (assert-throw (str-cursor-utf8 "a⚗c" -1) {:tag :err-lookup, :got -1})
-        (assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 0)) 97)
-        (assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 1)) 226)
-        (assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 2)) 154)
-        (assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 3)) 151)
-        (assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 4)) 99)
-        (assert-throw (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 5)) :cursor-end)
+        (assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 0)) 97)
+        (assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 1)) 226)
+        (assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 2)) 154)
+        (assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 3)) 151)
+        (assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 4)) 99)
+        (assert-throw (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 5)) :cursor-end)
         (assert-throw (str-cursor-utf8 "a⚗c" 6) {:tag :err-lookup, :got 6})
         "#);
     }
@@ -1078,21 +1078,21 @@ mod tests {
 
         test_example(r#"
         (let cursor (str-cursor "a⚗c" 0) (do
-            (assert-eq (cursor-str-next cursor) 'a')
-            (assert-eq (cursor-str-next cursor) '⚗')
-            (assert-eq (cursor-str-next cursor) 'c')
-            (assert-throw (cursor-str-next cursor) :cursor-end)
-            (assert-throw (cursor-str-next cursor) :cursor-end)
+            (assert-eq (cursor-str-next! cursor) 'a')
+            (assert-eq (cursor-str-next! cursor) '⚗')
+            (assert-eq (cursor-str-next! cursor) 'c')
+            (assert-throw (cursor-str-next! cursor) :cursor-end)
+            (assert-throw (cursor-str-next! cursor) :cursor-end)
         ))
         "#);
 
         test_example(r#"
         (let cursor (str-cursor "a⚗c" 3) (do
-            (assert-eq (cursor-str-prev cursor) 'c')
-            (assert-eq (cursor-str-prev cursor) '⚗')
-            (assert-eq (cursor-str-prev cursor) 'a')
-            (assert-throw (cursor-str-prev cursor) :cursor-end)
-            (assert-throw (cursor-str-prev cursor) :cursor-end)
+            (assert-eq (cursor-str-prev! cursor) 'c')
+            (assert-eq (cursor-str-prev! cursor) '⚗')
+            (assert-eq (cursor-str-prev! cursor) 'a')
+            (assert-throw (cursor-str-prev! cursor) :cursor-end)
+            (assert-throw (cursor-str-prev! cursor) :cursor-end)
         ))
         "#);
     }
@@ -1103,25 +1103,25 @@ mod tests {
 
         test_example(r#"
         (let cursor (str-cursor-utf8 "a⚗c" 0) (do
-            (assert-eq (cursor-str-utf8-next cursor) 97)
-            (assert-eq (cursor-str-utf8-next cursor) 226)
-            (assert-eq (cursor-str-utf8-next cursor) 154)
-            (assert-eq (cursor-str-utf8-next cursor) 151)
-            (assert-eq (cursor-str-utf8-next cursor) 99)
-            (assert-throw (cursor-str-utf8-next cursor) :cursor-end)
-            (assert-throw (cursor-str-utf8-next cursor) :cursor-end)
+            (assert-eq (cursor-str-utf8-next! cursor) 97)
+            (assert-eq (cursor-str-utf8-next! cursor) 226)
+            (assert-eq (cursor-str-utf8-next! cursor) 154)
+            (assert-eq (cursor-str-utf8-next! cursor) 151)
+            (assert-eq (cursor-str-utf8-next! cursor) 99)
+            (assert-throw (cursor-str-utf8-next! cursor) :cursor-end)
+            (assert-throw (cursor-str-utf8-next! cursor) :cursor-end)
         ))
         "#);
 
         test_example(r#"
         (let cursor (str-cursor-utf8 "a⚗c" 5) (do
-            (assert-eq (cursor-str-utf8-prev cursor) 99)
-            (assert-eq (cursor-str-utf8-prev cursor) 151)
-            (assert-eq (cursor-str-utf8-prev cursor) 154)
-            (assert-eq (cursor-str-utf8-prev cursor) 226)
-            (assert-eq (cursor-str-utf8-prev cursor) 97)
-            (assert-throw (cursor-str-utf8-prev cursor) :cursor-end)
-            (assert-throw (cursor-str-utf8-prev cursor) :cursor-end)
+            (assert-eq (cursor-str-utf8-prev! cursor) 99)
+            (assert-eq (cursor-str-utf8-prev! cursor) 151)
+            (assert-eq (cursor-str-utf8-prev! cursor) 154)
+            (assert-eq (cursor-str-utf8-prev! cursor) 226)
+            (assert-eq (cursor-str-utf8-prev! cursor) 97)
+            (assert-throw (cursor-str-utf8-prev! cursor) :cursor-end)
+            (assert-throw (cursor-str-utf8-prev! cursor) :cursor-end)
         ))
         "#);
     }
@@ -1457,10 +1457,10 @@ mod tests {
 
         test_example("
         (assert-throw (arr-cursor [0 1 2] -1) {:tag :err-lookup, :got -1})
-        (assert-eq (cursor-arr-next (arr-cursor [0 1 2] 0)) 0)
-        (assert-eq (cursor-arr-next (arr-cursor [0 1 2] 1)) 1)
-        (assert-eq (cursor-arr-next (arr-cursor [0 1 2] 2)) 2)
-        (assert-throw (cursor-arr-next (arr-cursor [0 1 2] 3)) :cursor-end)
+        (assert-eq (cursor-arr-next! (arr-cursor [0 1 2] 0)) 0)
+        (assert-eq (cursor-arr-next! (arr-cursor [0 1 2] 1)) 1)
+        (assert-eq (cursor-arr-next! (arr-cursor [0 1 2] 2)) 2)
+        (assert-throw (cursor-arr-next! (arr-cursor [0 1 2] 3)) :cursor-end)
         (assert-throw (arr-cursor [0 1 2] 4) {:tag :err-lookup, :got 4})
         ");
     }
@@ -1471,21 +1471,21 @@ mod tests {
 
         test_example("
         (let cursor (arr-cursor [0 1 2] 0) (do
-            (assert-eq (cursor-arr-next cursor) 0)
-            (assert-eq (cursor-arr-next cursor) 1)
-            (assert-eq (cursor-arr-next cursor) 2)
-            (assert-throw (cursor-arr-next cursor) :cursor-end)
-            (assert-throw (cursor-arr-next cursor) :cursor-end)
+            (assert-eq (cursor-arr-next! cursor) 0)
+            (assert-eq (cursor-arr-next! cursor) 1)
+            (assert-eq (cursor-arr-next! cursor) 2)
+            (assert-throw (cursor-arr-next! cursor) :cursor-end)
+            (assert-throw (cursor-arr-next! cursor) :cursor-end)
         ))
         ");
 
         test_example("
         (let cursor (arr-cursor [0 1 2] 3) (do
-            (assert-eq (cursor-arr-prev cursor) 2)
-            (assert-eq (cursor-arr-prev cursor) 1)
-            (assert-eq (cursor-arr-prev cursor) 0)
-            (assert-throw (cursor-arr-prev cursor) :cursor-end)
-            (assert-throw (cursor-arr-prev cursor) :cursor-end)
+            (assert-eq (cursor-arr-prev! cursor) 2)
+            (assert-eq (cursor-arr-prev! cursor) 1)
+            (assert-eq (cursor-arr-prev! cursor) 0)
+            (assert-throw (cursor-arr-prev! cursor) :cursor-end)
+            (assert-throw (cursor-arr-prev! cursor) :cursor-end)
         ))
         ");
     }
@@ -1555,10 +1555,10 @@ mod tests {
 
         test_example("
         (assert-throw (app-cursor $(0 1 2) -1) {:tag :err-lookup, :got -1})
-        (assert-eq (cursor-app-next (app-cursor $(0 1 2) 0)) 0)
-        (assert-eq (cursor-app-next (app-cursor $(0 1 2) 1)) 1)
-        (assert-eq (cursor-app-next (app-cursor $(0 1 2) 2)) 2)
-        (assert-throw (cursor-app-next (app-cursor $(0 1 2) 3)) :cursor-end)
+        (assert-eq (cursor-app-next! (app-cursor $(0 1 2) 0)) 0)
+        (assert-eq (cursor-app-next! (app-cursor $(0 1 2) 1)) 1)
+        (assert-eq (cursor-app-next! (app-cursor $(0 1 2) 2)) 2)
+        (assert-throw (cursor-app-next! (app-cursor $(0 1 2) 3)) :cursor-end)
         (assert-throw (app-cursor $(0 1 2) 4) {:tag :err-lookup, :got 4})
         ");
     }
@@ -1569,21 +1569,21 @@ mod tests {
 
         test_example("
         (let cursor (app-cursor $(0 1 2) 0) (do
-            (assert-eq (cursor-app-next cursor) 0)
-            (assert-eq (cursor-app-next cursor) 1)
-            (assert-eq (cursor-app-next cursor) 2)
-            (assert-throw (cursor-app-next cursor) :cursor-end)
-            (assert-throw (cursor-app-next cursor) :cursor-end)
+            (assert-eq (cursor-app-next! cursor) 0)
+            (assert-eq (cursor-app-next! cursor) 1)
+            (assert-eq (cursor-app-next! cursor) 2)
+            (assert-throw (cursor-app-next! cursor) :cursor-end)
+            (assert-throw (cursor-app-next! cursor) :cursor-end)
         ))
         ");
 
         test_example("
         (let cursor (app-cursor $(0 1 2) 3) (do
-            (assert-eq (cursor-app-prev cursor) 2)
-            (assert-eq (cursor-app-prev cursor) 1)
-            (assert-eq (cursor-app-prev cursor) 0)
-            (assert-throw (cursor-app-prev cursor) :cursor-end)
-            (assert-throw (cursor-app-prev cursor) :cursor-end)
+            (assert-eq (cursor-app-prev! cursor) 2)
+            (assert-eq (cursor-app-prev! cursor) 1)
+            (assert-eq (cursor-app-prev! cursor) 0)
+            (assert-throw (cursor-app-prev! cursor) :cursor-end)
+            (assert-throw (cursor-app-prev! cursor) :cursor-end)
         ))
         ");
     }
@@ -1693,49 +1693,49 @@ mod tests {
         // ");
 
         test_example("
-        (assert-eq (cursor-set-next (set-cursor-min @{0 1 2})) 0)
-        (assert-throw (cursor-set-next (set-cursor-min @{})) :cursor-end)
+        (assert-eq (cursor-set-next! (set-cursor-min @{0 1 2})) 0)
+        (assert-throw (cursor-set-next! (set-cursor-min @{})) :cursor-end)
         ");
 
         test_example("
-        (assert-eq (cursor-set-prev (set-cursor-max @{0 1 2})) 2)
-        (assert-throw (cursor-set-prev (set-cursor-max @{})) :cursor-end)
+        (assert-eq (cursor-set-prev! (set-cursor-max @{0 1 2})) 2)
+        (assert-throw (cursor-set-prev! (set-cursor-max @{})) :cursor-end)
         ");
 
         test_example("
-        (assert-throw (cursor-set-prev (set-cursor-< @{0 1 3} -1)) :cursor-end)
-        (assert-throw (cursor-set-prev (set-cursor-< @{0 1 3} 0)) :cursor-end)
-        (assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 1)) 0)
-        (assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 2)) 1)
-        (assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 3)) 1)
-        (assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 4)) 3)
+        (assert-throw (cursor-set-prev! (set-cursor-< @{0 1 3} -1)) :cursor-end)
+        (assert-throw (cursor-set-prev! (set-cursor-< @{0 1 3} 0)) :cursor-end)
+        (assert-eq (cursor-set-prev! (set-cursor-< @{0 1 3} 1)) 0)
+        (assert-eq (cursor-set-prev! (set-cursor-< @{0 1 3} 2)) 1)
+        (assert-eq (cursor-set-prev! (set-cursor-< @{0 1 3} 3)) 1)
+        (assert-eq (cursor-set-prev! (set-cursor-< @{0 1 3} 4)) 3)
         ");
 
         test_example("
-        (assert-eq (cursor-set-next (set-cursor-> @{0 1 3} -1)) 0)
-        (assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 0)) 1)
-        (assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 1)) 3)
-        (assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 2)) 3)
-        (assert-throw (cursor-set-next (set-cursor-> @{0 1 3} 3)) :cursor-end)
-        (assert-throw (cursor-set-next (set-cursor-> @{0 1 3} 4)) :cursor-end)
+        (assert-eq (cursor-set-next! (set-cursor-> @{0 1 3} -1)) 0)
+        (assert-eq (cursor-set-next! (set-cursor-> @{0 1 3} 0)) 1)
+        (assert-eq (cursor-set-next! (set-cursor-> @{0 1 3} 1)) 3)
+        (assert-eq (cursor-set-next! (set-cursor-> @{0 1 3} 2)) 3)
+        (assert-throw (cursor-set-next! (set-cursor-> @{0 1 3} 3)) :cursor-end)
+        (assert-throw (cursor-set-next! (set-cursor-> @{0 1 3} 4)) :cursor-end)
         ");
 
         test_example("
-        (assert-throw (cursor-set-prev (set-cursor-<= @{0 1 3} -1)) :cursor-end)
-        (assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 0)) 0)
-        (assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 1)) 1)
-        (assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 2)) 1)
-        (assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 3)) 3)
-        (assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 4)) 3)
+        (assert-throw (cursor-set-prev! (set-cursor-<= @{0 1 3} -1)) :cursor-end)
+        (assert-eq (cursor-set-prev! (set-cursor-<= @{0 1 3} 0)) 0)
+        (assert-eq (cursor-set-prev! (set-cursor-<= @{0 1 3} 1)) 1)
+        (assert-eq (cursor-set-prev! (set-cursor-<= @{0 1 3} 2)) 1)
+        (assert-eq (cursor-set-prev! (set-cursor-<= @{0 1 3} 3)) 3)
+        (assert-eq (cursor-set-prev! (set-cursor-<= @{0 1 3} 4)) 3)
         ");
 
         test_example("
-        (assert-eq (cursor-set-next (set-cursor->= @{0 1 3} -1)) 0)
-        (assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 0)) 0)
-        (assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 1)) 1)
-        (assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 2)) 3)
-        (assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 3)) 3)
-        (assert-throw (cursor-set-next (set-cursor->= @{0 1 3} 4)) :cursor-end)
+        (assert-eq (cursor-set-next! (set-cursor->= @{0 1 3} -1)) 0)
+        (assert-eq (cursor-set-next! (set-cursor->= @{0 1 3} 0)) 0)
+        (assert-eq (cursor-set-next! (set-cursor->= @{0 1 3} 1)) 1)
+        (assert-eq (cursor-set-next! (set-cursor->= @{0 1 3} 2)) 3)
+        (assert-eq (cursor-set-next! (set-cursor->= @{0 1 3} 3)) 3)
+        (assert-throw (cursor-set-next! (set-cursor->= @{0 1 3} 4)) :cursor-end)
         ");
     }
 
@@ -1745,21 +1745,21 @@ mod tests {
 
         test_example("
         (let cursor (set-cursor-min @{0 1 2}) (do
-            (assert-eq (cursor-set-next cursor) 0)
-            (assert-eq (cursor-set-next cursor) 1)
-            (assert-eq (cursor-set-next cursor) 2)
-            (assert-throw (cursor-set-next cursor) :cursor-end)
-            (assert-throw (cursor-set-next cursor) :cursor-end)
+            (assert-eq (cursor-set-next! cursor) 0)
+            (assert-eq (cursor-set-next! cursor) 1)
+            (assert-eq (cursor-set-next! cursor) 2)
+            (assert-throw (cursor-set-next! cursor) :cursor-end)
+            (assert-throw (cursor-set-next! cursor) :cursor-end)
         ))
         ");
 
         test_example("
         (let cursor (set-cursor-max @{0 1 2}) (do
-            (assert-eq (cursor-set-prev cursor) 2)
-            (assert-eq (cursor-set-prev cursor) 1)
-            (assert-eq (cursor-set-prev cursor) 0)
-            (assert-throw (cursor-set-prev cursor) :cursor-end)
-            (assert-throw (cursor-set-prev cursor) :cursor-end)
+            (assert-eq (cursor-set-prev! cursor) 2)
+            (assert-eq (cursor-set-prev! cursor) 1)
+            (assert-eq (cursor-set-prev! cursor) 0)
+            (assert-throw (cursor-set-prev! cursor) :cursor-end)
+            (assert-throw (cursor-set-prev! cursor) :cursor-end)
         ))
         ");
     }
@@ -1884,49 +1884,49 @@ mod tests {
         ");
 
         test_example("
-        (assert-eq (cursor-map-next (map-cursor-min {0 :a 1 :b 2 :c})) [0 :a])
-        (assert-throw (cursor-map-next (map-cursor-min {})) :cursor-end)
+        (assert-eq (cursor-map-next! (map-cursor-min {0 :a 1 :b 2 :c})) [0 :a])
+        (assert-throw (cursor-map-next! (map-cursor-min {})) :cursor-end)
         ");
 
         test_example("
-        (assert-eq (cursor-map-prev (map-cursor-max {0 :a 1 :b 2 :c})) [2 :c])
-        (assert-throw (cursor-map-prev (map-cursor-max {})) :cursor-end)
+        (assert-eq (cursor-map-prev! (map-cursor-max {0 :a 1 :b 2 :c})) [2 :c])
+        (assert-throw (cursor-map-prev! (map-cursor-max {})) :cursor-end)
         ");
 
         test_example("
-        (assert-throw (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} -1)) :cursor-end)
-        (assert-throw (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 0)) :cursor-end)
-        (assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 1)) [0 :a])
-        (assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 2)) [1 :b])
-        (assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 3)) [1 :b])
-        (assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 4)) [3 :d])
+        (assert-throw (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} -1)) :cursor-end)
+        (assert-throw (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} 0)) :cursor-end)
+        (assert-eq (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} 1)) [0 :a])
+        (assert-eq (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} 2)) [1 :b])
+        (assert-eq (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} 3)) [1 :b])
+        (assert-eq (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} 4)) [3 :d])
         ");
 
         test_example("
-        (assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} -1)) [0 :a])
-        (assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 0)) [1 :b])
-        (assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 1)) [3 :d])
-        (assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 2)) [3 :d])
-        (assert-throw (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 3)) :cursor-end)
-        (assert-throw (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 4)) :cursor-end)
+        (assert-eq (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} -1)) [0 :a])
+        (assert-eq (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} 0)) [1 :b])
+        (assert-eq (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} 1)) [3 :d])
+        (assert-eq (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} 2)) [3 :d])
+        (assert-throw (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} 3)) :cursor-end)
+        (assert-throw (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} 4)) :cursor-end)
         ");
 
         test_example("
-        (assert-throw (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} -1)) :cursor-end)
-        (assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 0)) [0 :a])
-        (assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 1)) [1 :b])
-        (assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 2)) [1 :b])
-        (assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 3)) [3 :d])
-        (assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 4)) [3 :d])
+        (assert-throw (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} -1)) :cursor-end)
+        (assert-eq (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} 0)) [0 :a])
+        (assert-eq (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} 1)) [1 :b])
+        (assert-eq (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} 2)) [1 :b])
+        (assert-eq (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} 3)) [3 :d])
+        (assert-eq (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} 4)) [3 :d])
         ");
 
         test_example("
-        (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} -1)) [0 :a])
-        (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 0)) [0 :a])
-        (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 1)) [1 :b])
-        (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 2)) [3 :d])
-        (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 3)) [3 :d])
-        (assert-throw (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 4)) :cursor-end)
+        (assert-eq (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} -1)) [0 :a])
+        (assert-eq (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} 0)) [0 :a])
+        (assert-eq (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} 1)) [1 :b])
+        (assert-eq (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} 2)) [3 :d])
+        (assert-eq (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} 3)) [3 :d])
+        (assert-throw (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} 4)) :cursor-end)
         ");
     }
 
@@ -1936,21 +1936,21 @@ mod tests {
 
         test_example("
         (let cursor (map-cursor-min {0 :a 1 :b 2 :c}) (do
-            (assert-eq (cursor-map-next cursor) [0 :a])
-            (assert-eq (cursor-map-next cursor) [1 :b])
-            (assert-eq (cursor-map-next cursor) [2 :c])
-            (assert-throw (cursor-map-next cursor) :cursor-end)
-            (assert-throw (cursor-map-next cursor) :cursor-end)
+            (assert-eq (cursor-map-next! cursor) [0 :a])
+            (assert-eq (cursor-map-next! cursor) [1 :b])
+            (assert-eq (cursor-map-next! cursor) [2 :c])
+            (assert-throw (cursor-map-next! cursor) :cursor-end)
+            (assert-throw (cursor-map-next! cursor) :cursor-end)
         ))
         ");
 
         test_example("
         (let cursor (map-cursor-max {0 :a 1 :b 2 :c}) (do
-            (assert-eq (cursor-map-prev cursor) [2 :c])
-            (assert-eq (cursor-map-prev cursor) [1 :b])
-            (assert-eq (cursor-map-prev cursor) [0 :a])
-            (assert-throw (cursor-map-prev cursor) :cursor-end)
-            (assert-throw (cursor-map-prev cursor) :cursor-end)
+            (assert-eq (cursor-map-prev! cursor) [2 :c])
+            (assert-eq (cursor-map-prev! cursor) [1 :b])
+            (assert-eq (cursor-map-prev! cursor) [0 :a])
+            (assert-throw (cursor-map-prev! cursor) :cursor-end)
+            (assert-throw (cursor-map-prev! cursor) :cursor-end)
         ))
         ");
     }

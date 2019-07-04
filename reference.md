@@ -1379,10 +1379,10 @@ Time: O(log n), where n is `(bytes-count b)`.
 
 ```pavo
 (assert-throw (bytes-cursor @[0 1 2] -1) {:tag :err-lookup, :got -1})
-(assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 0)) 0)
-(assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 1)) 1)
-(assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 2)) 2)
-(assert-throw (cursor-bytes-next (bytes-cursor @[0 1 2] 3)) :cursor-end)
+(assert-eq (cursor-bytes-next! (bytes-cursor @[0 1 2] 0)) 0)
+(assert-eq (cursor-bytes-next! (bytes-cursor @[0 1 2] 1)) 1)
+(assert-eq (cursor-bytes-next! (bytes-cursor @[0 1 2] 2)) 2)
+(assert-throw (cursor-bytes-next! (bytes-cursor @[0 1 2] 3)) :cursor-end)
 (assert-throw (bytes-cursor @[0 1 2] 4) {:tag :err-lookup, :got 4})
 ```
 
@@ -1398,7 +1398,7 @@ The type symbol of bytes cursors.
 (assert-eq cursor-bytes-type (typeof (bytes-cursor @[] 0)))
 ```
 
-#### `(cursor-bytes-next cursor)`
+#### `(cursor-bytes-next! cursor)`
 
 Advances the cursor by one element and returns the element over which it passed. If the starting position was at the back of the bytes, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -1406,15 +1406,15 @@ Time: Worst-case O(log(n)), where n is the number of elements in the underlying 
 
 ```pavo
 (let cursor (bytes-cursor @[0 1 2] 0) (do
-    (assert-eq (cursor-bytes-next cursor) 0)
-    (assert-eq (cursor-bytes-next cursor) 1)
-    (assert-eq (cursor-bytes-next cursor) 2)
-    (assert-throw (cursor-bytes-next cursor) :cursor-end)
-    (assert-throw (cursor-bytes-next cursor) :cursor-end)
+    (assert-eq (cursor-bytes-next! cursor) 0)
+    (assert-eq (cursor-bytes-next! cursor) 1)
+    (assert-eq (cursor-bytes-next! cursor) 2)
+    (assert-throw (cursor-bytes-next! cursor) :cursor-end)
+    (assert-throw (cursor-bytes-next! cursor) :cursor-end)
 ))
 ```
 
-#### `(cursor-bytes-prev cursor)`
+#### `(cursor-bytes-prev! cursor)`
 
 Retreats the cursor by one element and returns the element over which it passed. If the starting position was at the front of the bytes, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -1422,11 +1422,11 @@ Time: Worst-case O(log(n)), where n is the number of elements in the underlying 
 
 ```pavo
 (let cursor (bytes-cursor @[0 1 2] 3) (do
-    (assert-eq (cursor-bytes-prev cursor) 2)
-    (assert-eq (cursor-bytes-prev cursor) 1)
-    (assert-eq (cursor-bytes-prev cursor) 0)
-    (assert-throw (cursor-bytes-prev cursor) :cursor-end)
-    (assert-throw (cursor-bytes-prev cursor) :cursor-end)
+    (assert-eq (cursor-bytes-prev! cursor) 2)
+    (assert-eq (cursor-bytes-prev! cursor) 1)
+    (assert-eq (cursor-bytes-prev! cursor) 0)
+    (assert-throw (cursor-bytes-prev! cursor) :cursor-end)
+    (assert-throw (cursor-bytes-prev! cursor) :cursor-end)
 ))
 ```
 
@@ -1662,10 +1662,10 @@ Time: O(log n), where n is `(str-count s)`.
 
 ```pavo
 (assert-throw (str-cursor "a⚗c" -1) {:tag :err-lookup, :got -1})
-(assert-eq (cursor-str-next (str-cursor "a⚗c" 0)) 'a')
-(assert-eq (cursor-str-next (str-cursor "a⚗c" 1)) '⚗')
-(assert-eq (cursor-str-next (str-cursor "a⚗c" 2)) 'c')
-(assert-throw (cursor-str-next (str-cursor "a⚗c" 3)) :cursor-end)
+(assert-eq (cursor-str-next! (str-cursor "a⚗c" 0)) 'a')
+(assert-eq (cursor-str-next! (str-cursor "a⚗c" 1)) '⚗')
+(assert-eq (cursor-str-next! (str-cursor "a⚗c" 2)) 'c')
+(assert-throw (cursor-str-next! (str-cursor "a⚗c" 3)) :cursor-end)
 (assert-throw (str-cursor "a⚗c" 4) {:tag :err-lookup, :got 4})
 ```
 
@@ -1679,12 +1679,12 @@ Time: O(log n), where n is `(str-count-utf8 s)`.
 
 ```pavo
 (assert-throw (str-cursor-utf8 "a⚗c" -1) {:tag :err-lookup, :got -1})
-(assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 0)) 97)
-(assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 1)) 226)
-(assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 2)) 154)
-(assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 3)) 151)
-(assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 4)) 99)
-(assert-throw (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 5)) :cursor-end)
+(assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 0)) 97)
+(assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 1)) 226)
+(assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 2)) 154)
+(assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 3)) 151)
+(assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 4)) 99)
+(assert-throw (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 5)) :cursor-end)
 (assert-throw (str-cursor-utf8 "a⚗c" 6) {:tag :err-lookup, :got 6})
 ```
 
@@ -1700,7 +1700,7 @@ The type symbol of string cursors.
 (assert-eq cursor-str-type (typeof (str-cursor "" 0)))
 ```
 
-#### `(cursor-str-next cursor)`
+#### `(cursor-str-next! cursor)`
 
 Advances the cursor by one character and returns the character over which it passed. If the starting position was at the back of the string, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -1708,15 +1708,15 @@ Time: Worst-case O(log(n)), where n is the number of characters in the underlyin
 
 ```pavo
 (let cursor (str-cursor "a⚗c" 0) (do
-    (assert-eq (cursor-str-next cursor) 'a')
-    (assert-eq (cursor-str-next cursor) '⚗')
-    (assert-eq (cursor-str-next cursor) 'c')
-    (assert-throw (cursor-str-next cursor) :cursor-end)
-    (assert-throw (cursor-str-next cursor) :cursor-end)
+    (assert-eq (cursor-str-next! cursor) 'a')
+    (assert-eq (cursor-str-next! cursor) '⚗')
+    (assert-eq (cursor-str-next! cursor) 'c')
+    (assert-throw (cursor-str-next! cursor) :cursor-end)
+    (assert-throw (cursor-str-next! cursor) :cursor-end)
 ))
 ```
 
-#### `(cursor-str-prev cursor)`
+#### `(cursor-str-prev! cursor)`
 
 Retreats the cursor by one character and returns the character over which it passed. If the starting position was at the front of the string, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -1724,11 +1724,11 @@ Time: Worst-case O(log(n)), where n is the number of characters in the underlyin
 
 ```pavo
 (let cursor (str-cursor "a⚗c" 3) (do
-    (assert-eq (cursor-str-prev cursor) 'c')
-    (assert-eq (cursor-str-prev cursor) '⚗')
-    (assert-eq (cursor-str-prev cursor) 'a')
-    (assert-throw (cursor-str-prev cursor) :cursor-end)
-    (assert-throw (cursor-str-prev cursor) :cursor-end)
+    (assert-eq (cursor-str-prev! cursor) 'c')
+    (assert-eq (cursor-str-prev! cursor) '⚗')
+    (assert-eq (cursor-str-prev! cursor) 'a')
+    (assert-throw (cursor-str-prev! cursor) :cursor-end)
+    (assert-throw (cursor-str-prev! cursor) :cursor-end)
 ))
 ```
 
@@ -1744,7 +1744,7 @@ The type symbol of string utf8 cursors.
 (assert-eq cursor-str-utf8-type (typeof (str-cursor-utf8 "" 0)))
 ```
 
-#### `(cursor-str-utf8-next cursor)`
+#### `(cursor-str-utf8-next! cursor)`
 
 Advances the cursor by one byte and returns the byte over which it passed. If the starting position was at the back of the string, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -1752,17 +1752,17 @@ Time: Worst-case O(log(n)), where n is the number of bytes in the underlying str
 
 ```pavo
 (let cursor (str-cursor-utf8 "a⚗c" 0) (do
-    (assert-eq (cursor-str-utf8-next cursor) 97)
-    (assert-eq (cursor-str-utf8-next cursor) 226)
-    (assert-eq (cursor-str-utf8-next cursor) 154)
-    (assert-eq (cursor-str-utf8-next cursor) 151)
-    (assert-eq (cursor-str-utf8-next cursor) 99)
-    (assert-throw (cursor-str-utf8-next cursor) :cursor-end)
-    (assert-throw (cursor-str-utf8-next cursor) :cursor-end)
+    (assert-eq (cursor-str-utf8-next! cursor) 97)
+    (assert-eq (cursor-str-utf8-next! cursor) 226)
+    (assert-eq (cursor-str-utf8-next! cursor) 154)
+    (assert-eq (cursor-str-utf8-next! cursor) 151)
+    (assert-eq (cursor-str-utf8-next! cursor) 99)
+    (assert-throw (cursor-str-utf8-next! cursor) :cursor-end)
+    (assert-throw (cursor-str-utf8-next! cursor) :cursor-end)
 ))
 ```
 
-#### `(cursor-str-utf8-prev cursor)`
+#### `(cursor-str-utf8-prev! cursor)`
 
 Retreats the cursor by one byte and returns the byte over which it passed. If the starting position was at the front of the string, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -1770,13 +1770,13 @@ Time: Worst-case O(log(n)), where n is the number of bytes in the underlying str
 
 ```pavo
 (let cursor (str-cursor-utf8 "a⚗c" 5) (do
-    (assert-eq (cursor-str-utf8-prev cursor) 99)
-    (assert-eq (cursor-str-utf8-prev cursor) 151)
-    (assert-eq (cursor-str-utf8-prev cursor) 154)
-    (assert-eq (cursor-str-utf8-prev cursor) 226)
-    (assert-eq (cursor-str-utf8-prev cursor) 97)
-    (assert-throw (cursor-str-utf8-prev cursor) :cursor-end)
-    (assert-throw (cursor-str-utf8-prev cursor) :cursor-end)
+    (assert-eq (cursor-str-utf8-prev! cursor) 99)
+    (assert-eq (cursor-str-utf8-prev! cursor) 151)
+    (assert-eq (cursor-str-utf8-prev! cursor) 154)
+    (assert-eq (cursor-str-utf8-prev! cursor) 226)
+    (assert-eq (cursor-str-utf8-prev! cursor) 97)
+    (assert-throw (cursor-str-utf8-prev! cursor) :cursor-end)
+    (assert-throw (cursor-str-utf8-prev! cursor) :cursor-end)
 ))
 ```
 
@@ -2455,10 +2455,10 @@ Time: O(log n), where n is `(arr-count arr)`.
 
 ```pavo
 (assert-throw (arr-cursor [0 1 2] -1) {:tag :err-lookup, :got -1})
-(assert-eq (cursor-arr-next (arr-cursor [0 1 2] 0)) 0)
-(assert-eq (cursor-arr-next (arr-cursor [0 1 2] 1)) 1)
-(assert-eq (cursor-arr-next (arr-cursor [0 1 2] 2)) 2)
-(assert-throw (cursor-arr-next (arr-cursor [0 1 2] 3)) :cursor-end)
+(assert-eq (cursor-arr-next! (arr-cursor [0 1 2] 0)) 0)
+(assert-eq (cursor-arr-next! (arr-cursor [0 1 2] 1)) 1)
+(assert-eq (cursor-arr-next! (arr-cursor [0 1 2] 2)) 2)
+(assert-throw (cursor-arr-next! (arr-cursor [0 1 2] 3)) :cursor-end)
 (assert-throw (arr-cursor [0 1 2] 4) {:tag :err-lookup, :got 4})
 ```
 
@@ -2474,7 +2474,7 @@ The type symbol of array cursors.
 (assert-eq cursor-arr-type (typeof (arr-cursor [] 0)))
 ```
 
-#### `(cursor-arr-next cursor)`
+#### `(cursor-arr-next! cursor)`
 
 Advances the cursor by one element and returns the element over which it passed. If the starting position was at the back of the array, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -2482,15 +2482,15 @@ Time: Worst-case O(log(n)), where n is the number of elements in the underlying 
 
 ```pavo
 (let cursor (arr-cursor [0 1 2] 0) (do
-    (assert-eq (cursor-arr-next cursor) 0)
-    (assert-eq (cursor-arr-next cursor) 1)
-    (assert-eq (cursor-arr-next cursor) 2)
-    (assert-throw (cursor-arr-next cursor) :cursor-end)
-    (assert-throw (cursor-arr-next cursor) :cursor-end)
+    (assert-eq (cursor-arr-next! cursor) 0)
+    (assert-eq (cursor-arr-next! cursor) 1)
+    (assert-eq (cursor-arr-next! cursor) 2)
+    (assert-throw (cursor-arr-next! cursor) :cursor-end)
+    (assert-throw (cursor-arr-next! cursor) :cursor-end)
 ))
 ```
 
-#### `(cursor-arr-prev cursor)`
+#### `(cursor-arr-prev! cursor)`
 
 Retreats the cursor by one element and returns the element over which it passed. If the starting position was at the front of the array, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -2498,11 +2498,11 @@ Time: Worst-case O(log(n)), where n is the number of elements in the underlying 
 
 ```pavo
 (let cursor (arr-cursor [0 1 2] 3) (do
-    (assert-eq (cursor-arr-prev cursor) 2)
-    (assert-eq (cursor-arr-prev cursor) 1)
-    (assert-eq (cursor-arr-prev cursor) 0)
-    (assert-throw (cursor-arr-prev cursor) :cursor-end)
-    (assert-throw (cursor-arr-prev cursor) :cursor-end)
+    (assert-eq (cursor-arr-prev! cursor) 2)
+    (assert-eq (cursor-arr-prev! cursor) 1)
+    (assert-eq (cursor-arr-prev! cursor) 0)
+    (assert-throw (cursor-arr-prev! cursor) :cursor-end)
+    (assert-throw (cursor-arr-prev! cursor) :cursor-end)
 ))
 ```
 
@@ -2648,10 +2648,10 @@ Time: O(log n), where n is `(app-count app)`.
 
 ```pavo
 (assert-throw (app-cursor $(0 1 2) -1) {:tag :err-lookup, :got -1})
-(assert-eq (cursor-app-next (app-cursor $(0 1 2) 0)) 0)
-(assert-eq (cursor-app-next (app-cursor $(0 1 2) 1)) 1)
-(assert-eq (cursor-app-next (app-cursor $(0 1 2) 2)) 2)
-(assert-throw (cursor-app-next (app-cursor $(0 1 2) 3)) :cursor-end)
+(assert-eq (cursor-app-next! (app-cursor $(0 1 2) 0)) 0)
+(assert-eq (cursor-app-next! (app-cursor $(0 1 2) 1)) 1)
+(assert-eq (cursor-app-next! (app-cursor $(0 1 2) 2)) 2)
+(assert-throw (cursor-app-next! (app-cursor $(0 1 2) 3)) :cursor-end)
 (assert-throw (app-cursor $(0 1 2) 4) {:tag :err-lookup, :got 4})
 ```
 
@@ -2667,7 +2667,7 @@ The type symbol of application cursors.
 (assert-eq cursor-app-type (typeof (app-cursor $() 0)))
 ```
 
-#### `(cursor-app-next cursor)`
+#### `(cursor-app-next! cursor)`
 
 Advances the cursor by one element and returns the element over which it passed. If the starting position was at the back of the application, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -2675,15 +2675,15 @@ Time: Worst-case O(log(n)), where n is the number of elements in the underlying 
 
 ```pavo
 (let cursor (app-cursor $(0 1 2) 0) (do
-    (assert-eq (cursor-app-next cursor) 0)
-    (assert-eq (cursor-app-next cursor) 1)
-    (assert-eq (cursor-app-next cursor) 2)
-    (assert-throw (cursor-app-next cursor) :cursor-end)
-    (assert-throw (cursor-app-next cursor) :cursor-end)
+    (assert-eq (cursor-app-next! cursor) 0)
+    (assert-eq (cursor-app-next! cursor) 1)
+    (assert-eq (cursor-app-next! cursor) 2)
+    (assert-throw (cursor-app-next! cursor) :cursor-end)
+    (assert-throw (cursor-app-next! cursor) :cursor-end)
 ))
 ```
 
-#### `(cursor-app-prev cursor)`
+#### `(cursor-app-prev! cursor)`
 
 Retreats the cursor by one element and returns the element over which it passed. If the starting position was at the front of the application, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -2691,11 +2691,11 @@ Time: Worst-case O(log(n)), where n is the number of elements in the underlying 
 
 ```pavo
 (let cursor (app-cursor $(0 1 2) 3) (do
-    (assert-eq (cursor-app-prev cursor) 2)
-    (assert-eq (cursor-app-prev cursor) 1)
-    (assert-eq (cursor-app-prev cursor) 0)
-    (assert-throw (cursor-app-prev cursor) :cursor-end)
-    (assert-throw (cursor-app-prev cursor) :cursor-end)
+    (assert-eq (cursor-app-prev! cursor) 2)
+    (assert-eq (cursor-app-prev! cursor) 1)
+    (assert-eq (cursor-app-prev! cursor) 0)
+    (assert-throw (cursor-app-prev! cursor) :cursor-end)
+    (assert-throw (cursor-app-prev! cursor) :cursor-end)
 ))
 ```
 
@@ -2910,8 +2910,8 @@ Returns a new set cursor (see below), positioned right before the minimal elemen
 Time: O(log n), where n is `(set-count set)`.
 
 ```pavo
-(assert-eq (cursor-set-next (set-cursor-min @{0 1 2})) 0)
-(assert-throw (cursor-set-next (set-cursor-min @{})) :cursor-end)
+(assert-eq (cursor-set-next! (set-cursor-min @{0 1 2})) 0)
+(assert-throw (cursor-set-next! (set-cursor-min @{})) :cursor-end)
 ```
 
 #### `(set-cursor-max set)`
@@ -2921,8 +2921,8 @@ Returns a new set cursor (see below), positioned right behind the maximal elemen
 Time: O(log n), where n is `(set-count set)`.
 
 ```pavo
-(assert-eq (cursor-set-prev (set-cursor-max @{0 1 2})) 2)
-(assert-throw (cursor-set-prev (set-cursor-max @{})) :cursor-end)
+(assert-eq (cursor-set-prev! (set-cursor-max @{0 1 2})) 2)
+(assert-throw (cursor-set-prev! (set-cursor-max @{})) :cursor-end)
 ```
 
 #### `(set-cursor-< set v)`
@@ -2932,12 +2932,12 @@ Returns a new set cursor (see below), positioned right behind the greatest eleme
 Time: O(log n), where n is `(set-count set)`.
 
 ```pavo
-(assert-throw (cursor-set-prev (set-cursor-< @{0 1 3} -1)) :cursor-end)
-(assert-throw (cursor-set-prev (set-cursor-< @{0 1 3} 0)) :cursor-end)
-(assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 1)) 0)
-(assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 2)) 1)
-(assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 3)) 1)
-(assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 4)) 3)
+(assert-throw (cursor-set-prev! (set-cursor-< @{0 1 3} -1)) :cursor-end)
+(assert-throw (cursor-set-prev! (set-cursor-< @{0 1 3} 0)) :cursor-end)
+(assert-eq (cursor-set-prev! (set-cursor-< @{0 1 3} 1)) 0)
+(assert-eq (cursor-set-prev! (set-cursor-< @{0 1 3} 2)) 1)
+(assert-eq (cursor-set-prev! (set-cursor-< @{0 1 3} 3)) 1)
+(assert-eq (cursor-set-prev! (set-cursor-< @{0 1 3} 4)) 3)
 ```
 
 #### `(set-cursor-> set v)`
@@ -2947,12 +2947,12 @@ Returns a new set cursor (see below), positioned right before the smallest eleme
 Time: O(log n), where n is `(set-count set)`.
 
 ```pavo
-(assert-eq (cursor-set-next (set-cursor-> @{0 1 3} -1)) 0)
-(assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 0)) 1)
-(assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 1)) 3)
-(assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 2)) 3)
-(assert-throw (cursor-set-next (set-cursor-> @{0 1 3} 3)) :cursor-end)
-(assert-throw (cursor-set-next (set-cursor-> @{0 1 3} 4)) :cursor-end)
+(assert-eq (cursor-set-next! (set-cursor-> @{0 1 3} -1)) 0)
+(assert-eq (cursor-set-next! (set-cursor-> @{0 1 3} 0)) 1)
+(assert-eq (cursor-set-next! (set-cursor-> @{0 1 3} 1)) 3)
+(assert-eq (cursor-set-next! (set-cursor-> @{0 1 3} 2)) 3)
+(assert-throw (cursor-set-next! (set-cursor-> @{0 1 3} 3)) :cursor-end)
+(assert-throw (cursor-set-next! (set-cursor-> @{0 1 3} 4)) :cursor-end)
 ```
 
 #### `(set-cursor-<= set v)`
@@ -2962,12 +2962,12 @@ Returns a new set cursor (see below), positioned right behind the greatest eleme
 Time: O(log n), where n is `(set-count set)`.
 
 ```pavo
-(assert-throw (cursor-set-prev (set-cursor-<= @{0 1 3} -1)) :cursor-end)
-(assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 0)) 0)
-(assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 1)) 1)
-(assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 2)) 1)
-(assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 3)) 3)
-(assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 4)) 3)
+(assert-throw (cursor-set-prev! (set-cursor-<= @{0 1 3} -1)) :cursor-end)
+(assert-eq (cursor-set-prev! (set-cursor-<= @{0 1 3} 0)) 0)
+(assert-eq (cursor-set-prev! (set-cursor-<= @{0 1 3} 1)) 1)
+(assert-eq (cursor-set-prev! (set-cursor-<= @{0 1 3} 2)) 1)
+(assert-eq (cursor-set-prev! (set-cursor-<= @{0 1 3} 3)) 3)
+(assert-eq (cursor-set-prev! (set-cursor-<= @{0 1 3} 4)) 3)
 ```
 
 #### `(set-cursor->= set v)`
@@ -2977,12 +2977,12 @@ Returns a new set cursor (see below), positioned right before the smallest eleme
 Time: O(log n), where n is `(set-count set)`.
 
 ```pavo
-(assert-eq (cursor-set-next (set-cursor->= @{0 1 3} -1)) 0)
-(assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 0)) 0)
-(assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 1)) 1)
-(assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 2)) 3)
-(assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 3)) 3)
-(assert-throw (cursor-set-next (set-cursor->= @{0 1 3} 4)) :cursor-end)
+(assert-eq (cursor-set-next! (set-cursor->= @{0 1 3} -1)) 0)
+(assert-eq (cursor-set-next! (set-cursor->= @{0 1 3} 0)) 0)
+(assert-eq (cursor-set-next! (set-cursor->= @{0 1 3} 1)) 1)
+(assert-eq (cursor-set-next! (set-cursor->= @{0 1 3} 2)) 3)
+(assert-eq (cursor-set-next! (set-cursor->= @{0 1 3} 3)) 3)
+(assert-throw (cursor-set-next! (set-cursor->= @{0 1 3} 4)) :cursor-end)
 ```
 
 ### Set Cursor
@@ -2997,7 +2997,7 @@ The type symbol of set cursors.
 (assert-eq cursor-set-type (typeof (set-cursor-min @{})))
 ```
 
-#### `(cursor-set-next cursor)`
+#### `(cursor-set-next! cursor)`
 
 Advances the set cursor by one element and returns the element over which it passed. If the starting position was at the back of the set, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -3005,15 +3005,15 @@ Time: Worst-case O(log(n)), where n is the number of elements in the underlying 
 
 ```pavo
 (let cursor (set-cursor-min @{0 1 2}) (do
-    (assert-eq (cursor-set-next cursor) 0)
-    (assert-eq (cursor-set-next cursor) 1)
-    (assert-eq (cursor-set-next cursor) 2)
-    (assert-throw (cursor-set-next cursor) :cursor-end)
-    (assert-throw (cursor-set-next cursor) :cursor-end)
+    (assert-eq (cursor-set-next! cursor) 0)
+    (assert-eq (cursor-set-next! cursor) 1)
+    (assert-eq (cursor-set-next! cursor) 2)
+    (assert-throw (cursor-set-next! cursor) :cursor-end)
+    (assert-throw (cursor-set-next! cursor) :cursor-end)
 ))
 ```
 
-#### `(cursor-set-prev cursor)`
+#### `(cursor-set-prev! cursor)`
 
 Retreats the set cursor by one element and returns the element over which it passed. If the starting position was at the front of the set, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -3021,11 +3021,11 @@ Time: Worst-case O(log(n)), where n is the number of elements in the underlying 
 
 ```pavo
 (let cursor (set-cursor-max @{0 1 2}) (do
-    (assert-eq (cursor-set-prev cursor) 2)
-    (assert-eq (cursor-set-prev cursor) 1)
-    (assert-eq (cursor-set-prev cursor) 0)
-    (assert-throw (cursor-set-prev cursor) :cursor-end)
-    (assert-throw (cursor-set-prev cursor) :cursor-end)
+    (assert-eq (cursor-set-prev! cursor) 2)
+    (assert-eq (cursor-set-prev! cursor) 1)
+    (assert-eq (cursor-set-prev! cursor) 0)
+    (assert-throw (cursor-set-prev! cursor) :cursor-end)
+    (assert-throw (cursor-set-prev! cursor) :cursor-end)
 ))
 ```
 
@@ -3289,8 +3289,8 @@ Returns a new map cursor (see below), positioned right before the minimal entry 
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (cursor-map-next (map-cursor-min {0 :a 1 :b 2 :c})) [0 :a])
-(assert-throw (cursor-map-next (map-cursor-min {})) :cursor-end)
+(assert-eq (cursor-map-next! (map-cursor-min {0 :a 1 :b 2 :c})) [0 :a])
+(assert-throw (cursor-map-next! (map-cursor-min {})) :cursor-end)
 ```
 
 #### `(map-cursor-max map)`
@@ -3300,8 +3300,8 @@ Returns a new map cursor (see below), positioned right behind the maximal entry 
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (cursor-map-prev (map-cursor-max {0 :a 1 :b 2 :c})) [2 :c])
-(assert-throw (cursor-map-prev (map-cursor-max {})) :cursor-end)
+(assert-eq (cursor-map-prev! (map-cursor-max {0 :a 1 :b 2 :c})) [2 :c])
+(assert-throw (cursor-map-prev! (map-cursor-max {})) :cursor-end)
 ```
 
 #### `(map-cursor-< map v)`
@@ -3311,12 +3311,12 @@ Returns a new map cursor (see below), positioned right behind the greatest entry
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-throw (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} -1)) :cursor-end)
-(assert-throw (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 0)) :cursor-end)
-(assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 1)) [0 :a])
-(assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 2)) [1 :b])
-(assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 3)) [1 :b])
-(assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 4)) [3 :d])
+(assert-throw (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} -1)) :cursor-end)
+(assert-throw (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} 0)) :cursor-end)
+(assert-eq (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} 1)) [0 :a])
+(assert-eq (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} 2)) [1 :b])
+(assert-eq (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} 3)) [1 :b])
+(assert-eq (cursor-map-prev! (map-cursor-< {0 :a 1 :b 3 :d} 4)) [3 :d])
 ```
 
 #### `(map-cursor-> map v)`
@@ -3326,12 +3326,12 @@ Returns a new map cursor (see below), positioned right before the smallest entry
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} -1)) [0 :a])
-(assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 0)) [1 :b])
-(assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 1)) [3 :d])
-(assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 2)) [3 :d])
-(assert-throw (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 3)) :cursor-end)
-(assert-throw (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 4)) :cursor-end)
+(assert-eq (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} -1)) [0 :a])
+(assert-eq (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} 0)) [1 :b])
+(assert-eq (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} 1)) [3 :d])
+(assert-eq (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} 2)) [3 :d])
+(assert-throw (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} 3)) :cursor-end)
+(assert-throw (cursor-map-next! (map-cursor-> {0 :a 1 :b 3 :d} 4)) :cursor-end)
 ```
 
 #### `(map-cursor-<= map v)`
@@ -3341,12 +3341,12 @@ Returns a new map cursor (see below), positioned right behind the greatest entry
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-throw (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} -1)) :cursor-end)
-(assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 0)) [0 :a])
-(assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 1)) [1 :b])
-(assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 2)) [1 :b])
-(assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 3)) [3 :d])
-(assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 4)) [3 :d])
+(assert-throw (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} -1)) :cursor-end)
+(assert-eq (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} 0)) [0 :a])
+(assert-eq (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} 1)) [1 :b])
+(assert-eq (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} 2)) [1 :b])
+(assert-eq (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} 3)) [3 :d])
+(assert-eq (cursor-map-prev! (map-cursor-<= {0 :a 1 :b 3 :d} 4)) [3 :d])
 ```
 
 #### `(map-cursor->= map v)`
@@ -3356,12 +3356,12 @@ Returns a new map cursor (see below), positioned right before the smallest entry
 Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} -1)) [0 :a])
-    (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 0)) [0 :a])
-    (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 1)) [1 :b])
-    (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 2)) [3 :d])
-    (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 3)) [3 :d])
-    (assert-throw (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 4)) :cursor-end)
+(assert-eq (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} -1)) [0 :a])
+    (assert-eq (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} 0)) [0 :a])
+    (assert-eq (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} 1)) [1 :b])
+    (assert-eq (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} 2)) [3 :d])
+    (assert-eq (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} 3)) [3 :d])
+    (assert-throw (cursor-map-next! (map-cursor->= {0 :a 1 :b 3 :d} 4)) :cursor-end)
 ```
 
 ### Map Cursor
@@ -3376,7 +3376,7 @@ The type symbol of map cursors.
 (assert-eq cursor-map-type (typeof (map-cursor-min {})))
 ```
 
-#### `(cursor-map-next cursor)`
+#### `(cursor-map-next! cursor)`
 
 Advances the map cursor by one element and returns an array containing the key and value of the entry over which it passed. If the starting position was at the back of the map, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -3384,15 +3384,15 @@ Time: Worst-case O(log(n)), where n is the number of entries in the underlying m
 
 ```pavo
 (let cursor (map-cursor-min {0 :a 1 :b 2 :c}) (do
-    (assert-eq (cursor-map-next cursor) [0 :a])
-    (assert-eq (cursor-map-next cursor) [1 :b])
-    (assert-eq (cursor-map-next cursor) [2 :c])
-    (assert-throw (cursor-map-next cursor) :cursor-end)
-    (assert-throw (cursor-map-next cursor) :cursor-end)
+    (assert-eq (cursor-map-next! cursor) [0 :a])
+    (assert-eq (cursor-map-next! cursor) [1 :b])
+    (assert-eq (cursor-map-next! cursor) [2 :c])
+    (assert-throw (cursor-map-next! cursor) :cursor-end)
+    (assert-throw (cursor-map-next! cursor) :cursor-end)
 ))
 ```
 
-#### `(cursor-map-prev cursor)`
+#### `(cursor-map-prev! cursor)`
 
 Retreats the map cursor by one entry and returns an array containing the key and value of the entry over which it passed. If the starting position was at the front of the map, the position remains unchanged and this function throws `:cursor-end`.
 
@@ -3400,11 +3400,11 @@ Time: Worst-case O(log(n)), where n is the number of entries in the underlying m
 
 ```pavo
 (let cursor (map-cursor-max {0 :a 1 :b 2 :c}) (do
-    (assert-eq (cursor-map-prev cursor) [2 :c])
-    (assert-eq (cursor-map-prev cursor) [1 :b])
-    (assert-eq (cursor-map-prev cursor) [0 :a])
-    (assert-throw (cursor-map-prev cursor) :cursor-end)
-    (assert-throw (cursor-map-prev cursor) :cursor-end)
+    (assert-eq (cursor-map-prev! cursor) [2 :c])
+    (assert-eq (cursor-map-prev! cursor) [1 :b])
+    (assert-eq (cursor-map-prev! cursor) [0 :a])
+    (assert-throw (cursor-map-prev! cursor) :cursor-end)
+    (assert-throw (cursor-map-prev! cursor) :cursor-end)
 ))
 ```
 
