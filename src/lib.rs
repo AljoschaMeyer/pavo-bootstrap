@@ -19,6 +19,7 @@ mod special_forms;
 mod value;
 mod read;
 mod vm;
+mod opaques;
 
 use check::StaticError;
 use context::Context;
@@ -96,22 +97,12 @@ pub fn execute(src: &str) -> Result<Value, ExecuteError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Value, execute, ExecuteError, E, StaticError, value::Id};
-    use super::special_forms::{SpecialFormSyntaxError, FormType};
+    use super::{Value, execute, ExecuteError, E};
 
     fn assert_ok(src: &str, expected: Value) {
         match execute(src) {
             Err(err) => panic!("Unexpected error: {:?}", err),
             Ok(v) => assert_eq!(v, expected),
-        }
-    }
-
-    fn assert_static_err(src: &str, expected: StaticError) {
-        match execute(src) {
-            Err(ExecuteError::E(E::Static(err))) => assert_eq!(err, expected),
-            Err(ExecuteError::Parse(err)) => panic!("Unexpected parse error: {:?}", err),
-            Err(other) => panic!("Expected a static error, got another error instead: {:?}"),
-            Ok(v) => panic!("Expected a static error, but it evaluated: {:?}", v),
         }
     }
 
@@ -123,17 +114,9 @@ mod tests {
         }
     }
 
-    fn assert_any_runtime_error(src: &str) {
-        match execute(src) {
-            Err(ExecuteError::E(E::Eval(err))) => {}
-            Err(err) => panic!("Unexpected non-runtime error: {:?}", err),
-            Ok(v) => panic!("Expected a runtime error, but got value: {:?}", v),
-        }
-    }
-
     fn assert_any_parse_error(src: &str) {
         match execute(src) {
-            Err(ExecuteError::Parse(err)) => {},
+            Err(ExecuteError::Parse(_)) => {},
             Err(err) => panic!("Unexpected non-parse error: {:?}", err),
             Ok(v) => panic!("Expected a syntax error, but got value: {:?}", v),
         }
@@ -141,7 +124,7 @@ mod tests {
 
     fn assert_any_static_error(src: &str) {
         match execute(src) {
-            Err(ExecuteError::E(E::Static(err))) => {},
+            Err(ExecuteError::E(E::Static(_))) => {},
             Err(err) => panic!("Unexpected non-static error: {:?}", err),
             Ok(v) => panic!("Expected a static error, but got value: {:?}", v),
         }
@@ -286,6 +269,16 @@ mod tests {
         assert_any_parse_error("\"\"\"");
         assert_any_parse_error("\"\\\"");
         assert_any_parse_error("\"\\r\"");
+        test_example(r#"
+        (assert-eq @"no escape for inner " or \ needed"@ "no escape for inner \" or \\ needed")
+        (assert-eq @"\n"@ "\\n")
+        (assert-eq @"\{1234}"@ "\\{1234}")
+        (assert-eq @@@@""@@@@ "")
+        (assert-eq @@@@@@@@""@@@@@@@@ "")
+        (assert-eq @@@"@"@@"""@@@ "@\"@@\"\"")
+        "#);
+        assert_any_parse_error(r#"@@@@@@@@@"nope"@@@@@@@@@"#);
+        assert_any_parse_error(r#"@@@@@@@"nope"@@@@@@@@@"#);
 
         assert_ok("@[]", Value::bytes_from_vec(vec![]));
         assert_ok("@[0]", Value::bytes_from_vec(vec![0]));
@@ -919,33 +912,37 @@ mod tests {
         ");
 
         test_example("
-        (let (:mut product) 1 (do
-            (bytes-iter @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
-            (assert-eq product 24)
+        (assert-throw (bytes-cursor @[0 1 2] -1) {:tag :err-lookup, :got -1})
+        (assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 0)) 0)
+        (assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 1)) 1)
+        (assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 2)) 2)
+        (assert-throw (cursor-bytes-next (bytes-cursor @[0 1 2] 3)) :cursor-end)
+        (assert-throw (bytes-cursor @[0 1 2] 4) {:tag :err-lookup, :got 4})
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_cursor_bytes() {
+        test_example("(assert-eq cursor-bytes-type (typeof (bytes-cursor @[] 0)))");
+
+        test_example("
+        (let cursor (bytes-cursor @[0 1 2] 0) (do
+            (assert-eq (cursor-bytes-next cursor) 0)
+            (assert-eq (cursor-bytes-next cursor) 1)
+            (assert-eq (cursor-bytes-next cursor) 2)
+            (assert-throw (cursor-bytes-next cursor) :cursor-end)
+            (assert-throw (cursor-bytes-next cursor) :cursor-end)
         ))
-        (let (:mut product) 1 (do
-            (bytes-iter @[1 2 3 4] (fn [elem] (sf-if
-                    (= elem 3) true
-                    (set! product (int-mul product elem))
-                )))
-            (assert-eq product 2)
-        ))
-        (assert-throw (bytes-iter @[0 1] (fn [b] (throw b))) 0)
         ");
 
         test_example("
-        (let (:mut product) 1 (do
-            (bytes-iter-back @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
-            (assert-eq product 24)
+        (let cursor (bytes-cursor @[0 1 2] 3) (do
+            (assert-eq (cursor-bytes-prev cursor) 2)
+            (assert-eq (cursor-bytes-prev cursor) 1)
+            (assert-eq (cursor-bytes-prev cursor) 0)
+            (assert-throw (cursor-bytes-prev cursor) :cursor-end)
+            (assert-throw (cursor-bytes-prev cursor) :cursor-end)
         ))
-        (let (:mut product) 1 (do
-            (bytes-iter-back @[1 2 3 4] (fn [elem] (if
-                    (= elem 3) true
-                    (set! product (int-mul product elem))
-                )))
-            (assert-eq product 4)
-        ))
-        (assert-throw (bytes-iter-back @[0 1] (fn [b] (throw b))) 1)
         ");
     }
 
@@ -1055,63 +1052,77 @@ mod tests {
         "#);
 
         test_example(r#"
-        (let (:mut out) "z" (do
-            (str-iter "abcd" (fn [elem] (set! out (str-insert out 0 elem))))
-            (assert-eq out "dcbaz")
-        ))
-        (let (:mut out) "z" (do
-            (str-iter "abcd" (fn [elem] (if
-                    (= elem 'c') true
-                    (set! out (str-insert out 0 elem))
-                )))
-            (assert-eq out "baz")
-        ))
-        (assert-throw (str-iter "ab" (fn [c] (throw c))) 'a')
+        (assert-throw (str-cursor "a⚗c" -1) {:tag :err-lookup, :got -1})
+        (assert-eq (cursor-str-next (str-cursor "a⚗c" 0)) 'a')
+        (assert-eq (cursor-str-next (str-cursor "a⚗c" 1)) '⚗')
+        (assert-eq (cursor-str-next (str-cursor "a⚗c" 2)) 'c')
+        (assert-throw (cursor-str-next (str-cursor "a⚗c" 3)) :cursor-end)
+        (assert-throw (str-cursor "a⚗c" 4) {:tag :err-lookup, :got 4})
         "#);
 
         test_example(r#"
-        (let (:mut out) "z" (do
-            (str-iter-back "abcd" (fn [elem] (set! out (str-insert out 0 elem))))
-            (assert-eq out "abcdz")
+        (assert-throw (str-cursor-utf8 "a⚗c" -1) {:tag :err-lookup, :got -1})
+        (assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 0)) 97)
+        (assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 1)) 226)
+        (assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 2)) 154)
+        (assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 3)) 151)
+        (assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 4)) 99)
+        (assert-throw (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 5)) :cursor-end)
+        (assert-throw (str-cursor-utf8 "a⚗c" 6) {:tag :err-lookup, :got 6})
+        "#);
+    }
+
+    #[test]
+    fn test_toplevel_cursor_str() {
+        test_example(r#"(assert-eq cursor-str-type (typeof (str-cursor "" 0)))"#);
+
+        test_example(r#"
+        (let cursor (str-cursor "a⚗c" 0) (do
+            (assert-eq (cursor-str-next cursor) 'a')
+            (assert-eq (cursor-str-next cursor) '⚗')
+            (assert-eq (cursor-str-next cursor) 'c')
+            (assert-throw (cursor-str-next cursor) :cursor-end)
+            (assert-throw (cursor-str-next cursor) :cursor-end)
         ))
-        (let (:mut out) "z" (do
-            (str-iter-back "abcd" (fn [elem] (if
-                    (= elem 'c') true
-                    (set! out (str-insert out 0 elem))
-                )))
-            (assert-eq out "dz")
-        ))
-        (assert-throw (str-iter-back "ab" (fn [c] (throw c))) 'b')
         "#);
 
         test_example(r#"
-        (let (:mut product) 1 (do
-            (str-iter-utf8 "abc" (fn [elem] (set! product (int-mul product elem))))
-            (assert-eq product 941094)
+        (let cursor (str-cursor "a⚗c" 3) (do
+            (assert-eq (cursor-str-prev cursor) 'c')
+            (assert-eq (cursor-str-prev cursor) '⚗')
+            (assert-eq (cursor-str-prev cursor) 'a')
+            (assert-throw (cursor-str-prev cursor) :cursor-end)
+            (assert-throw (cursor-str-prev cursor) :cursor-end)
         ))
-        (let (:mut product) 1 (do
-            (str-iter-utf8 "abc" (fn [elem] (sf-if
-                    (= elem 98) true
-                    (set! product (int-mul product elem))
-                )))
-            (assert-eq product 97)
+        "#);
+    }
+
+    #[test]
+    fn test_toplevel_cursor_str_utf8() {
+        test_example(r#"(assert-eq cursor-str-utf8-type (typeof (str-cursor-utf8 "" 0)))"#);
+
+        test_example(r#"
+        (let cursor (str-cursor-utf8 "a⚗c" 0) (do
+            (assert-eq (cursor-str-utf8-next cursor) 97)
+            (assert-eq (cursor-str-utf8-next cursor) 226)
+            (assert-eq (cursor-str-utf8-next cursor) 154)
+            (assert-eq (cursor-str-utf8-next cursor) 151)
+            (assert-eq (cursor-str-utf8-next cursor) 99)
+            (assert-throw (cursor-str-utf8-next cursor) :cursor-end)
+            (assert-throw (cursor-str-utf8-next cursor) :cursor-end)
         ))
-        (assert-throw (str-iter-utf8 "abc" (fn [b] (throw b))) 97)
         "#);
 
         test_example(r#"
-        (let (:mut product) 1 (do
-            (str-iter-utf8-back "abc" (fn [elem] (set! product (int-mul product elem))))
-            (assert-eq product 941094)
+        (let cursor (str-cursor-utf8 "a⚗c" 5) (do
+            (assert-eq (cursor-str-utf8-prev cursor) 99)
+            (assert-eq (cursor-str-utf8-prev cursor) 151)
+            (assert-eq (cursor-str-utf8-prev cursor) 154)
+            (assert-eq (cursor-str-utf8-prev cursor) 226)
+            (assert-eq (cursor-str-utf8-prev cursor) 97)
+            (assert-throw (cursor-str-utf8-prev cursor) :cursor-end)
+            (assert-throw (cursor-str-utf8-prev cursor) :cursor-end)
         ))
-        (let (:mut product) 1 (do
-            (str-iter-utf8-back "abc" (fn [elem] (sf-if
-                    (= elem 98) true
-                    (set! product (int-mul product elem))
-                )))
-            (assert-eq product 99)
-        ))
-        (assert-throw (str-iter-utf8-back "abc" (fn [b] (throw b))) 99)
         "#);
     }
 
@@ -1278,6 +1289,13 @@ mod tests {
         (assert-eq (float-normal? 0.0) false)
         ");
 
+        test_example("
+        (assert-eq (float-integral? 1.0) true)
+        (assert-eq (float-integral? 0.0) true)
+        (assert-eq (float-integral? -42.0) true)
+        (assert-eq (float-integral? 1.1) false)
+        ");
+
         test_example("(assert-eq (float->degrees 1.2) 68.75493541569878)");
 
         test_example("(assert-eq (float->radians 1.2) 0.020943951023931952)");
@@ -1438,33 +1456,37 @@ mod tests {
         ");
 
         test_example("
-        (let (:mut product) 1 (do
-            (arr-iter [1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
-            (assert-eq product 24)
+        (assert-throw (arr-cursor [0 1 2] -1) {:tag :err-lookup, :got -1})
+        (assert-eq (cursor-arr-next (arr-cursor [0 1 2] 0)) 0)
+        (assert-eq (cursor-arr-next (arr-cursor [0 1 2] 1)) 1)
+        (assert-eq (cursor-arr-next (arr-cursor [0 1 2] 2)) 2)
+        (assert-throw (cursor-arr-next (arr-cursor [0 1 2] 3)) :cursor-end)
+        (assert-throw (arr-cursor [0 1 2] 4) {:tag :err-lookup, :got 4})
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_cursor_arr() {
+        test_example("(assert-eq cursor-arr-type (typeof (arr-cursor [] 0)))");
+
+        test_example("
+        (let cursor (arr-cursor [0 1 2] 0) (do
+            (assert-eq (cursor-arr-next cursor) 0)
+            (assert-eq (cursor-arr-next cursor) 1)
+            (assert-eq (cursor-arr-next cursor) 2)
+            (assert-throw (cursor-arr-next cursor) :cursor-end)
+            (assert-throw (cursor-arr-next cursor) :cursor-end)
         ))
-        (let (:mut product) 1 (do
-            (arr-iter [1 2 3 4] (fn [elem] (if
-                    (= elem 3) true
-                    (set! product (int-mul product elem))
-                )))
-            (assert-eq product 2)
-        ))
-        (assert-throw (arr-iter [0 1] (fn [n] (throw n))) 0)
         ");
 
         test_example("
-        (let (:mut product) 1 (do
-            (arr-iter-back [1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
-            (assert-eq product 24)
+        (let cursor (arr-cursor [0 1 2] 3) (do
+            (assert-eq (cursor-arr-prev cursor) 2)
+            (assert-eq (cursor-arr-prev cursor) 1)
+            (assert-eq (cursor-arr-prev cursor) 0)
+            (assert-throw (cursor-arr-prev cursor) :cursor-end)
+            (assert-throw (cursor-arr-prev cursor) :cursor-end)
         ))
-        (let (:mut product) 1 (do
-            (arr-iter-back [1 2 3 4] (fn [elem] (if
-                    (= elem 3) true
-                    (set! product (int-mul product elem))
-                )))
-            (assert-eq product 4)
-        ))
-        (assert-throw (arr-iter-back [0 1] (fn [n] (throw n))) 1)
         ");
     }
 
@@ -1523,42 +1545,46 @@ mod tests {
         (assert-eq (app-concat $(0 1) $()) $(0 1))
         ");
 
-        test_example("
-        (let (:mut product) 1 (do
-            (app-iter $(1 2 3 4) (fn [elem] (set! product (int-mul product elem))))
-            (assert-eq product 24)
-        ))
-        (let (:mut product) 1 (do
-            (app-iter $(1 2 3 4) (fn [elem] (if
-                    (= elem 3) true
-                    (set! product (int-mul product elem))
-                )))
-            (assert-eq product 2)
-        ))
-        (assert-throw (app-iter $(0 1) (fn [n] (throw n))) 0)
-        ");
-
-        test_example("
-        (let (:mut product) 1 (do
-            (app-iter-back $(1 2 3 4) (fn [elem] (set! product (int-mul product elem))))
-            (assert-eq product 24)
-        ))
-        (let (:mut product) 1 (do
-            (app-iter-back $(1 2 3 4) (fn [elem] (if
-                    (= elem 3) true
-                    (set! product (int-mul product elem))
-                )))
-            (assert-eq product 4)
-        ))
-        (assert-throw (app-iter-back $(0 1) (fn [n] (throw n))) 1)
-        ");
-
         // TODO uncomment when quasiquote has been implemented
         test_example("
         #(assert-eq (app-apply `(;int-add 1 2)) 3)
         #(assert-throw (app-apply `(;int-add 1)) {:tag :err-num-args})
         (assert-throw (app-apply $()) {:tag :err-lookup :got 0})
         (assert-throw (app-apply $(42)) {:tag :err-type, :expected :function, :got :int})
+        ");
+
+        test_example("
+        (assert-throw (app-cursor $(0 1 2) -1) {:tag :err-lookup, :got -1})
+        (assert-eq (cursor-app-next (app-cursor $(0 1 2) 0)) 0)
+        (assert-eq (cursor-app-next (app-cursor $(0 1 2) 1)) 1)
+        (assert-eq (cursor-app-next (app-cursor $(0 1 2) 2)) 2)
+        (assert-throw (cursor-app-next (app-cursor $(0 1 2) 3)) :cursor-end)
+        (assert-throw (app-cursor $(0 1 2) 4) {:tag :err-lookup, :got 4})
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_cursor_app() {
+        test_example("(assert-eq cursor-app-type (typeof (app-cursor $() 0)))");
+
+        test_example("
+        (let cursor (app-cursor $(0 1 2) 0) (do
+            (assert-eq (cursor-app-next cursor) 0)
+            (assert-eq (cursor-app-next cursor) 1)
+            (assert-eq (cursor-app-next cursor) 2)
+            (assert-throw (cursor-app-next cursor) :cursor-end)
+            (assert-throw (cursor-app-next cursor) :cursor-end)
+        ))
+        ");
+
+        test_example("
+        (let cursor (app-cursor $(0 1 2) 3) (do
+            (assert-eq (cursor-app-prev cursor) 2)
+            (assert-eq (cursor-app-prev cursor) 1)
+            (assert-eq (cursor-app-prev cursor) 0)
+            (assert-throw (cursor-app-prev cursor) :cursor-end)
+            (assert-throw (cursor-app-prev cursor) :cursor-end)
+        ))
         ");
     }
 
@@ -1584,6 +1610,38 @@ mod tests {
         test_example("
         (assert-eq (set-max @{ 4 3 }) 4)
         (assert-throw (set-max @{}) { :tag :err-collection-empty })
+        ");
+
+        test_example("
+        (assert-throw (set-find-< @{1 3} 0) {:tag :err-lookup :got 0})
+        (assert-throw (set-find-< @{1 3} 1) {:tag :err-lookup :got 1})
+        (assert-eq (set-find-< @{1 3} 2) 1)
+        (assert-eq (set-find-< @{1 3} 3) 1)
+        (assert-eq (set-find-< @{1 3} 4) 3)
+        ");
+
+        test_example("
+        (assert-eq (set-find-> @{1 3} 0) 1)
+        (assert-eq (set-find-> @{1 3} 1) 3)
+        (assert-eq (set-find-> @{1 3} 2) 3)
+        (assert-throw (set-find-> @{1 3} 3) {:tag :err-lookup :got 3})
+        (assert-throw (set-find-> @{1 3} 4) {:tag :err-lookup :got 4})
+        ");
+
+        test_example("
+        (assert-throw (set-find-<= @{1 3} 0) {:tag :err-lookup :got 0})
+        (assert-eq (set-find-<= @{1 3} 1) 1)
+        (assert-eq (set-find-<= @{1 3} 2) 1)
+        (assert-eq (set-find-<= @{1 3} 3) 3)
+        (assert-eq (set-find-<= @{1 3} 4) 3)
+        ");
+
+        test_example("
+        (assert-eq (set-find->= @{1 3} 0) 1)
+        (assert-eq (set-find->= @{1 3} 1) 1)
+        (assert-eq (set-find->= @{1 3} 2) 3)
+        (assert-eq (set-find->= @{1 3} 3) 3)
+        (assert-throw (set-find->= @{1 3} 4) {:tag :err-lookup :got 4})
         ");
 
         test_example("
@@ -1624,34 +1682,85 @@ mod tests {
         (assert-eq (set-symmetric-difference @{} @{}) @{})
         ");
 
+        // test_example("
+        // (assert-eq (set-split @{1 3 5} 0) [@{} @{1 3 5}])
+        // (assert-eq (set-split @{1 3 5} 1) [@{} @{1 3 5}])
+        // (assert-eq (set-split @{1 3 5} 2) [@{1} @{3 5}])
+        // (assert-eq (set-split @{1 3 5} 3) [@{1} @{3 5}])
+        // (assert-eq (set-split @{1 3 5} 4) [@{1 3} @{5}])
+        // (assert-eq (set-split @{1 3 5} 5) [@{1 3} @{5}])
+        // (assert-eq (set-split @{1 3 5} 6) [@{1 3 5} @{}])
+        // ");
+
         test_example("
-        (let (:mut product) 1 (do
-            (set-iter @{4 2 3 1} (fn [elem] (set! product (int-mul product elem))))
-            (assert-eq product 24)
-        ))
-        (let (:mut product) 1 (do
-            (set-iter @{4 2 3 1} (fn [elem] (if
-                    (= elem 3) true
-                    (set! product (int-mul product elem))
-                )))
-            (assert-eq product 2)
-        ))
-        (assert-throw (set-iter @{0 1} (fn [n] (throw n))) 0)
+        (assert-eq (cursor-set-next (set-cursor-min @{0 1 2})) 0)
+        (assert-throw (cursor-set-next (set-cursor-min @{})) :cursor-end)
         ");
 
         test_example("
-        (let (:mut product) 1 (do
-            (set-iter-back @{4 2 3 1} (fn [elem] (set! product (int-mul product elem))))
-            (assert-eq product 24)
+        (assert-eq (cursor-set-prev (set-cursor-max @{0 1 2})) 2)
+        (assert-throw (cursor-set-prev (set-cursor-max @{})) :cursor-end)
+        ");
+
+        test_example("
+        (assert-throw (cursor-set-prev (set-cursor-< @{0 1 3} -1)) :cursor-end)
+        (assert-throw (cursor-set-prev (set-cursor-< @{0 1 3} 0)) :cursor-end)
+        (assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 1)) 0)
+        (assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 2)) 1)
+        (assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 3)) 1)
+        (assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 4)) 3)
+        ");
+
+        test_example("
+        (assert-eq (cursor-set-next (set-cursor-> @{0 1 3} -1)) 0)
+        (assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 0)) 1)
+        (assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 1)) 3)
+        (assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 2)) 3)
+        (assert-throw (cursor-set-next (set-cursor-> @{0 1 3} 3)) :cursor-end)
+        (assert-throw (cursor-set-next (set-cursor-> @{0 1 3} 4)) :cursor-end)
+        ");
+
+        test_example("
+        (assert-throw (cursor-set-prev (set-cursor-<= @{0 1 3} -1)) :cursor-end)
+        (assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 0)) 0)
+        (assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 1)) 1)
+        (assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 2)) 1)
+        (assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 3)) 3)
+        (assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 4)) 3)
+        ");
+
+        test_example("
+        (assert-eq (cursor-set-next (set-cursor->= @{0 1 3} -1)) 0)
+        (assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 0)) 0)
+        (assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 1)) 1)
+        (assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 2)) 3)
+        (assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 3)) 3)
+        (assert-throw (cursor-set-next (set-cursor->= @{0 1 3} 4)) :cursor-end)
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_cursor_set() {
+        test_example("(assert-eq cursor-set-type (typeof (set-cursor-min @{})))");
+
+        test_example("
+        (let cursor (set-cursor-min @{0 1 2}) (do
+            (assert-eq (cursor-set-next cursor) 0)
+            (assert-eq (cursor-set-next cursor) 1)
+            (assert-eq (cursor-set-next cursor) 2)
+            (assert-throw (cursor-set-next cursor) :cursor-end)
+            (assert-throw (cursor-set-next cursor) :cursor-end)
         ))
-        (let (:mut product) 1 (do
-            (set-iter-back @{4 2 3 1} (fn [elem] (if
-                    (= elem 3) true
-                    (set! product (int-mul product elem))
-                )))
-            (assert-eq product 4)
+        ");
+
+        test_example("
+        (let cursor (set-cursor-max @{0 1 2}) (do
+            (assert-eq (cursor-set-prev cursor) 2)
+            (assert-eq (cursor-set-prev cursor) 1)
+            (assert-eq (cursor-set-prev cursor) 0)
+            (assert-throw (cursor-set-prev cursor) :cursor-end)
+            (assert-throw (cursor-set-prev cursor) :cursor-end)
         ))
-        (assert-throw (set-iter-back @{0 1} (fn [n] (throw n))) 1)
         ");
     }
 
@@ -1672,6 +1781,38 @@ mod tests {
         (assert-eq (map-contains? { nil 0 } nil) true)
         (assert-eq (map-contains? { 42 0 } 43) false)
         (assert-eq (map-contains? {} nil) false)
+        ");
+
+        test_example("
+        (assert-throw (map-find-< {1 nil 3 nil} 0) {:tag :err-lookup :got 0})
+        (assert-throw (map-find-< {1 nil 3 nil} 1) {:tag :err-lookup :got 1})
+        (assert-eq (map-find-< {1 nil 3 nil} 2) 1)
+        (assert-eq (map-find-< {1 nil 3 nil} 3) 1)
+        (assert-eq (map-find-< {1 nil 3 nil} 4) 3)
+        ");
+
+        test_example("
+        (assert-eq (map-find-> {1 nil 3 nil} 0) 1)
+        (assert-eq (map-find-> {1 nil 3 nil} 1) 3)
+        (assert-eq (map-find-> {1 nil 3 nil} 2) 3)
+        (assert-throw (map-find-> {1 nil 3 nil} 3) {:tag :err-lookup :got 3})
+        (assert-throw (map-find-> {1 nil 3 nil} 4) {:tag :err-lookup :got 4})
+        ");
+
+        test_example("
+        (assert-throw (map-find-<= {1 nil 3 nil} 0) {:tag :err-lookup :got 0})
+        (assert-eq (map-find-<= {1 nil 3 nil} 1) 1)
+        (assert-eq (map-find-<= {1 nil 3 nil} 2) 1)
+        (assert-eq (map-find-<= {1 nil 3 nil} 3) 3)
+        (assert-eq (map-find-<= {1 nil 3 nil} 4) 3)
+        ");
+
+        test_example("
+        (assert-eq (map-find->= {1 nil 3 nil} 0) 1)
+        (assert-eq (map-find->= {1 nil 3 nil} 1) 1)
+        (assert-eq (map-find->= {1 nil 3 nil} 2) 3)
+        (assert-eq (map-find->= {1 nil 3 nil} 3) 3)
+        (assert-throw (map-find->= {1 nil 3 nil} 4) {:tag :err-lookup :got 4})
         ");
 
         test_example("
@@ -1743,33 +1884,74 @@ mod tests {
         ");
 
         test_example("
-        (let (:mut product) 1 (do
-            (map-iter {4 2, 3 1} (fn [key value] (set! product (int-mul product (int-mul key value)))))
-            (assert-eq product 24)
-        ))
-        (let (:mut product) 1 (do
-            (map-iter {4 2, 3 1} (fn [key value] (if
-                    (= key 3) true
-                    (set! product (int-mul product (int-mul key value)))
-                )))
-            (assert-eq product 1)
-        ))
-        (assert-throw (map-iter {0 1, 2 3} (fn [n m] (throw (int-mul n m)))) 0)
+        (assert-eq (cursor-map-next (map-cursor-min {0 :a 1 :b 2 :c})) [0 :a])
+        (assert-throw (cursor-map-next (map-cursor-min {})) :cursor-end)
         ");
 
         test_example("
-        (let (:mut product) 1 (do
-            (map-iter-back {4 2, 3 1} (fn [key value] (set! product (int-mul product (int-mul key value)))))
-            (assert-eq product 24)
+        (assert-eq (cursor-map-prev (map-cursor-max {0 :a 1 :b 2 :c})) [2 :c])
+        (assert-throw (cursor-map-prev (map-cursor-max {})) :cursor-end)
+        ");
+
+        test_example("
+        (assert-throw (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} -1)) :cursor-end)
+        (assert-throw (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 0)) :cursor-end)
+        (assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 1)) [0 :a])
+        (assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 2)) [1 :b])
+        (assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 3)) [1 :b])
+        (assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 4)) [3 :d])
+        ");
+
+        test_example("
+        (assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} -1)) [0 :a])
+        (assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 0)) [1 :b])
+        (assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 1)) [3 :d])
+        (assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 2)) [3 :d])
+        (assert-throw (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 3)) :cursor-end)
+        (assert-throw (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 4)) :cursor-end)
+        ");
+
+        test_example("
+        (assert-throw (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} -1)) :cursor-end)
+        (assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 0)) [0 :a])
+        (assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 1)) [1 :b])
+        (assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 2)) [1 :b])
+        (assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 3)) [3 :d])
+        (assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 4)) [3 :d])
+        ");
+
+        test_example("
+        (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} -1)) [0 :a])
+        (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 0)) [0 :a])
+        (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 1)) [1 :b])
+        (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 2)) [3 :d])
+        (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 3)) [3 :d])
+        (assert-throw (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 4)) :cursor-end)
+        ");
+    }
+
+    #[test]
+    fn test_toplevel_cursor_map() {
+        test_example("(assert-eq cursor-map-type (typeof (map-cursor-min {})))");
+
+        test_example("
+        (let cursor (map-cursor-min {0 :a 1 :b 2 :c}) (do
+            (assert-eq (cursor-map-next cursor) [0 :a])
+            (assert-eq (cursor-map-next cursor) [1 :b])
+            (assert-eq (cursor-map-next cursor) [2 :c])
+            (assert-throw (cursor-map-next cursor) :cursor-end)
+            (assert-throw (cursor-map-next cursor) :cursor-end)
         ))
-        (let (:mut product) 1 (do
-            (map-iter-back {4 2, 3 1} (fn [key value] (if
-                    (= key 3) true
-                    (set! product (int-mul product (int-mul key value)))
-                )))
-            (assert-eq product 8)
+        ");
+
+        test_example("
+        (let cursor (map-cursor-max {0 :a 1 :b 2 :c}) (do
+            (assert-eq (cursor-map-prev cursor) [2 :c])
+            (assert-eq (cursor-map-prev cursor) [1 :b])
+            (assert-eq (cursor-map-prev cursor) [0 :a])
+            (assert-throw (cursor-map-prev cursor) :cursor-end)
+            (assert-throw (cursor-map-prev cursor) :cursor-end)
         ))
-        (assert-throw (map-iter-back {0 1, 2 3} (fn [n m] (throw (int-mul n m)))) 6)
         ");
     }
 
@@ -1876,16 +2058,11 @@ mod tests {
         (assert-eq (cmp (sf-lambda [] nil) (sf-lambda [] nil)) :<)
         (assert-eq (cmp (cell 42) (cell 41)) :<)
 
-        (let o1 (opaque) (let o2 (opaque)
-            (let hide1 (map-get o1 :hide) (let hide2 (map-get o2 :hide)
-                (sf-do
-                    (assert-eq (cmp (hide1 42) (hide2 41)) :<)
-                    (assert-eq (cmp (hide1 41) (hide1 42)) :<)
-                    (assert-eq (cmp (hide1 42) (hide1 42)) :=)
-                    (assert-eq (cmp (hide1 42) (hide1 41)) :>)
-                )
-                ))
-            ))
+        (let o (opaque) (let hide (map-get o :hide) (do
+            (assert-eq (cmp (hide 42) (hide 41)) :<)
+            (assert-eq (cmp cursor-arr-type (hide 42)) :<)
+            (assert-eq (cmp cursor-app-type cursor-arr-type) :<)
+        )))
         "#);
 
         test_example("
@@ -2082,5 +2259,52 @@ mod tests {
         (assert-throw (expand 42 {:def-immutable :foo}) {:tag :err-type :expected :map :got :keyword})
         (assert-throw (expand 42 {:def-immutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
         "#);
+    }
+
+    #[test]
+    fn test_toplevel_typeof() {
+        test_example(r#"
+        (assert-eq (typeof nil) :nil)
+        (assert-eq (typeof true) :bool)
+        (assert-eq (typeof 42) :int)
+        (assert-eq (typeof 0.0) :float)
+        (assert-eq (typeof 'a') :char)
+        (assert-eq (typeof "foo") :string)
+        (assert-eq (typeof @[]) :bytes)
+        (assert-eq (typeof :kw) :keyword)
+        (assert-eq (typeof $id) :identifier)
+        (assert-eq (typeof (symbol)) :symbol)
+        (assert-eq (typeof typeof) :function)
+        (assert-eq (typeof (cell 42)) :cell)
+        (assert-eq (typeof []) :array)
+        (assert-eq (typeof $()) :application)
+        (assert-eq (typeof {}) :map)
+        (assert-eq (typeof @{}) :set)
+        (let o (opaque) (
+            assert-eq (typeof ((map-get o :hide) 42)) (map-get o :type)
+            ))
+        "#);
+    }
+
+    #[test]
+    fn test_toplevel_not() {
+        test_example(r#"
+        (assert-eq (not nil) true)
+        (assert-eq (not false) true)
+        (assert-eq (not true) false)
+        (assert-eq (not 0) false)
+        (assert-eq (not not) false)
+        "#);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_toplevel_diverge() {
+        test_example("(diverge 42)");
+    }
+
+    #[test]
+    fn test_toplevel_trace() {
+        test_example("(assert-eq (trace 42) 42)");
     }
 }

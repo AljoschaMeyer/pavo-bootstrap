@@ -193,6 +193,19 @@ Strings that contain a literal or an escape sequence that does not correspond to
 
 If the size of the resulting string in utf-8 bytes exceeds 2^63-1, it is a parse error. Also you are doing some really weird stuff and should probably use a different tool for the job than pavo.
 
+In addition to regular string literals, there are *raw string literals* that don't have escape sequences. They begin with 1-8 `@` signs followed by `"` and extend until the first further `"` that is followed by as many `@` signs.
+
+```pavo
+(assert-eq @"no escape for inner " or \ needed"@ "no escape for inner \" or \\ needed")
+(assert-eq @"\n"@ "\\n")
+(assert-eq @"\{1234}"@ "\\{1234}")
+(assert-eq @@@@""@@@@ "")
+(assert-eq @@@@@@@@""@@@@@@@@ "")
+(assert-eq @@@"@"@@"""@@@ "@\"@@\"\"")
+# @@@@@@@@@"nope"@@@@@@@@@ too many @ signs
+# @@@@@@@"nope"@@@@@@@@@ trailing @s are an error
+```
+
 ### Bytes
 
 Bytes denote a string of arbitrary bytes. A byte literal consists of `@[`, followed by zero or more whitespace tokens, followed by any number of byte tokens (see next paragraph) that are separated by at least one whitespace token, followed by zero or more whitespace tokens, followed by `]`.
@@ -1356,46 +1369,65 @@ Time: O(log (n + m)), where n is `(bytes-count left)` and m is `(bytes-count rig
 (assert-eq (bytes-concat @[0 1] @[]) @[0 1])
 ```
 
-#### `(bytes-iter b fun)`
+### `(bytes-cursor b index)`
 
-Starting from the beginning of the bytes `b`, applies the function `fun` to the elements of `b` in sequence until either `fun` returns a truthy value or the end of the bytes is reached. Returns `nil`. Propagates any value thrown by `fun`.
+Returns a new bytes cursor (see below), positioned right before the given int `index` of the bytes `b`.
 
-Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
+Throws `{:tag :err-lookup, :got index}` if the index is out of bounds.
+
+Time: O(log n), where n is `(bytes-count b)`.
 
 ```pavo
-(let (:mut product) 1 (do
-    (bytes-iter @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
-    (assert-eq product 24)
-))
-(let (:mut product) 1 (do
-    (bytes-iter @[1 2 3 4] (fn [elem] (sf-if
-            (= elem 3) true
-            (set! product (int-mul product elem))
-        )))
-    (assert-eq product 2)
-))
-(assert-throw (bytes-iter @[0 1] (fn [b] (throw b))) 0)
+(assert-throw (bytes-cursor @[0 1 2] -1) {:tag :err-lookup, :got -1})
+(assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 0)) 0)
+(assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 1)) 1)
+(assert-eq (cursor-bytes-next (bytes-cursor @[0 1 2] 2)) 2)
+(assert-throw (cursor-bytes-next (bytes-cursor @[0 1 2] 3)) :cursor-end)
+(assert-throw (bytes-cursor @[0 1 2] 4) {:tag :err-lookup, :got 4})
 ```
 
-#### `(bytes-iter-back b fun)`
+### Bytes Cursor
 
-Starting from the back of the bytes `b`, applies the function `fun` to the elements of `b` in reverse order until either `fun` returns a truthy value or the end of the bytes is reached. Returns `nil`. Propagates any value thrown by `fun`.
+A bytes cursor (created via `bytes-cursor`) is an opaque value that allows to efficiently step through the items in a bytes. It maintains a current position as state: either "in between" two elements, or at the front or back.
 
-Time: Iteration takes amortized O(n), where n is `(bytes-count b)`.
+#### `cursor-bytes-type`
+
+The type symbol of bytes cursors.
 
 ```pavo
-(let (:mut product) 1 (do
-    (bytes-iter-back @[1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
-    (assert-eq product 24)
+(assert-eq cursor-bytes-type (typeof (bytes-cursor @[] 0)))
+```
+
+#### `(cursor-bytes-next cursor)`
+
+Advances the cursor by one element and returns the element over which it passed. If the starting position was at the back of the bytes, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of elements in the underlying bytes. Moving from the front to the back of the bytes is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (bytes-cursor @[0 1 2] 0) (do
+    (assert-eq (cursor-bytes-next cursor) 0)
+    (assert-eq (cursor-bytes-next cursor) 1)
+    (assert-eq (cursor-bytes-next cursor) 2)
+    (assert-throw (cursor-bytes-next cursor) :cursor-end)
+    (assert-throw (cursor-bytes-next cursor) :cursor-end)
 ))
-(let (:mut product) 1 (do
-    (bytes-iter-back @[1 2 3 4] (fn [elem] (if
-            (= elem 3) true
-            (set! product (int-mul product elem))
-        )))
-    (assert-eq product 4)
+```
+
+#### `(cursor-bytes-prev cursor)`
+
+Retreats the cursor by one element and returns the element over which it passed. If the starting position was at the front of the bytes, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of elements in the underlying bytes. Moving from the back to the front of the bytes is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (bytes-cursor @[0 1 2] 3) (do
+    (assert-eq (cursor-bytes-prev cursor) 2)
+    (assert-eq (cursor-bytes-prev cursor) 1)
+    (assert-eq (cursor-bytes-prev cursor) 0)
+    (assert-throw (cursor-bytes-prev cursor) :cursor-end)
+    (assert-throw (cursor-bytes-prev cursor) :cursor-end)
 ))
-(assert-throw (bytes-iter-back @[0 1] (fn [b] (throw b))) 1)
 ```
 
 ### Chars
@@ -1620,88 +1652,132 @@ Time: O(log (n + m)), where n is `(str-count left)` and m is `(str-count right)`
 (assert-eq (str-concat "ab" "") "ab")
 ```
 
-#### `(str-iter s fun)`
+### `(str-cursor s index)`
 
-Starting from the beginning of the string `s`, applies the function `fun` to the chars of `s` in sequence until either `fun` returns a truthy value or the end of the string is reached. Returns `nil`. Propagates any value thrown by `fun`.
+Returns a new string cursor (see below), positioned right before the given int `index` of the string `s`.
 
-Time: Iteration takes amortized O(n), where n is `(str-count s)`.
+Throws `{:tag :err-lookup, :got index}` if the index is out of bounds.
+
+Time: O(log n), where n is `(str-count s)`.
 
 ```pavo
-(let (:mut out) "z" (do
-    (str-iter "abcd" (fn [elem] (set! out (str-insert out 0 elem))))
-    (assert-eq out "dcbaz")
-))
-(let (:mut out) "z" (do
-    (str-iter "abcd" (fn [elem] (if
-            (= elem 'c') true
-            (set! out (str-insert out 0 elem))
-        )))
-    (assert-eq out "baz")
-))
-(assert-throw (str-iter "ab" (fn [c] (throw c))) 'a')
+(assert-throw (str-cursor "a⚗c" -1) {:tag :err-lookup, :got -1})
+(assert-eq (cursor-str-next (str-cursor "a⚗c" 0)) 'a')
+(assert-eq (cursor-str-next (str-cursor "a⚗c" 1)) '⚗')
+(assert-eq (cursor-str-next (str-cursor "a⚗c" 2)) 'c')
+(assert-throw (cursor-str-next (str-cursor "a⚗c" 3)) :cursor-end)
+(assert-throw (str-cursor "a⚗c" 4) {:tag :err-lookup, :got 4})
 ```
 
-#### `(str-iter-back s fun)`
+### `(str-cursor-utf8 s index)`
 
-Starting from the back of the string `s`, applies the function `fun` to the chars of `s` in reverse order until either `fun` returns a truthy value or the end of the string is reached. Returns `nil`. Propagates any value thrown by `fun`.
+Returns a new string utf8 cursor (see further below), positioned right before utf8 byte at the given int `index` (in bytes) of the string `s`.
 
-Time: Iteration takes amortized O(n), where n is `(str-count s)`.
+Throws `{:tag :err-lookup, :got index}` if the index is out of bounds.
+
+Time: O(log n), where n is `(str-count-utf8 s)`.
 
 ```pavo
-(let (:mut out) "z" (do
-    (str-iter-back "abcd" (fn [elem] (set! out (str-insert out 0 elem))))
-    (assert-eq out "abcdz")
-))
-(let (:mut out) "z" (do
-    (str-iter-back "abcd" (fn [elem] (if
-            (= elem 'c') true
-            (set! out (str-insert out 0 elem))
-        )))
-    (assert-eq out "dz")
-))
-(assert-throw (str-iter-back "ab" (fn [c] (throw c))) 'b')
+(assert-throw (str-cursor-utf8 "a⚗c" -1) {:tag :err-lookup, :got -1})
+(assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 0)) 97)
+(assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 1)) 226)
+(assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 2)) 154)
+(assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 3)) 151)
+(assert-eq (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 4)) 99)
+(assert-throw (cursor-str-utf8-next (str-cursor-utf8 "a⚗c" 5)) :cursor-end)
+(assert-throw (str-cursor-utf8 "a⚗c" 6) {:tag :err-lookup, :got 6})
 ```
 
-#### `(str-iter-utf8 s fun)`
+### String Cursor
 
-Starting from the beginning of the string `s`, applies the function `fun` to the utf8 bytes of `s` in sequence until either `fun` returns a truthy value or the end of the string is reached. Returns `nil`. Propagates any value thrown by `fun`.
+A string cursor (created via `str-cursor`) is an opaque value that allows to efficiently step through the character of a string. It maintains a current position as state: either "in between" two character, or at the front or back.
 
-Time: Iteration takes amortized O(n), where n is `(str-count-utf8 s)`.
+#### `cursor-str-type`
+
+The type symbol of string cursors.
 
 ```pavo
-(let (:mut product) 1 (do
-    (str-iter-utf8 "abc" (fn [elem] (set! product (int-mul product elem))))
-    (assert-eq product 941094)
-))
-(let (:mut product) 1 (do
-    (str-iter-utf8 "abc" (fn [elem] (sf-if
-            (= elem 98) true
-            (set! product (int-mul product elem))
-        )))
-    (assert-eq product 97)
-))
-(assert-throw (str-iter-utf8 "abc" (fn [b] (throw b))) 97)
+(assert-eq cursor-str-type (typeof (str-cursor "" 0)))
 ```
 
-#### `(str-iter-utf8-back s fun)`
+#### `(cursor-str-next cursor)`
 
-Starting from the back of the string `s`, applies the function `fun` to the utf8 bytes of `s` in reverse order until either `fun` returns a truthy value or the end of the string is reached. Returns `nil`. Propagates any value thrown by `fun`.
+Advances the cursor by one character and returns the character over which it passed. If the starting position was at the back of the string, the position remains unchanged and this function throws `:cursor-end`.
 
-Time: Iteration takes amortized O(n), where n is `(str-count-utf8 s)`.
+Time: Worst-case O(log(n)), where n is the number of characters in the underlying string. Moving from the front to the back of the string is guaranteed to take amortized O(n).
 
 ```pavo
-(let (:mut product) 1 (do
-    (str-iter-utf8-back "abc" (fn [elem] (set! product (int-mul product elem))))
-    (assert-eq product 941094)
+(let cursor (str-cursor "a⚗c" 0) (do
+    (assert-eq (cursor-str-next cursor) 'a')
+    (assert-eq (cursor-str-next cursor) '⚗')
+    (assert-eq (cursor-str-next cursor) 'c')
+    (assert-throw (cursor-str-next cursor) :cursor-end)
+    (assert-throw (cursor-str-next cursor) :cursor-end)
 ))
-(let (:mut product) 1 (do
-    (str-iter-utf8-back "abc" (fn [elem] (sf-if
-            (= elem 98) true
-            (set! product (int-mul product elem))
-        )))
-    (assert-eq product 99)
+```
+
+#### `(cursor-str-prev cursor)`
+
+Retreats the cursor by one character and returns the character over which it passed. If the starting position was at the front of the string, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of characters in the underlying string. Moving from the back to the front of the string is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (str-cursor "a⚗c" 3) (do
+    (assert-eq (cursor-str-prev cursor) 'c')
+    (assert-eq (cursor-str-prev cursor) '⚗')
+    (assert-eq (cursor-str-prev cursor) 'a')
+    (assert-throw (cursor-str-prev cursor) :cursor-end)
+    (assert-throw (cursor-str-prev cursor) :cursor-end)
 ))
-(assert-throw (str-iter-utf8-back "abc" (fn [b] (throw b))) 99)
+```
+
+### String Utf8 Cursor
+
+A string utf8 cursor (created via `str-cursor-utf8`) is an opaque value that allows to efficiently step through the bytes of a string's utf8 encoding. It maintains a current position as state: either "in between" two bytes, or at the front or back.
+
+#### `cursor-str-utf8-type`
+
+The type symbol of string utf8 cursors.
+
+```pavo
+(assert-eq cursor-str-utf8-type (typeof (str-cursor-utf8 "" 0)))
+```
+
+#### `(cursor-str-utf8-next cursor)`
+
+Advances the cursor by one byte and returns the byte over which it passed. If the starting position was at the back of the string, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of bytes in the underlying string. Moving from the front to the back of the string is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (str-cursor-utf8 "a⚗c" 0) (do
+    (assert-eq (cursor-str-utf8-next cursor) 97)
+    (assert-eq (cursor-str-utf8-next cursor) 226)
+    (assert-eq (cursor-str-utf8-next cursor) 154)
+    (assert-eq (cursor-str-utf8-next cursor) 151)
+    (assert-eq (cursor-str-utf8-next cursor) 99)
+    (assert-throw (cursor-str-utf8-next cursor) :cursor-end)
+    (assert-throw (cursor-str-utf8-next cursor) :cursor-end)
+))
+```
+
+#### `(cursor-str-utf8-prev cursor)`
+
+Retreats the cursor by one byte and returns the byte over which it passed. If the starting position was at the front of the string, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of bytes in the underlying string. Moving from the back to the front of the string is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (str-cursor-utf8 "a⚗c" 5) (do
+    (assert-eq (cursor-str-utf8-prev cursor) 99)
+    (assert-eq (cursor-str-utf8-prev cursor) 151)
+    (assert-eq (cursor-str-utf8-prev cursor) 154)
+    (assert-eq (cursor-str-utf8-prev cursor) 226)
+    (assert-eq (cursor-str-utf8-prev cursor) 97)
+    (assert-throw (cursor-str-utf8-prev cursor) :cursor-end)
+    (assert-throw (cursor-str-utf8-prev cursor) :cursor-end)
+))
 ```
 
 ### Floats
@@ -2062,6 +2138,17 @@ Returns `true` if the float `x` is neither zero nor [subnormal](https://en.wikip
 (assert-eq (float-normal? 0.0) false)
 ```
 
+#### `(float-integral? x)`
+
+Returns `true` if the float `x` is a mathematical integer, false otherwise.
+
+```pavo
+(assert-eq (float-integral? 1.0) true)
+(assert-eq (float-integral? 0.0) true)
+(assert-eq (float-integral? -42.0) true)
+(assert-eq (float-integral? 1.1) false)
+```
+
 #### `(float->degrees x)`
 
 Converts the float `x` from radians to degrees.
@@ -2358,49 +2445,79 @@ Time: O(log (n + m)), where n is `(arr-count left)` and m is `(arr-count right)`
 (assert-eq (arr-concat [0 1] []) [0 1])
 ```
 
-#### `(arr-iter arr fun)`
+### `(arr-cursor arr index)`
 
-Starting from the beginning of the array `arr`, applies the function `fun` to the elements of `arr` in sequence until either `fun` returns a truthy value or the end of the array is reached. Returns `nil`. Propagates any value thrown by `fun`.
+Returns a new array cursor (see below), positioned right before the given int `index` of the array `arr`.
 
-Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
+Throws `{:tag :err-lookup, :got index}` if the index is out of bounds.
+
+Time: O(log n), where n is `(arr-count arr)`.
 
 ```pavo
-(let (:mut product) 1 (do
-    (arr-iter [1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
-    (assert-eq product 24)
-))
-(let (:mut product) 1 (do
-    (arr-iter [1 2 3 4] (fn [elem] (if
-            (= elem 3) true
-            (set! product (int-mul product elem))
-        )))
-    (assert-eq product 2)
-))
-(assert-throw (arr-iter [0 1] (fn [n] (throw n))) 0)
+(assert-throw (arr-cursor [0 1 2] -1) {:tag :err-lookup, :got -1})
+(assert-eq (cursor-arr-next (arr-cursor [0 1 2] 0)) 0)
+(assert-eq (cursor-arr-next (arr-cursor [0 1 2] 1)) 1)
+(assert-eq (cursor-arr-next (arr-cursor [0 1 2] 2)) 2)
+(assert-throw (cursor-arr-next (arr-cursor [0 1 2] 3)) :cursor-end)
+(assert-throw (arr-cursor [0 1 2] 4) {:tag :err-lookup, :got 4})
 ```
 
-#### `(arr-iter-back arr fun)`
+### Array Cursor
 
-Starting from the back of the array `arr`, applies the function `fun` to the elements of `arr` in reverse order until either `fun` returns a truthy value or the end of the array is reached. Returns `nil`. Propagates any value thrown by `fun`.
+An array cursor (created via `arr-cursor`) is an opaque value that allows to efficiently step through the items in an array. It maintains a current position as state: either "in between" two elements, or at the front or back.
 
-Time: Iteration takes amortized O(n), where n is `(arr-count arr)`.
+#### `cursor-arr-type`
+
+The type symbol of array cursors.
 
 ```pavo
-(let (:mut product) 1 (do
-    (arr-iter-back [1 2 3 4] (fn [elem] (set! product (int-mul product elem))))
-    (assert-eq product 24)
+(assert-eq cursor-arr-type (typeof (arr-cursor [] 0)))
+```
+
+#### `(cursor-arr-next cursor)`
+
+Advances the cursor by one element and returns the element over which it passed. If the starting position was at the back of the array, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of elements in the underlying array. Moving from the front to the back of the array is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (arr-cursor [0 1 2] 0) (do
+    (assert-eq (cursor-arr-next cursor) 0)
+    (assert-eq (cursor-arr-next cursor) 1)
+    (assert-eq (cursor-arr-next cursor) 2)
+    (assert-throw (cursor-arr-next cursor) :cursor-end)
+    (assert-throw (cursor-arr-next cursor) :cursor-end)
 ))
-(let (:mut product) 1 (do
-    (arr-iter-back [1 2 3 4] (fn [elem] (if
-            (= elem 3) true
-            (set! product (int-mul product elem))
-        )))
-    (assert-eq product 4)
+```
+
+#### `(cursor-arr-prev cursor)`
+
+Retreats the cursor by one element and returns the element over which it passed. If the starting position was at the front of the array, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of elements in the underlying array. Moving from the back to the front of the array is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (arr-cursor [0 1 2] 3) (do
+    (assert-eq (cursor-arr-prev cursor) 2)
+    (assert-eq (cursor-arr-prev cursor) 1)
+    (assert-eq (cursor-arr-prev cursor) 0)
+    (assert-throw (cursor-arr-prev cursor) :cursor-end)
+    (assert-throw (cursor-arr-prev cursor) :cursor-end)
 ))
-(assert-throw (arr-iter-back [0 1] (fn [n] (throw n))) 1)
 ```
 
 ### Applications
+
+#### `(app-apply app)`
+
+Applies the first value in the application `app` to the remaining values.
+
+```pavo
+(assert-eq (app-apply `(;int-add 1 2)) 3)
+(assert-throw (app-apply `(;int-add 1)) {:tag :err-num-args})
+(assert-throw (app-apply $()) {:tag :err-lookup :got 0})
+(assert-throw (app-apply $(42)) {:tag :err-type, :expected :function, :got :int})
+```
 
 #### `(app-count app)`
 
@@ -2521,57 +2638,65 @@ Time: O(log (n + m)), where n is `(app-count left)` and m is `(app-count right)`
 (assert-eq (app-concat $(0 1) $()) $(0 1))
 ```
 
-#### `(app-iter app fun)`
+### `(app-cursor app index)`
 
-Starting from the beginning of the application `app`, applies the function `fun` to the elements of `app` in sequence until either `fun` returns a truthy value or the end of the application is reached. Returns `nil`. Propagates any value thrown by `fun`.
+Returns a new application cursor (see below), positioned right before the given int `index` of the application `app`.
 
-Time: Iteration takes amortized O(n), where n is `(app-count app)`.
+Throws `{:tag :err-lookup, :got index}` if the index is out of bounds.
+
+Time: O(log n), where n is `(app-count app)`.
 
 ```pavo
-(let (:mut product) 1 (do
-    (app-iter $(1 2 3 4) (fn [elem] (set! product (int-mul product elem))))
-    (assert-eq product 24)
-))
-(let (:mut product) 1 (do
-    (app-iter $(1 2 3 4) (fn [elem] (if
-            (= elem 3) true
-            (set! product (int-mul product elem))
-        )))
-    (assert-eq product 2)
-))
-(assert-throw (app-iter $(0 1) (fn [n] (throw n))) 0)
+(assert-throw (app-cursor $(0 1 2) -1) {:tag :err-lookup, :got -1})
+(assert-eq (cursor-app-next (app-cursor $(0 1 2) 0)) 0)
+(assert-eq (cursor-app-next (app-cursor $(0 1 2) 1)) 1)
+(assert-eq (cursor-app-next (app-cursor $(0 1 2) 2)) 2)
+(assert-throw (cursor-app-next (app-cursor $(0 1 2) 3)) :cursor-end)
+(assert-throw (app-cursor $(0 1 2) 4) {:tag :err-lookup, :got 4})
 ```
 
-#### `(app-iter-back app fun)`
+### Application Cursor
 
-Starting from the back of the application `app`, applies the function `fun` to the elements of `app` in reverse order until either `fun` returns a truthy value or the end of the application is reached. Returns `nil`. Propagates any value thrown by `fun`.
+An application cursor (created via `app-cursor`) is an opaque value that allows to efficiently step through the items in an application. It maintains a current position as state: either "in between" two elements, or at the front or back.
 
-Time: Iteration takes amortized O(n), where n is `(app-count app)`.
+#### `cursor-app-type`
+
+The type symbol of application cursors.
 
 ```pavo
-(let (:mut product) 1 (do
-    (app-iter-back $(1 2 3 4) (fn [elem] (set! product (int-mul product elem))))
-    (assert-eq product 24)
-))
-(let (:mut product) 1 (do
-    (app-iter-back $(1 2 3 4) (fn [elem] (if
-            (= elem 3) true
-            (set! product (int-mul product elem))
-        )))
-    (assert-eq product 4)
-))
-(assert-throw (app-iter-back $(0 1) (fn [n] (throw n))) 1)
+(assert-eq cursor-app-type (typeof (app-cursor $() 0)))
 ```
 
-#### `(app-apply app)`
+#### `(cursor-app-next cursor)`
 
-Applies the first value in the application `app` to the remaining values.
+Advances the cursor by one element and returns the element over which it passed. If the starting position was at the back of the application, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of elements in the underlying application. Moving from the front to the back of the application is guaranteed to take amortized O(n).
 
 ```pavo
-(assert-eq (app-apply `(;int-add 1 2)) 3)
-(assert-throw (app-apply `(;int-add 1)) {:tag :err-num-args})
-(assert-throw (app-apply $()) {:tag :err-lookup :got 0})
-(assert-throw (app-apply $(42)) {:tag :err-type, :expected :function, :got :int})
+(let cursor (app-cursor $(0 1 2) 0) (do
+    (assert-eq (cursor-app-next cursor) 0)
+    (assert-eq (cursor-app-next cursor) 1)
+    (assert-eq (cursor-app-next cursor) 2)
+    (assert-throw (cursor-app-next cursor) :cursor-end)
+    (assert-throw (cursor-app-next cursor) :cursor-end)
+))
+```
+
+#### `(cursor-app-prev cursor)`
+
+Retreats the cursor by one element and returns the element over which it passed. If the starting position was at the front of the application, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of elements in the underlying application. Moving from the back to the front of the application is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (app-cursor $(0 1 2) 3) (do
+    (assert-eq (cursor-app-prev cursor) 2)
+    (assert-eq (cursor-app-prev cursor) 1)
+    (assert-eq (cursor-app-prev cursor) 0)
+    (assert-throw (cursor-app-prev cursor) :cursor-end)
+    (assert-throw (cursor-app-prev cursor) :cursor-end)
+))
 ```
 
 ### Sets
@@ -2626,6 +2751,62 @@ Time: O(log n), where n is `(set-count set)`.
 ```pavo
 (assert-eq (set-max @{ 4 3 }) 4)
 (assert-throw (set-max @{}) { :tag :err-collection-empty })
+```
+
+#### `(set-find-< set v)`
+
+Returns the greatest element in the set `set` that is strictly less than the value `v`.
+
+Throws `{:tag :err-lookup :got v}` if no such value exists.
+
+```pavo
+(assert-throw (set-find-< @{1 3} 0) {:tag :err-lookup :got 0})
+(assert-throw (set-find-< @{1 3} 1) {:tag :err-lookup :got 1})
+(assert-eq (set-find-< @{1 3} 2) 1)
+(assert-eq (set-find-< @{1 3} 3) 1)
+(assert-eq (set-find-< @{1 3} 4) 3)
+```
+
+#### `(set-find-> set v)`
+
+Returns the least element in the set `set` that is strictly greater than the value `v`.
+
+Throws `{:tag :err-lookup :got v}` if no such value exists.
+
+```pavo
+(assert-eq (set-find-> @{1 3} 0) 1)
+(assert-eq (set-find-> @{1 3} 1) 3)
+(assert-eq (set-find-> @{1 3} 2) 3)
+(assert-throw (set-find-> @{1 3} 3) {:tag :err-lookup :got 3})
+(assert-throw (set-find-> @{1 3} 4) {:tag :err-lookup :got 4})
+```
+
+#### `(set-find-<= set v)`
+
+Returns the greatest element in the set `set` that is equal or less than the value `v`.
+
+Throws `{:tag :err-lookup :got v}` if no such value exists.
+
+```pavo
+(assert-throw (set-find-<= @{1 3} 0) {:tag :err-lookup :got 0})
+(assert-eq (set-find-<= @{1 3} 1) 1)
+(assert-eq (set-find-<= @{1 3} 2) 1)
+(assert-eq (set-find-<= @{1 3} 3) 3)
+(assert-eq (set-find-<= @{1 3} 4) 3)
+```
+
+#### `(set-find->= set v)`
+
+Returns the least element in the set `set` that is equal or greater than the value `v`.
+
+Throws `{:tag :err-lookup :got v}` if no such value exists.
+
+```pavo
+(assert-eq (set-find->= @{1 3} 0) 1)
+(assert-eq (set-find->= @{1 3} 1) 1)
+(assert-eq (set-find->= @{1 3} 2) 3)
+(assert-eq (set-find->= @{1 3} 3) 3)
+(assert-throw (set-find->= @{1 3} 4) {:tag :err-lookup :got 4})
 ```
 
 #### `(set-insert set new)`
@@ -2706,46 +2887,146 @@ Returns the set that contains all the elements in exactly one of the sets `lhs` 
 
 Time: O((n + m) log (n + m)), where n is `(set-count lhs)` and m is `(set-count rhs)`.
 
-#### `(set-iter set fun)`
+<!-- #### `(set-split set v)`
 
-Starting from the minimal element of the set `set`, applies the function `fun` to the elements of `set` in ascending order until either `fun` returns a truthy value or the end of the set is reached. Returns `nil`. Propagates any value thrown by `fun`.
+Returns an array containing two sets, the first of which contains the set of all elements in the set `set` that are strictly less than the value `v`, and the second of which contains the set of all elements in `set` that are greater or equal to `v`.
 
-Time: Iteration takes amortized O(n), where n is `(set-count set)`.
+Time: O(log n), where n is `(set-count set)`. TODO is this feasable for persistent trees?
 
 ```pavo
-(let (:mut product) 1 (do
-    (set-iter @{4 2 3 1} (fn [elem] (set! product (int-mul product elem))))
-    (assert-eq product 24)
-))
-(let (:mut product) 1 (do
-    (set-iter @{4 2 3 1} (fn [elem] (if
-            (= elem 3) true
-            (set! product (int-mul product elem))
-        )))
-    (assert-eq product 2)
-))
-(assert-throw (set-iter @{0 1} (fn [n] (throw n))) 0)
+(assert-eq (set-split {1 3 5} 0) [{} {1 3 5}])
+(assert-eq (set-split {1 3 5} 1) [{} {1 3 5}])
+(assert-eq (set-split {1 3 5} 2) [{1} {3 5}])
+(assert-eq (set-split {1 3 5} 3) [{1} {3 5}])
+(assert-eq (set-split {1 3 5} 4) [{1 3} {5}])
+(assert-eq (set-split {1 3 5} 5) [{1 3} {5}])
+(assert-eq (set-split {1 3 5} 6) [{1 3 5} {}])
+``` -->
+
+#### `(set-cursor-min set)`
+
+Returns a new set cursor (see below), positioned right before the minimal element of the set `set`.
+
+Time: O(log n), where n is `(set-count set)`.
+
+```pavo
+(assert-eq (cursor-set-next (set-cursor-min @{0 1 2})) 0)
+(assert-throw (cursor-set-next (set-cursor-min @{})) :cursor-end)
 ```
 
-#### `(set-iter-back set fun)`
+#### `(set-cursor-max set)`
 
-Starting from the maximal element of the set `set`, applies the function `fun` to the elements of `set` in descending order until either `fun` returns a truthy value or the end of the set is reached. Returns `nil`. Propagates any value thrown by `fun`.
+Returns a new set cursor (see below), positioned right behind the maximal element of the set `set`.
 
-Time: Iteration takes amortized O(n), where n is `(set-count set)`.
+Time: O(log n), where n is `(set-count set)`.
 
 ```pavo
-(let (:mut product) 1 (do
-    (set-iter-back @{4 2 3 1} (fn [elem] (set! product (int-mul product elem))))
-    (assert-eq product 24)
+(assert-eq (cursor-set-prev (set-cursor-max @{0 1 2})) 2)
+(assert-throw (cursor-set-prev (set-cursor-max @{})) :cursor-end)
+```
+
+#### `(set-cursor-< set v)`
+
+Returns a new set cursor (see below), positioned right behind the greatest element of the set `set` that is strictly less than the value `v`, or right before the minimal element of the set if no such value exists.
+
+Time: O(log n), where n is `(set-count set)`.
+
+```pavo
+(assert-throw (cursor-set-prev (set-cursor-< @{0 1 3} -1)) :cursor-end)
+(assert-throw (cursor-set-prev (set-cursor-< @{0 1 3} 0)) :cursor-end)
+(assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 1)) 0)
+(assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 2)) 1)
+(assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 3)) 1)
+(assert-eq (cursor-set-prev (set-cursor-< @{0 1 3} 4)) 3)
+```
+
+#### `(set-cursor-> set v)`
+
+Returns a new set cursor (see below), positioned right before the smallest element of the set `set` that is strictly greater than the value `v`, or right behind the maximal element of the set if no such value exists.
+
+Time: O(log n), where n is `(set-count set)`.
+
+```pavo
+(assert-eq (cursor-set-next (set-cursor-> @{0 1 3} -1)) 0)
+(assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 0)) 1)
+(assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 1)) 3)
+(assert-eq (cursor-set-next (set-cursor-> @{0 1 3} 2)) 3)
+(assert-throw (cursor-set-next (set-cursor-> @{0 1 3} 3)) :cursor-end)
+(assert-throw (cursor-set-next (set-cursor-> @{0 1 3} 4)) :cursor-end)
+```
+
+#### `(set-cursor-<= set v)`
+
+Returns a new set cursor (see below), positioned right behind the greatest element of the set `set` that is less than or equal to the value `v`, or right before the minimal element of the set if no such value exists.
+
+Time: O(log n), where n is `(set-count set)`.
+
+```pavo
+(assert-throw (cursor-set-prev (set-cursor-<= @{0 1 3} -1)) :cursor-end)
+(assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 0)) 0)
+(assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 1)) 1)
+(assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 2)) 1)
+(assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 3)) 3)
+(assert-eq (cursor-set-prev (set-cursor-<= @{0 1 3} 4)) 3)
+```
+
+#### `(set-cursor->= set v)`
+
+Returns a new set cursor (see below), positioned right before the smallest element of the set `set` that is greater than or equal to the value `v`, or right behind the maximal element of the set if no such value exists.
+
+Time: O(log n), where n is `(set-count set)`.
+
+```pavo
+(assert-eq (cursor-set-next (set-cursor->= @{0 1 3} -1)) 0)
+(assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 0)) 0)
+(assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 1)) 1)
+(assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 2)) 3)
+(assert-eq (cursor-set-next (set-cursor->= @{0 1 3} 3)) 3)
+(assert-throw (cursor-set-next (set-cursor->= @{0 1 3} 4)) :cursor-end)
+```
+
+### Set Cursor
+
+A set cursor (created via `set-cursor-min`, `set-cursor-max`, `set-cursor-<`, `set-cursor->`, `set-cursor-<=` or `set-cursor->=`) is an opaque value that allows to efficiently step through the items in a set. It maintains a current position as state: either "in between" two elements, or at the front or back.
+
+#### `cursor-set-type`
+
+The type symbol of set cursors.
+
+```pavo
+(assert-eq cursor-set-type (typeof (set-cursor-min @{})))
+```
+
+#### `(cursor-set-next cursor)`
+
+Advances the set cursor by one element and returns the element over which it passed. If the starting position was at the back of the set, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of elements in the underlying set. Moving from the front to the back of the set is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (set-cursor-min @{0 1 2}) (do
+    (assert-eq (cursor-set-next cursor) 0)
+    (assert-eq (cursor-set-next cursor) 1)
+    (assert-eq (cursor-set-next cursor) 2)
+    (assert-throw (cursor-set-next cursor) :cursor-end)
+    (assert-throw (cursor-set-next cursor) :cursor-end)
 ))
-(let (:mut product) 1 (do
-    (set-iter-back @{4 2 3 1} (fn [elem] (if
-            (= elem 3) true
-            (set! product (int-mul product elem))
-        )))
-    (assert-eq product 4)
+```
+
+#### `(cursor-set-prev cursor)`
+
+Retreats the set cursor by one element and returns the element over which it passed. If the starting position was at the front of the set, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of elements in the underlying set. Moving from the back to the front of the set is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (set-cursor-max @{0 1 2}) (do
+    (assert-eq (cursor-set-prev cursor) 2)
+    (assert-eq (cursor-set-prev cursor) 1)
+    (assert-eq (cursor-set-prev cursor) 0)
+    (assert-throw (cursor-set-prev cursor) :cursor-end)
+    (assert-throw (cursor-set-prev cursor) :cursor-end)
 ))
-(assert-throw (set-iter-back @{0 1} (fn [n] (throw n))) 1)
 ```
 
 ### Maps
@@ -2787,6 +3068,62 @@ Time: O(log n), where n is `(map-count map)`.
 (assert-eq (map-contains? { nil 0 } nil) true)
 (assert-eq (map-contains? { 42 0 } 43) false)
 (assert-eq (map-contains? {} nil) false)
+```
+
+#### `(map-find-< map v)`
+
+Returns the greatest key in the map `map` that is strictly less than the value `v`.
+
+Throws `{:tag :err-lookup :got v}` if no such value exists.
+
+```pavo
+(assert-throw (map-find-< {1 nil 3 nil} 0) {:tag :err-lookup :got 0})
+(assert-throw (map-find-< {1 nil 3 nil} 1) {:tag :err-lookup :got 1})
+(assert-eq (map-find-< {1 nil 3 nil} 2) 1)
+(assert-eq (map-find-< {1 nil 3 nil} 3) 1)
+(assert-eq (map-find-< {1 nil 3 nil} 4) 3)
+```
+
+#### `(map-find-> map v)`
+
+Returns the least key in the map `map` that is strictly greater than the value `v`.
+
+Throws `{:tag :err-lookup :got v}` if no such value exists.
+
+```pavo
+(assert-eq (map-find-> {1 nil 3 nil} 0) 1)
+(assert-eq (map-find-> {1 nil 3 nil} 1) 3)
+(assert-eq (map-find-> {1 nil 3 nil} 2) 3)
+(assert-throw (map-find-> {1 nil 3 nil} 3) {:tag :err-lookup :got 3})
+(assert-throw (map-find->{1 nil 3 nil} 4) {:tag :err-lookup :got 4})
+```
+
+#### `(map-find-<= map v)`
+
+Returns the greatest key in the map `map` that is equal or less than the value `v`.
+
+Throws `{:tag :err-lookup :got v}` if no such value exists.
+
+```pavo
+(assert-throw (map-find-<= {1 nil 3 nil} 0) {:tag :err-lookup :got 0})
+(assert-eq (map-find-<= {1 nil 3 nil} 1) 1)
+(assert-eq (map-find-<= {1 nil 3 nil} 2) 1)
+(assert-eq (map-find-<= {1 nil 3 nil} 3) 3)
+(assert-eq (map-find-<= {1 nil 3 nil} 4) 3)
+```
+
+#### `(map-find->= map v)`
+
+Returns the least key in the map `map` that is equal or greater than the value `v`.
+
+Throws `{:tag :err-lookup :got v}` if no such value exists.
+
+```pavo
+(assert-eq (map-find->= {1 nil 3 nil} 0) 1)
+(assert-eq (map-find->= {1 nil 3 nil} 1) 1)
+(assert-eq (map-find->= {1 nil 3 nil} 2) 3)
+(assert-eq (map-find->= {1 nil 3 nil} 3) 3)
+(assert-throw (map-find->= {1 nil 3 nil} 4) {:tag :err-lookup :got 4})
 ```
 
 #### `(map-min map)`
@@ -2945,50 +3282,130 @@ Returns the map that contains all the entries in the maps `lhs` and `rhs` whose 
 
 Time: O((n + m) log (n + m)), where n is `(map-count lhs)` and m is `(map-count rhs)`.
 
-#### `(map-iter map fun)`
+#### `(map-cursor-min map)`
 
-Starting from the entry with the minimal key in the map `map`, applies the function `fun` to the entries of `map` in ascending order until either `fun` returns a truthy value or the end of the set is reached. Returns `nil`. Propagates any value thrown by `fun`.
+Returns a new map cursor (see below), positioned right before the minimal entry of the map `map`.
 
-Fun is passed the key first and the value second.
-
-Time: Iteration takes amortized O(n), where n is `(map-count map)`.
+Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(let (:mut product) 1 (do
-    (map-iter {4 2, 3 1} (fn [key value] (set! product (int-mul product (int-mul key value)))))
-    (assert-eq product 24)
-))
-(let (:mut product) 1 (do
-    (map-iter {4 2, 3 1} (fn [key value] (if
-            (= key 3) true
-            (set! product (int-mul product (int-mul key value)))
-        )))
-    (assert-eq product 1)
-))
-(assert-throw (map-iter {0 1, 2 3} (fn [n m] (throw (int-mul n m)))) 0)
+(assert-eq (cursor-map-next (map-cursor-min {0 :a 1 :b 2 :c})) [0 :a])
+(assert-throw (cursor-map-next (map-cursor-min {})) :cursor-end)
 ```
 
-#### `(map-iter-back map fun)`
+#### `(map-cursor-max map)`
 
-Starting from the entry with the maximal key in the map `map`, applies the function `fun` to the entries of `map` in descending order until either `fun` returns a truthy value or the end of the set is reached. Returns `nil`. Propagates any value thrown by `fun`.
+Returns a new map cursor (see below), positioned right behind the maximal entry of the map `map`.
 
-Fun is passed the key first and the value second.
-
-Time: Iteration takes amortized O(n), where n is `(map-count map)`.
+Time: O(log n), where n is `(map-count map)`.
 
 ```pavo
-(let (:mut product) 1 (do
-    (map-iter-back {4 2, 3 1} (fn [key value] (set! product (int-mul product (int-mul key value)))))
-    (assert-eq product 24)
+(assert-eq (cursor-map-prev (map-cursor-max {0 :a 1 :b 2 :c})) [2 :c])
+(assert-throw (cursor-map-prev (map-cursor-max {})) :cursor-end)
+```
+
+#### `(map-cursor-< map v)`
+
+Returns a new map cursor (see below), positioned right behind the greatest entry of the map `map` whose key is strictly less than the value `v`, or right before the minimal entry of the set if no such entry exists.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-throw (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} -1)) :cursor-end)
+(assert-throw (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 0)) :cursor-end)
+(assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 1)) [0 :a])
+(assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 2)) [1 :b])
+(assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 3)) [1 :b])
+(assert-eq (cursor-map-prev (map-cursor-< {0 :a 1 :b 3 :d} 4)) [3 :d])
+```
+
+#### `(map-cursor-> map v)`
+
+Returns a new map cursor (see below), positioned right before the smallest entry of the map `map` whose key is strictly greater than the value `v`, or right behind the maximal entry of the map if no such entry exists.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} -1)) [0 :a])
+(assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 0)) [1 :b])
+(assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 1)) [3 :d])
+(assert-eq (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 2)) [3 :d])
+(assert-throw (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 3)) :cursor-end)
+(assert-throw (cursor-map-next (map-cursor-> {0 :a 1 :b 3 :d} 4)) :cursor-end)
+```
+
+#### `(map-cursor-<= map v)`
+
+Returns a new map cursor (see below), positioned right behind the greatest entry of the map `map` whose key is less than or equal to the value `v`, or right before the minimal entry of the map if no such entry exists.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-throw (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} -1)) :cursor-end)
+(assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 0)) [0 :a])
+(assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 1)) [1 :b])
+(assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 2)) [1 :b])
+(assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 3)) [3 :d])
+(assert-eq (cursor-map-prev (map-cursor-<= {0 :a 1 :b 3 :d} 4)) [3 :d])
+```
+
+#### `(map-cursor->= map v)`
+
+Returns a new map cursor (see below), positioned right before the smallest entry of the map `map` whose key is greater than or equal to the value `v`, or right behind the maximal entry of the map if no such entry exists.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} -1)) [0 :a])
+    (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 0)) [0 :a])
+    (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 1)) [1 :b])
+    (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 2)) [3 :d])
+    (assert-eq (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 3)) [3 :d])
+    (assert-throw (cursor-map-next (map-cursor->= {0 :a 1 :b 3 :d} 4)) :cursor-end)
+```
+
+### Map Cursor
+
+A map cursor (created via `map-cursor-min`, `map-cursor-max`, `map-cursor-<`, `map-cursor->`, `map-cursor-<=` or `map-cursor->=`) is an opaque value that allows to efficiently step through the entries in a map. It maintains a current position as state: either "in between" two entries, or at the front or back.
+
+#### `cursor-map-type`
+
+The type symbol of map cursors.
+
+```pavo
+(assert-eq cursor-map-type (typeof (map-cursor-min {})))
+```
+
+#### `(cursor-map-next cursor)`
+
+Advances the map cursor by one element and returns an array containing the key and value of the entry over which it passed. If the starting position was at the back of the map, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of entries in the underlying map. Moving from the front to the back of the map is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (map-cursor-min {0 :a 1 :b 2 :c}) (do
+    (assert-eq (cursor-map-next cursor) [0 :a])
+    (assert-eq (cursor-map-next cursor) [1 :b])
+    (assert-eq (cursor-map-next cursor) [2 :c])
+    (assert-throw (cursor-map-next cursor) :cursor-end)
+    (assert-throw (cursor-map-next cursor) :cursor-end)
 ))
-(let (:mut product) 1 (do
-    (map-iter-back {4 2, 3 1} (fn [key value] (if
-            (= key 3) true
-            (set! product (int-mul product (int-mul key value)))
-        )))
-    (assert-eq product 8)
+```
+
+#### `(cursor-map-prev cursor)`
+
+Retreats the map cursor by one entry and returns an array containing the key and value of the entry over which it passed. If the starting position was at the front of the map, the position remains unchanged and this function throws `:cursor-end`.
+
+Time: Worst-case O(log(n)), where n is the number of entries in the underlying map. Moving from the back to the front of the map is guaranteed to take amortized O(n).
+
+```pavo
+(let cursor (map-cursor-max {0 :a 1 :b 2 :c}) (do
+    (assert-eq (cursor-map-prev cursor) [2 :c])
+    (assert-eq (cursor-map-prev cursor) [1 :b])
+    (assert-eq (cursor-map-prev cursor) [0 :a])
+    (assert-throw (cursor-map-prev cursor) :cursor-end)
+    (assert-throw (cursor-map-prev cursor) :cursor-end)
 ))
-(assert-throw (map-iter-back {0 1, 2 3} (fn [n m] (throw (int-mul n m)))) 6)
 ```
 
 ### Symbols
@@ -3037,8 +3454,6 @@ Updates the cell `cl` to now contain the value `x`. Returns `nil`.
 ### Opaques
 
 An opaque value is one whose internals are hidden. A consumer can operate on them via pre-provided functions. Each opaque value has an associated *type* (a symbol) so that opaques of different types can be distinguished.
-
-Note that the ordering on opaques "leaks" information about the inner values, so they are not "truly" opaque. If your use case requires absolutely 100% encapsulation, roll your own instead of using the built-in opaques.
 
 #### `(opaque)`
 
@@ -3103,10 +3518,9 @@ The precise definition of the ordering is the reflexive, transitive closure of t
   - builtin functions are less than any functions that were created dynamically
   - the ordering on the builtin functions is the lexicographical ordering on their identifiers (this choice is completely arbitrary, but has the nice property that a human doesn't need to look anything up)
 - two cells are equal if they are the same value, otherwise the one that was created first (through a call to `(cell v)`) is less than the other one
-- two opaques of different types are ordered according to the order on their types
-- two opaques of the same type are ordered according to the order on their contained values
-
-Note that the ordering on opaques "leaks" information about the inner values, so they are not "truly" opaque. If your use case requires absolutely 100% encapsulation, roll your own instead of using the built-in opaques.
+- two opaques are equal if they are the same value, otherwise the one that was created first is less than the other one
+  - builtin opaques are less than any opaques that were created dynamically
+  - the ordering on the builtin opaques is the lexicographical ordering on their identifiers (this choice is completely arbitrary, but has the nice property that a human doesn't need to look anything up)
 
 For examples, see the documentation for `(cmp v w)` below.
 
@@ -3184,16 +3598,11 @@ Returns `:<` if the value `v` is less than the value `w`, `:=` if they are equal
 (assert-eq (cmp (sf-lambda [] nil) (sf-lambda [] nil)) :<)
 (assert-eq (cmp (cell 42) (cell 41)) :<)
 
-(let o1 (opaque) (let o2 (opaque)
-    (let hide1 (map-get o1 :hide) (let hide2 (map-get o2 :hide)
-        (sf-do
-            (assert-eq (cmp (hide1 42) (hide2 41)) :<)
-            (assert-eq (cmp (hide1 41) (hide1 42)) :<)
-            (assert-eq (cmp (hide1 42) (hide1 42)) :=)
-            (assert-eq (cmp (hide1 42) (hide1 41)) :>)
-        )
-        ))
-    ))
+(let o (opaque) (let hide (map-get o :hide) (do
+    (assert-eq (cmp (hide 42) (hide 41)) :<)
+    (assert-eq (cmp cursor-arr-type (hide 42)) :<)
+    (assert-eq (cmp cursor-app-type cursor-arr-type) :<)
+)))
 ```
 
 #### `(= v w)`
@@ -3431,9 +3840,9 @@ Semantically equivalent to `(eval (expand v options) options)`.
 
 ### Miscellaneous
 
-#### `(typeof x)`
+#### `(typeof v)`
 
-Returns a keyword indicating the type of `x`: `:nil`, `:bool`, `:int`, `:float`, `:char`, `:string`, `:bytes`, `:keyword`, `:identifier`, `:symbol`, `:function`, `:array`, `:application`, `:map`, `:set`, `:cell` or `:opaque`.
+If the value `v` is opaque, returns its type symbol, otherwise returns a keyword indicating the type of `v`: `:nil`, `:bool`, `:int`, `:float`, `:char`, `:string`, `:bytes`, `:keyword`, `:identifier`, `:symbol`, `:function`, `:array`, `:application`, `:map`, `:set`, or `:cell`.
 
 ```pavo
 (assert-eq (typeof nil) :nil)
@@ -3452,9 +3861,10 @@ Returns a keyword indicating the type of `x`: `:nil`, `:bool`, `:int`, `:float`,
 (assert-eq (typeof $()) :application)
 (assert-eq (typeof {}) :map)
 (assert-eq (typeof @{}) :set)
+(let o (opaque) (
+    assert-eq (typeof ((map-get o :hide) 42)) (map-get o :type)
+    ))
 ```
-
-TODO opaque
 
 #### `(not x)`
 
@@ -3463,11 +3873,11 @@ Returns `true` if `x` is `nil` or `false`, and `false` otherwise.
 Equivalent to `(if x false true)`.
 
 ```pavo
-(assert (not nil))
-(assert (not false))
-(assert-not (not true)
-(assert-not (not 0))
-(assert-not (not falsey?))
+(assert-eq (not nil) true)
+(assert-eq (not false) true)
+(assert-eq (not true) false)
+(assert-eq (not 0) false)
+(assert-eq (not not) false)
 ```
 
 #### `(diverge v)`
@@ -3475,6 +3885,16 @@ Equivalent to `(if x false true)`.
 Immediately and abnormally terminates the execution of the program. Semantically you can think of this as going into an infinite loop, but telling the outside world about it to save resources and give feedback to the programmer. In the pavo semantics, passing the value `v` does nothing whatsoever, but the runtime should somehow pass this value to the outside world for additional context.
 
 Note that this is different from a program terminating through an uncaught throw and you should almost always throw instead of deliberately calling `diverge` (just as there are very few situations where you'd deliberately go into an effect-free infinite loop).
+
+#### `(trace v)`
+
+Returns the value `v`.
+
+Outside the pavo semantics, when running in a debugging mode, this function is expected to communicate the value `v` to the programmer, e.g. by logging it. This should only be done in a debug mode, to prevent accidental semantic effects (which might for example happen if the logging output is later read into the program).
+
+```pavo
+(assert-eq (trace 42) 42)
+```
 
 ## Appendix: Precise Definition of `(write v)`
 
@@ -3582,19 +4002,11 @@ Collections serialize their components and separate them by a single space (ther
 
 ---
 
-TODO trace
-
-TODO float-integer?
-
-TODO rework iterators (stateful, opaque, bidirectional, start at arbitrary offset)
-
-TODO require (dynamic linking, *not* loading)
-
-TODO raw string literals `r##"foo\bla"##`
+TODO `require` (dynamic linking, *not* loading)
 
 ---
 
-- functions that compute the builtin macros?
+TODO functions that compute the builtin macros
 
 Macros:
 

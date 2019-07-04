@@ -1,3 +1,5 @@
+use crate::value::NUM_BUILTIN_OPAQUES;
+
 /// Global state tracked throughout the execution.
 ///
 /// This includes both semantically relevant data (e.g. id counters, the event loop) and metadata
@@ -12,7 +14,7 @@ pub struct Context {
 impl Context {
     pub fn new() -> Context {
         Context {
-            symbol_id: 0,
+            symbol_id: NUM_BUILTIN_OPAQUES,
             fun_id: 0,
             cell_id: 0,
             level: 0, // no semantic effect, only for debugging information

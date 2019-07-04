@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use im_rc::{OrdMap as ImOrdMap, Vector as ImVector, OrdSet as ImOrdSet};
 use ropey::Rope as Ropey;
 use math::round;
@@ -8,13 +6,14 @@ use ryu_ecmascript::Buffer;
 
 use crate::context::Context;
 use crate::gc_foreign::{OrdMap, OrdSet, Vector, Rope};
-use crate::value::{Value, Atomic, Id};
+use crate::value::{Value, Atomic, Id, Opaque, BuiltinOpaque, self};
 use crate::read::{is_id_char, parse_id, read as read_};
 use crate::expand::expand as expand_;
 use crate::check::check as check_;
 use crate::env;
 use crate::macros;
 use crate::compile::compile as compile_;
+use crate::opaques::{set_cursor, map_cursor};
 
 pub fn typeof__(v: &Value) -> Value {
     match v {
@@ -34,7 +33,8 @@ pub fn typeof__(v: &Value) -> Value {
         Value::Map(..) => Value::kw_str("map"),
         Value::Set(..) => Value::kw_str("set"),
         Value::Cell(..) => Value::kw_str("cell"),
-        Value::Opaque(_, id) => Value::Id(Id::Symbol(*id)),
+        Value::Opaque(_, Opaque::User(_, id)) => Value::Id(Id::Symbol(*id)),
+        Value::Opaque(_, Opaque::Builtin(o)) => Value::Id(Id::Symbol(o.type_id())),
     }
 }
 
@@ -81,16 +81,16 @@ pub fn coll_empty_error() -> Value {
         ])))
 }
 
-pub fn type_error_(got: &Value, expected: &Value) -> Value {
+pub fn type_error_(got: &Value, expected: Value) -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-type")),
-            (Value::kw_str("expected"), expected.clone()),
+            (Value::kw_str("expected"), expected),
             (Value::kw_str("got"), typeof__(got)),
         ])))
 }
 
 pub fn type_error(got: &Value, expected: &str) -> Value {
-    type_error_(got, &Value::kw_str(expected))
+    type_error_(got, Value::kw_str(expected))
 }
 
 pub fn byte_error(got: &Value) -> Value {
@@ -220,6 +220,16 @@ macro_rules! string_index_byte {
 macro_rules! index_char_incl {
     ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize > $arr.0.len_chars() {
+            return Err(index_error($n as usize));
+        } else {
+            $n as usize
+        }
+    )
+}
+
+macro_rules! string_index_byte_incl {
+    ($arr:expr, $n:expr) => (
+        if $n < 0 || $n as usize > $arr.0.len_bytes() {
             return Err(index_error($n as usize));
         } else {
             $n as usize
@@ -362,18 +372,66 @@ macro_rules! fun {
     )
 }
 
-macro_rules! arg {
-    ($v:expr, $i:expr) => (
-        match arr!($v).0.get($i) {
-            Some(the_arg) => the_arg.clone(),
-            None => Value::nil(),
+macro_rules! cursor_arr {
+    ($v:expr) => (
+        match &$v {
+            Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorArr(cell))) => cell,
+            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_ARR_ID)))),
         }
     )
 }
 
-macro_rules! arg_opt {
-    ($v:expr, $i:expr) => (
-        arr!($v).0.get($i).clone()
+macro_rules! cursor_app {
+    ($v:expr) => (
+        match &$v {
+            Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorApp(cell))) => cell,
+            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_APP_ID)))),
+        }
+    )
+}
+
+macro_rules! cursor_bytes {
+    ($v:expr) => (
+        match &$v {
+            Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorBytes(cell))) => cell,
+            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_BYTES_ID)))),
+        }
+    )
+}
+
+macro_rules! cursor_str {
+    ($v:expr) => (
+        match &$v {
+            Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorStringChars(cell))) => cell,
+            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_STRING_CHARS_ID)))),
+        }
+    )
+}
+
+macro_rules! cursor_str_utf8 {
+    ($v:expr) => (
+        match &$v {
+            Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorStringUtf8(cell))) => cell,
+            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_STRING_UTF8_ID)))),
+        }
+    )
+}
+
+macro_rules! cursor_set {
+    ($v:expr) => (
+        match &$v {
+            Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorSet(cell))) => cell,
+            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_SET_ID)))),
+        }
+    )
+}
+
+macro_rules! cursor_map {
+    ($v:expr) => (
+        match &$v {
+            Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorMap(cell))) => cell,
+            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_MAP_ID)))),
+        }
     )
 }
 
@@ -867,42 +925,32 @@ pub fn bytes_concat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Val
     Ok(Value::bytes(Vector(ret)))
 }
 
-pub fn bytes_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+pub fn bytes_cursor(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
-    let b = bytes!(args.0[0]);
-    let fun = fun!(args.0[1]);
+    let bytes = bytes!(args.0[0]);
+    let index = index_incl!(&bytes, int!(args.0[1]));
 
-    for elem in b.0.iter() {
-        match fun.compute(Vector(ImVector::from(vec![Value::int(*elem as i64)])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
-    }
-
-    Ok(Value::nil())
+    return Ok(Value::cursor_bytes(bytes, index, cx));
 }
 
-pub fn bytes_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    num_args(&args, 2)?;
-    let b = bytes!(args.0[0]);
-    let fun = fun!(args.0[1]);
+pub fn cursor_bytes_next(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_bytes = cursor_bytes!(args.0[0]);
 
-    for elem in b.0.iter().rev() {
-        match fun.compute(Vector(ImVector::from(vec![Value::int(*elem as i64)])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
+    match (*cursor_bytes.borrow_mut()).next() {
+        Some(b) => return Ok(Value::int(b as i64)),
+        None => return Err(Value::kw_str("cursor-end"))
     }
+}
 
-    Ok(Value::nil())
+pub fn cursor_bytes_prev(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_bytes = cursor_bytes!(args.0[0]);
+
+    match (*cursor_bytes.borrow_mut()).prev() {
+        Some(b) => return Ok(Value::int(b as i64)),
+        None => return Err(Value::kw_str("cursor-end"))
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -924,7 +972,7 @@ pub fn is_int_to_char(args: Vector<Value>, _cx: &mut Context) -> Result<Value, V
     let n = int!(args.0[0]);
 
     match std::char::from_u32(n as u32) {
-        Some(c) => {
+        Some(_) => {
             Ok(Value::bool_(true))
         }
         None => Ok(Value::bool_(false)),
@@ -1072,84 +1120,60 @@ pub fn str_concat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value
     Ok(Value::string(Rope(ret)))
 }
 
-pub fn str_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+pub fn str_cursor(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
-    let s = string!(args.0[0]);
-    let fun = fun!(args.0[1]);
+    let string = string!(args.0[0]);
+    let index = index_char_incl!(&string, int!(args.0[1]));
 
-    for elem in s.0.chars() {
-        match fun.compute(Vector(ImVector::from(vec![Value::char_(elem)])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
-    }
-
-    Ok(Value::nil())
+    return Ok(Value::cursor_str(string, index, cx));
 }
 
-pub fn str_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    let s = string!(args.0[0]);
-    let fun = fun!(args.0[1]);
+pub fn cursor_str_next(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_str = cursor_str!(args.0[0]);
 
-    // https://github.com/cessen/ropey/issues/18
-    let tmp: Vec<char> = s.0.chars().collect();
-
-    for elem in tmp.iter().rev() {
-        match fun.compute(Vector(ImVector::from(vec![Value::char_(*elem)])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
+    match (*cursor_str.borrow_mut()).next_char() {
+        Some(c) => return Ok(Value::char_(c)),
+        None => return Err(Value::kw_str("cursor-end"))
     }
-
-    Ok(Value::nil())
 }
 
-pub fn str_iter_utf8(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+pub fn cursor_str_prev(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_str = cursor_str!(args.0[0]);
+
+    match (*cursor_str.borrow_mut()).prev_char() {
+        Some(c) => return Ok(Value::char_(c)),
+        None => return Err(Value::kw_str("cursor-end"))
+    }
+}
+
+pub fn str_cursor_utf8(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
-    let s = string!(args.0[0]);
-    let fun = fun!(args.0[1]);
+    let string = string!(args.0[0]);
+    let index = string_index_byte_incl!(&string, int!(args.0[1]));
 
-    for elem in s.0.bytes() {
-        match fun.compute(Vector(ImVector::from(vec![Value::int(elem as i64)])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
-    }
-
-    Ok(Value::nil())
+    return Ok(Value::cursor_str_utf8(string, index, cx));
 }
 
-pub fn str_iter_utf8_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    let s = string!(args.0[0]);
-    let fun = fun!(args.0[1]);
+pub fn cursor_str_utf8_next(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_str = cursor_str_utf8!(args.0[0]);
 
-    // https://github.com/cessen/ropey/issues/18
-    let tmp: Vec<u8> = s.0.bytes().collect();
-
-    for elem in tmp.iter().rev() {
-        match fun.compute(Vector(ImVector::from(vec![Value::int(*elem as i64)])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
+    match (*cursor_str.borrow_mut()).next_byte() {
+        Some(b) => return Ok(Value::int(b as i64)),
+        None => return Err(Value::kw_str("cursor-end"))
     }
+}
 
-    Ok(Value::nil())
+pub fn cursor_str_utf8_prev(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_str = cursor_str_utf8!(args.0[0]);
+
+    match (*cursor_str.borrow_mut()).prev_byte() {
+        Some(b) => return Ok(Value::int(b as i64)),
+        None => return Err(Value::kw_str("cursor-end"))
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1426,6 +1450,13 @@ pub fn float_is_normal(args: Vector<Value>, _cx: &mut Context) -> Result<Value, 
     Ok(Value::bool_(n.is_normal()))
 }
 
+pub fn float_is_integral(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let n = float!(args.0[0]);
+
+    Ok(Value::bool_(n.round() == n))
+}
+
 pub fn float_to_degrees(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 1)?;
     let n = float!(args.0[0]);
@@ -1660,42 +1691,32 @@ pub fn arr_concat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value
     Ok(Value::arr(Vector(ret)))
 }
 
-pub fn arr_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+pub fn arr_cursor(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
     let arr = arr!(args.0[0]);
-    let fun = fun!(args.0[1]);
+    let index = index_incl!(&arr, int!(args.0[1]));
 
-    for elem in arr.0.iter() {
-        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
-    }
-
-    Ok(Value::nil())
+    return Ok(Value::cursor_arr(arr, index, cx));
 }
 
-pub fn arr_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    num_args(&args, 2)?;
-    let arr = arr!(args.0[0]);
-    let fun = fun!(args.0[1]);
+pub fn cursor_arr_next(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_arr = cursor_arr!(args.0[0]);
 
-    for elem in arr.0.iter().rev() {
-        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
+    match (*cursor_arr.borrow_mut()).next() {
+        Some(v) => return Ok(v),
+        None => return Err(Value::kw_str("cursor-end"))
     }
+}
 
-    Ok(Value::nil())
+pub fn cursor_arr_prev(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_arr = cursor_arr!(args.0[0]);
+
+    match (*cursor_arr.borrow_mut()).prev() {
+        Some(v) => return Ok(v),
+        None => return Err(Value::kw_str("cursor-end"))
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1794,42 +1815,32 @@ pub fn app_concat(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value
     Ok(Value::app(Vector(ret)))
 }
 
-pub fn app_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+pub fn app_cursor(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
     let app = app!(args.0[0]);
-    let fun = fun!(args.0[1]);
+    let index = index_incl!(&app, int!(args.0[1]));
 
-    for elem in app.0.iter() {
-        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
-    }
-
-    Ok(Value::nil())
+    return Ok(Value::cursor_app(app, index, cx));
 }
 
-pub fn app_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    num_args(&args, 2)?;
-    let app = app!(args.0[0]);
-    let fun = fun!(args.0[1]);
+pub fn cursor_app_next(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_app = cursor_app!(args.0[0]);
 
-    for elem in app.0.iter().rev() {
-        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
+    match (*cursor_app.borrow_mut()).next() {
+        Some(v) => return Ok(v),
+        None => return Err(Value::kw_str("cursor-end"))
     }
+}
 
-    Ok(Value::nil())
+pub fn cursor_app_prev(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_app = cursor_app!(args.0[0]);
+
+    match (*cursor_app.borrow_mut()).prev() {
+        Some(v) => return Ok(v),
+        None => return Err(Value::kw_str("cursor-end"))
+    }
 }
 
 pub fn app_apply(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
@@ -1879,6 +1890,50 @@ pub fn set_max(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     match set.0.get_max() {
         Some(min) => Ok(min.clone()),
         None => Err(coll_empty_error()),
+    }
+}
+
+pub fn set_find_lt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+    let needle = args.0[1].clone();
+
+    match set_cursor::set_find_strict_lesser(&set, &needle) {
+        Some(yay) => return Ok(yay),
+        None => return Err(lookup_error(needle))
+    }
+}
+
+pub fn set_find_gt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+    let needle = args.0[1].clone();
+
+    match set_cursor::set_find_strict_greater(&set, &needle) {
+        Some(yay) => return Ok(yay),
+        None => return Err(lookup_error(needle))
+    }
+}
+
+pub fn set_find_lte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+    let needle = args.0[1].clone();
+
+    match set_cursor::set_find_lesser(&set, &needle) {
+        Some(yay) => return Ok(yay),
+        None => return Err(lookup_error(needle))
+    }
+}
+
+pub fn set_find_gte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+    let needle = args.0[1].clone();
+
+    match set_cursor::set_find_greater(&set, &needle) {
+        Some(yay) => return Ok(yay),
+        None => return Err(lookup_error(needle))
     }
 }
 
@@ -1950,42 +2005,80 @@ pub fn set_symmetric_difference(args: Vector<Value>, _cx: &mut Context) -> Resul
     Ok(Value::set(OrdSet(ret)))
 }
 
-pub fn set_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    num_args(&args, 2)?;
+// pub fn set_split(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+//     num_args(&args, 2)?;
+//     let set = set!(args.0[0]);
+//     let (left, member, mut right) = set.0.split_member(&args.0[1]);
+//     if member {
+//         right.insert(args.0[1].clone());
+//     }
+//
+//     return Ok(Value::arr_from_vec(vec![
+//         Value::set(OrdSet(left)),
+//         Value::set(OrdSet(right)),
+//         ]));
+// }
+
+pub fn set_cursor_min(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
     let set = set!(args.0[0]);
-    let fun = fun!(args.0[1]);
 
-    for elem in set.0.iter() {
-        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
-    }
-
-    Ok(Value::nil())
+    return Ok(Value::cursor_set_min(set, cx));
 }
 
-pub fn set_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+pub fn set_cursor_max(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let set = set!(args.0[0]);
+
+    return Ok(Value::cursor_set_max(set, cx));
+}
+
+pub fn set_cursor_less_strict(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
     let set = set!(args.0[0]);
-    let fun = fun!(args.0[1]);
 
-    for elem in set.0.iter().rev() {
-        match fun.compute(Vector(ImVector::from(vec![elem.clone()])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
+    return Ok(Value::cursor_set_less_strict(set, &args.0[1], cx));
+}
+
+pub fn set_cursor_greater_strict(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+
+    return Ok(Value::cursor_set_greater_strict(set, &args.0[1], cx));
+}
+
+pub fn set_cursor_less(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+
+    return Ok(Value::cursor_set_less(set, &args.0[1], cx));
+}
+
+pub fn set_cursor_greater(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+
+    return Ok(Value::cursor_set_greater(set, &args.0[1], cx));
+}
+
+pub fn cursor_set_next(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_set = cursor_set!(args.0[0]);
+
+    match (*cursor_set.borrow_mut()).next() {
+        Some(v) => return Ok(v.clone()),
+        None => return Err(Value::kw_str("cursor-end"))
     }
+}
 
-    Ok(Value::nil())
+pub fn cursor_set_prev(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_set = cursor_set!(args.0[0]);
+
+    match (*cursor_set.borrow_mut()).prev() {
+        Some(v) => return Ok(v.clone()),
+        None => return Err(Value::kw_str("cursor-end"))
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -2013,6 +2106,50 @@ pub fn map_contains(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Val
     let key = args.0[1].clone();
 
     Ok(Value::bool_(map.0.contains_key(&key)))
+}
+
+pub fn map_find_lt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+    let needle = args.0[1].clone();
+
+    match map_cursor::map_find_strict_lesser(&map, &needle) {
+        Some(yay) => return Ok(yay),
+        None => return Err(lookup_error(needle))
+    }
+}
+
+pub fn map_find_gt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+    let needle = args.0[1].clone();
+
+    match map_cursor::map_find_strict_greater(&map, &needle) {
+        Some(yay) => return Ok(yay),
+        None => return Err(lookup_error(needle))
+    }
+}
+
+pub fn map_find_lte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+    let needle = args.0[1].clone();
+
+    match map_cursor::map_find_lesser(&map, &needle) {
+        Some(yay) => return Ok(yay),
+        None => return Err(lookup_error(needle))
+    }
+}
+
+pub fn map_find_gte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+    let needle = args.0[1].clone();
+
+    match map_cursor::map_find_greater(&map, &needle) {
+        Some(yay) => return Ok(yay),
+        None => return Err(lookup_error(needle))
+    }
 }
 
 pub fn map_min(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
@@ -2144,42 +2281,66 @@ pub fn map_symmetric_difference(args: Vector<Value>, _cx: &mut Context) -> Resul
     Ok(Value::map(OrdMap(ret)))
 }
 
-pub fn map_iter(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    num_args(&args, 2)?;
+pub fn map_cursor_min(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
     let map = map!(args.0[0]);
-    let fun = fun!(args.0[1]);
 
-    for entry in map.0.iter() {
-        match fun.compute(Vector(ImVector::from(vec![entry.0.clone(), entry.1.clone()])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
-    }
-
-    Ok(Value::nil())
+    return Ok(Value::cursor_map_min(map, cx));
 }
 
-pub fn map_iter_back(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+pub fn map_cursor_max(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let map = map!(args.0[0]);
+
+    return Ok(Value::cursor_map_max(map, cx));
+}
+
+pub fn map_cursor_less_strict(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
     let map = map!(args.0[0]);
-    let fun = fun!(args.0[1]);
 
-    for entry in map.0.iter().rev() {
-        match fun.compute(Vector(ImVector::from(vec![entry.0.clone(), entry.1.clone()])), cx) {
-            Ok(yay) => {
-                if yay.truthy() {
-                    return Ok(Value::nil());
-                }
-            }
-            Err(thrown) => return Err(thrown),
-        }
+    return Ok(Value::cursor_map_less_strict(map, &args.0[1], cx));
+}
+
+pub fn map_cursor_greater_strict(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+
+    return Ok(Value::cursor_map_greater_strict(map, &args.0[1], cx));
+}
+
+pub fn map_cursor_less(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+
+    return Ok(Value::cursor_map_less(map, &args.0[1], cx));
+}
+
+pub fn map_cursor_greater(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+
+    return Ok(Value::cursor_map_greater(map, &args.0[1], cx));
+}
+
+pub fn cursor_map_next(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_map = cursor_map!(args.0[0]);
+
+    match (*cursor_map.borrow_mut()).next() {
+        Some((k, v)) => return Ok(Value::arr_from_vec(vec![k.clone(), v.clone()])),
+        None => return Err(Value::kw_str("cursor-end"))
     }
+}
 
-    Ok(Value::nil())
+pub fn cursor_map_prev(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let cursor_map = cursor_map!(args.0[0]);
+
+    match (*cursor_map.borrow_mut()).prev() {
+        Some((k, v)) => return Ok(Value::arr_from_vec(vec![k.clone(), v.clone()])),
+        None => return Err(Value::kw_str("cursor-end"))
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -2419,7 +2580,7 @@ pub fn expand(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
         macro_env.insert(id!(key), val.clone());
     }
 
-    match expand_(&args.0[0], &def_env, &macro_env, cx) {
+    match expand_(v, &def_env, &macro_env, cx) {
         Err(_) => return Err(expand_error()),
         Ok(yay) => return Ok(yay),
     }
@@ -2447,18 +2608,24 @@ pub fn typeof_(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     Ok(typeof__(&args.0[0]))
 }
 
-// pub fn is_truthy(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     Ok(match args.0[0] {
-//         Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(false)) => Value::bool_(false),
-//         _ => Value::bool_(true),
-//     })
-// }
-//
-// pub fn diverge(_args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     panic!("Called diverge")
-// }
-//
-// /////////////////////////////////////////////////////////////////////////////
+pub fn not(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    Ok(match args.0[0] {
+        Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(false)) => Value::bool_(true),
+        _ => Value::bool_(false),
+    })
+}
+
+pub fn diverge(_args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    panic!("Called diverge")
+}
+
+pub fn trace(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    println!("{:?}", args.0[0]);
+    Ok(args.0[0].clone())
+}
+
+/////////////////////////////////////////////////////////////////////////////
 
 pub fn macro_quote(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 1)?;

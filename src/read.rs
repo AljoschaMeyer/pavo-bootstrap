@@ -6,8 +6,8 @@ use nom::{
     {value, tag, take_while1},
     {do_parse, alt, many0, many1, opt, preceded},
     {delimited, terminated},
-    {named, not, map, try_parse, separated_list},
-    none_of, many_m_n,
+    {named, map, try_parse, separated_list},
+    none_of, many_m_n, take_until,
     IResult, Err, Context, ErrorKind,
     types::CompleteStr,
     hex_digit,
@@ -197,10 +197,24 @@ named!(char_(CompleteStr) -> Value, delimited!(
 
 named!(string(CompleteStr) -> Value, delimited!(
     tag!("\""),
-    // value!(Value::string_from_str("")),
     map!(many0!(char_str), Value::string_from_vec),
     do_parse!(tag!("\"") >> (()))
 ));
+
+fn raw_string(i: CompleteStr) -> IResult<CompleteStr, Value> {
+    let (i, leading_ats) = try_parse!(i, many_m_n!(1, 8, tag!("@")));
+    let (i, _) = try_parse!(i, tag!("\""));
+    let num_ats = leading_ats.len();
+    let mut at_str = "\"".to_string();
+    for _ in 0..num_ats {
+        at_str.push('@');
+    }
+
+    let (i, raw) = try_parse!(i, take_until!(at_str.as_str()));
+    let (i, _) = try_parse!(i, tag!(at_str.as_str()));
+
+    return Ok((i, Value::string_from_str(&raw)));
+}
 
 named!(bytes(CompleteStr) -> Value, map!(
     delimited!(
@@ -308,6 +322,7 @@ named!(obj(CompleteStr) -> Value, alt!(
     bytes |
     char_ |
     string |
+    raw_string |
     num |
     map!(kw_str, |kw| Value::kw_str(kw.0)) |
     fresh_name |

@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
-use crate::value::{Value, Id, Builtin};
+use crate::value::{Value, Id, Builtin, self};
 
 pub fn default() -> HashMap<Id, (Value, bool)> {
     let mut m = HashMap::new();
 
     // TODO macro functions
-    // TODO trace
-
     env_add(&mut m, "bool-not", Builtin::BoolNot);
     env_add(&mut m, "bool-and", Builtin::BoolAnd);
     env_add(&mut m, "bool-or", Builtin::BoolOr);
@@ -63,8 +61,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "bytes-slice", Builtin::BytesSlice);
     env_add(&mut m, "bytes-splice", Builtin::BytesSplice);
     env_add(&mut m, "bytes-concat", Builtin::BytesConcat);
-    env_add(&mut m, "bytes-iter", Builtin::BytesIter);
-    env_add(&mut m, "bytes-iter-back", Builtin::BytesIterBack);
+    env_add(&mut m, "bytes-cursor", Builtin::BytesCursor);
 
     env_add_val(&mut m, "char-max-val", Value::char_(std::char::MAX));
     env_add(&mut m, "int=>char", Builtin::IntToChar);
@@ -83,10 +80,8 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "str-slice", Builtin::StrSlice);
     env_add(&mut m, "str-splice", Builtin::StrSplice);
     env_add(&mut m, "str-concat", Builtin::StrConcat);
-    env_add(&mut m, "str-iter", Builtin::StrIter);
-    env_add(&mut m, "str-iter-back", Builtin::StrIterBack);
-    env_add(&mut m, "str-iter-utf8", Builtin::StrIterUtf8);
-    env_add(&mut m, "str-iter-utf8-back", Builtin::StrIterUtf8Back);
+    env_add(&mut m, "str-cursor", Builtin::StrCursor);
+    env_add(&mut m, "str-cursor-utf8", Builtin::StrCursorUtf8);
 
     env_add_val(&mut m, "float-max-val", Value::float(std::f64::MAX));
     env_add_val(&mut m, "float-min-val", Value::float(std::f64::MIN));
@@ -127,6 +122,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "float-acosh", Builtin::FloatAcosH);
     env_add(&mut m, "float-atanh", Builtin::FloatAtanH);
     env_add(&mut m, "float-normal?", Builtin::FloatIsNormal);
+    env_add(&mut m, "float-integral?", Builtin::FloatIsIntegral);
     env_add(&mut m, "float->degrees", Builtin::FloatToDegrees);
     env_add(&mut m, "float->radians", Builtin::FloatToRadians);
     env_add(&mut m, "float->int", Builtin::FloatToInt);
@@ -151,8 +147,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "arr-slice", Builtin::ArrSlice);
     env_add(&mut m, "arr-splice", Builtin::ArrSplice);
     env_add(&mut m, "arr-concat", Builtin::ArrConcat);
-    env_add(&mut m, "arr-iter", Builtin::ArrIter);
-    env_add(&mut m, "arr-iter-back", Builtin::ArrIterBack);
+    env_add(&mut m, "arr-cursor", Builtin::ArrCursor);
 
     env_add(&mut m, "app-count", Builtin::AppCount);
     env_add(&mut m, "app-get", Builtin::AppGet);
@@ -162,26 +157,38 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "app-slice", Builtin::AppSlice);
     env_add(&mut m, "app-splice", Builtin::AppSplice);
     env_add(&mut m, "app-concat", Builtin::AppConcat);
-    env_add(&mut m, "app-iter", Builtin::AppIter);
-    env_add(&mut m, "app-iter-back", Builtin::AppIterBack);
+    env_add(&mut m, "app-cursor", Builtin::AppCursor);
     env_add(&mut m, "app-apply", Builtin::AppApply);
 
     env_add(&mut m, "set-count", Builtin::SetCount);
     env_add(&mut m, "set-contains?", Builtin::SetContains);
     env_add(&mut m, "set-min", Builtin::SetMin);
     env_add(&mut m, "set-max", Builtin::SetMax);
+    env_add(&mut m, "set-find-<", Builtin::SetFindLT);
+    env_add(&mut m, "set-find->", Builtin::SetFindGT);
+    env_add(&mut m, "set-find-<=", Builtin::SetFindLTE);
+    env_add(&mut m, "set-find->=", Builtin::SetFindGTE);
     env_add(&mut m, "set-insert", Builtin::SetInsert);
     env_add(&mut m, "set-remove", Builtin::SetRemove);
     env_add(&mut m, "set-union", Builtin::SetUnion);
     env_add(&mut m, "set-intersection", Builtin::SetIntersection);
     env_add(&mut m, "set-difference", Builtin::SetDifference);
     env_add(&mut m, "set-symmetric-difference", Builtin::SetSymmetricDifference);
-    env_add(&mut m, "set-iter", Builtin::SetIter);
-    env_add(&mut m, "set-iter-back", Builtin::SetIterBack);
+    // env_add(&mut m, "set-split", Builtin::SetSplit);
+    env_add(&mut m, "set-cursor-min", Builtin::SetCursorMin);
+    env_add(&mut m, "set-cursor-max", Builtin::SetCursorMax);
+    env_add(&mut m, "set-cursor-<", Builtin::SetCursorLessStrict);
+    env_add(&mut m, "set-cursor->", Builtin::SetCursorGreaterStrict);
+    env_add(&mut m, "set-cursor-<=", Builtin::SetCursorLess);
+    env_add(&mut m, "set-cursor->=", Builtin::SetCursorGreater);
 
     env_add(&mut m, "map-count", Builtin::MapCount);
     env_add(&mut m, "map-get", Builtin::MapGet);
     env_add(&mut m, "map-contains?", Builtin::MapContains);
+    env_add(&mut m, "map-find-<", Builtin::MapFindLT);
+    env_add(&mut m, "map-find->", Builtin::MapFindGT);
+    env_add(&mut m, "map-find-<=", Builtin::MapFindLTE);
+    env_add(&mut m, "map-find->=", Builtin::MapFindGTE);
     env_add(&mut m, "map-min", Builtin::MapMin);
     env_add(&mut m, "map-min-key", Builtin::MapMinKey);
     env_add(&mut m, "map-min-entry", Builtin::MapMinEntry);
@@ -194,8 +201,12 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "map-intersection", Builtin::MapIntersection);
     env_add(&mut m, "map-difference", Builtin::MapDifference);
     env_add(&mut m, "map-symmetric-difference", Builtin::MapSymmetricDifference);
-    env_add(&mut m, "map-iter", Builtin::MapIter);
-    env_add(&mut m, "map-iter-back", Builtin::MapIterBack);
+    env_add(&mut m, "map-cursor-min", Builtin::MapCursorMin);
+    env_add(&mut m, "map-cursor-max", Builtin::MapCursorMax);
+    env_add(&mut m, "map-cursor-<", Builtin::MapCursorLessStrict);
+    env_add(&mut m, "map-cursor->", Builtin::MapCursorGreaterStrict);
+    env_add(&mut m, "map-cursor-<=", Builtin::MapCursorLess);
+    env_add(&mut m, "map-cursor->=", Builtin::MapCursorGreater);
 
     env_add(&mut m, "symbol", Builtin::Symbol);
 
@@ -222,8 +233,37 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "typeof", Builtin::Typeof);
     env_add(&mut m, "not", Builtin::Not);
     env_add(&mut m, "diverge", Builtin::Diverge);
+    env_add(&mut m, "trace", Builtin::Trace);
 
     env_add(&mut m, "require", Builtin::Require);
+
+    env_add_val(&mut m, "cursor-arr-type", Value::Id(Id::Symbol(value::CURSOR_ARR_ID)));
+    env_add(&mut m, "cursor-arr-next", Builtin::CursorArrNext);
+    env_add(&mut m, "cursor-arr-prev", Builtin::CursorArrPrev);
+
+    env_add_val(&mut m, "cursor-app-type", Value::Id(Id::Symbol(value::CURSOR_APP_ID)));
+    env_add(&mut m, "cursor-app-next", Builtin::CursorAppNext);
+    env_add(&mut m, "cursor-app-prev", Builtin::CursorAppPrev);
+
+    env_add_val(&mut m, "cursor-bytes-type", Value::Id(Id::Symbol(value::CURSOR_BYTES_ID)));
+    env_add(&mut m, "cursor-bytes-next", Builtin::CursorBytesNext);
+    env_add(&mut m, "cursor-bytes-prev", Builtin::CursorBytesPrev);
+
+    env_add_val(&mut m, "cursor-str-type", Value::Id(Id::Symbol(value::CURSOR_STRING_CHARS_ID)));
+    env_add(&mut m, "cursor-str-next", Builtin::CursorStrNext);
+    env_add(&mut m, "cursor-str-prev", Builtin::CursorStrPrev);
+
+    env_add_val(&mut m, "cursor-str-utf8-type", Value::Id(Id::Symbol(value::CURSOR_STRING_UTF8_ID)));
+    env_add(&mut m, "cursor-str-utf8-next", Builtin::CursorStrUtf8Next);
+    env_add(&mut m, "cursor-str-utf8-prev", Builtin::CursorStrUtf8Prev);
+
+    env_add_val(&mut m, "cursor-set-type", Value::Id(Id::Symbol(value::CURSOR_SET_ID)));
+    env_add(&mut m, "cursor-set-next", Builtin::CursorSetNext);
+    env_add(&mut m, "cursor-set-prev", Builtin::CursorSetPrev);
+
+    env_add_val(&mut m, "cursor-map-type", Value::Id(Id::Symbol(value::CURSOR_MAP_ID)));
+    env_add(&mut m, "cursor-map-next", Builtin::CursorMapNext);
+    env_add(&mut m, "cursor-map-prev", Builtin::CursorMapPrev);
 
     m
 }

@@ -18,6 +18,12 @@ use crate::builtins::{self, type_error, type_error_, num_args_error};
 use crate::context::Context;
 use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
 use crate::vm::Closure;
+use crate::opaques::{
+    vector_cursor::VectorCursor,
+    rope_cursor::RopeCursor,
+    set_cursor::SetCursor,
+    map_cursor::MapCursor,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
 pub enum Value {
@@ -29,7 +35,7 @@ pub enum Value {
     Map(OrdMap<Value, Value>),
     Fun(Fun),
     Cell(Gc<GcCell<Value>>, u64),
-    Opaque(Box<Value>, u64),
+    Opaque(u64 /* creation id */, Opaque),
 }
 
 impl PartialOrd for Value {
@@ -136,15 +142,10 @@ impl Ord for Value {
                 _ => Ordering::Greater,
             }
 
-            Value::Opaque(left_inner, left_type) => match other {
-                Value::Opaque(right_inner, right_type) => {
-                    match left_type.cmp(right_type) {
-                        Ordering::Less => return Ordering::Less,
-                        Ordering::Greater => return Ordering::Greater,
-                        Ordering::Equal => return left_inner.cmp(right_inner),
-                    }
+            Value::Opaque(left_id, _) => match other {
+                Value::Opaque(right_id, _) => {
+                    left_id.cmp(right_id)
                 }
-
                 _ => Ordering::Greater,
             }
         }
@@ -222,6 +223,159 @@ impl Value {
 
     pub fn arr_from_vec(vals: Vec<Value>) -> Value {
         Value::arr(Vector(ImVector::from(vals)))
+    }
+
+    pub fn cursor_arr(v: Vector<Value>, index: usize, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorArr(Gc::new(GcCell::new(VectorCursor::new(v, index))))
+            )
+        )
+    }
+
+    pub fn cursor_app(v: Vector<Value>, index: usize, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorApp(Gc::new(GcCell::new(VectorCursor::new(v, index))))
+            )
+        )
+    }
+
+    pub fn cursor_bytes(v: Vector<u8>, index: usize, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorBytes(Gc::new(GcCell::new(VectorCursor::new(v, index))))
+            )
+        )
+    }
+
+    pub fn cursor_str(s: Rope, index: usize, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorStringChars(Gc::new(GcCell::new(RopeCursor::new(s, index))))
+            )
+        )
+    }
+
+    pub fn cursor_str_utf8(s: Rope, index: usize, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorStringUtf8(Gc::new(GcCell::new(RopeCursor::new(s, index))))
+            )
+        )
+    }
+
+    pub fn cursor_set_min(v: OrdSet<Value>, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorSet(Gc::new(GcCell::new(SetCursor::new_min(v))))
+            )
+        )
+    }
+
+    pub fn cursor_set_max(v: OrdSet<Value>, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorSet(Gc::new(GcCell::new(SetCursor::new_max(v))))
+            )
+        )
+    }
+
+    pub fn cursor_set_less_strict(v: OrdSet<Value>, at: &Value, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorSet(Gc::new(GcCell::new(SetCursor::new_less_strict(v, at))))
+            )
+        )
+    }
+
+    pub fn cursor_set_greater_strict(v: OrdSet<Value>, at: &Value, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorSet(Gc::new(GcCell::new(SetCursor::new_greater_strict(v, at))))
+            )
+        )
+    }
+
+    pub fn cursor_set_less(v: OrdSet<Value>, at: &Value, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorSet(Gc::new(GcCell::new(SetCursor::new_less(v, at))))
+            )
+        )
+    }
+
+    pub fn cursor_set_greater(v: OrdSet<Value>, at: &Value, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorSet(Gc::new(GcCell::new(SetCursor::new_greater(v, at))))
+            )
+        )
+    }
+
+    pub fn cursor_map_min(v: OrdMap<Value, Value>, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorMap(Gc::new(GcCell::new(MapCursor::new_min(v))))
+            )
+        )
+    }
+
+    pub fn cursor_map_max(v: OrdMap<Value, Value>, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorMap(Gc::new(GcCell::new(MapCursor::new_max(v))))
+            )
+        )
+    }
+
+    pub fn cursor_map_less_strict(v: OrdMap<Value, Value>, at: &Value, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorMap(Gc::new(GcCell::new(MapCursor::new_less_strict(v, at))))
+            )
+        )
+    }
+
+    pub fn cursor_map_greater_strict(v: OrdMap<Value, Value>, at: &Value, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorMap(Gc::new(GcCell::new(MapCursor::new_greater_strict(v, at))))
+            )
+        )
+    }
+
+    pub fn cursor_map_less(v: OrdMap<Value, Value>, at: &Value, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorMap(Gc::new(GcCell::new(MapCursor::new_less(v, at))))
+            )
+        )
+    }
+
+    pub fn cursor_map_greater(v: OrdMap<Value, Value>, at: &Value, cx: &mut Context) -> Value {
+        Value::Opaque(
+            cx.next_symbol_id(),
+            Opaque::Builtin(
+                BuiltinOpaque::CursorMap(Gc::new(GcCell::new(MapCursor::new_greater(v, at))))
+            )
+        )
     }
 
     pub fn app(vals: Vector<Value>) -> Value {
@@ -357,9 +511,9 @@ impl Value {
         }
     }
 
-    pub fn as_opaque(&self) -> Option<(&Value, u64)> {
+    pub fn as_user_opaque(&self) -> Option<(&Value, u64)> {
         match self {
-            Value::Opaque(the_box, type_id) => Some((the_box, *type_id)),
+            Value::Opaque(_, Opaque::User(the_box, type_id)) => Some((the_box, *type_id)),
             _ => None,
         }
     }
@@ -458,16 +612,19 @@ impl Fun {
                 }
 
                 if *hide {
-                    return Ok(Value::Opaque(Box::new(args.0[0].clone()), *type_id));
+                    return Ok(Value::Opaque(
+                        cx.next_symbol_id(),
+                        Opaque::User(Box::new(args.0[0].clone()), *type_id)
+                    ));
                 } else {
                     let arg = &args.0[0];
-                    match arg.as_opaque() {
-                        None => return Err(type_error_(arg, &Value::Id(Id::Symbol(*type_id)))),
+                    match arg.as_user_opaque() {
+                        None => return Err(type_error_(arg, Value::Id(Id::Symbol(*type_id)))),
                         Some((inner, actual_type_id)) => {
                             if actual_type_id == *type_id {
                                 return Ok(inner.clone());
                             } else {
-                                return Err(type_error_(arg, &Value::Id(Id::Symbol(*type_id))));
+                                return Err(type_error_(arg, Value::Id(Id::Symbol(*type_id))));
                             }
                         }
                     }
@@ -527,8 +684,7 @@ impl Fun {
             Fun::Builtin(Builtin::BytesSlice) => builtins::bytes_slice(args, cx),
             Fun::Builtin(Builtin::BytesSplice) => builtins::bytes_splice(args, cx),
             Fun::Builtin(Builtin::BytesConcat) => builtins::bytes_concat(args, cx),
-            Fun::Builtin(Builtin::BytesIter) => builtins::bytes_iter(args, cx),
-            Fun::Builtin(Builtin::BytesIterBack) => builtins::bytes_iter_back(args, cx),
+            Fun::Builtin(Builtin::BytesCursor) => builtins::bytes_cursor(args, cx),
 
             Fun::Builtin(Builtin::IntToChar) => builtins::int_to_char(args, cx),
             Fun::Builtin(Builtin::IsIntToChar) => builtins::is_int_to_char(args, cx),
@@ -546,10 +702,8 @@ impl Fun {
             Fun::Builtin(Builtin::StrSlice) => builtins::str_slice(args, cx),
             Fun::Builtin(Builtin::StrSplice) => builtins::str_splice(args, cx),
             Fun::Builtin(Builtin::StrConcat) => builtins::str_concat(args, cx),
-            Fun::Builtin(Builtin::StrIter) => builtins::str_iter(args, cx),
-            Fun::Builtin(Builtin::StrIterBack) => builtins::str_iter_back(args, cx),
-            Fun::Builtin(Builtin::StrIterUtf8) => builtins::str_iter_utf8(args, cx),
-            Fun::Builtin(Builtin::StrIterUtf8Back) => builtins::str_iter_utf8_back(args, cx),
+            Fun::Builtin(Builtin::StrCursor) => builtins::str_cursor(args, cx),
+            Fun::Builtin(Builtin::StrCursorUtf8) => builtins::str_cursor_utf8(args, cx),
 
             Fun::Builtin(Builtin::FloatAdd) => builtins::float_add(args, cx),
             Fun::Builtin(Builtin::FloatSub) => builtins::float_sub(args, cx),
@@ -588,6 +742,7 @@ impl Fun {
             Fun::Builtin(Builtin::FloatAcosH) => builtins::float_acosh(args, cx),
             Fun::Builtin(Builtin::FloatAtanH) => builtins::float_atanh(args, cx),
             Fun::Builtin(Builtin::FloatIsNormal) => builtins::float_is_normal(args, cx),
+            Fun::Builtin(Builtin::FloatIsIntegral) => builtins::float_is_integral(args, cx),
             Fun::Builtin(Builtin::FloatToDegrees) => builtins::float_to_degrees(args, cx),
             Fun::Builtin(Builtin::FloatToRadians) => builtins::float_to_radians(args, cx),
             Fun::Builtin(Builtin::FloatToInt) => builtins::float_to_int(args, cx),
@@ -612,8 +767,7 @@ impl Fun {
             Fun::Builtin(Builtin::ArrSlice) => builtins::arr_slice(args, cx),
             Fun::Builtin(Builtin::ArrSplice) => builtins::arr_splice(args, cx),
             Fun::Builtin(Builtin::ArrConcat) => builtins::arr_concat(args, cx),
-            Fun::Builtin(Builtin::ArrIter) => builtins::arr_iter(args, cx),
-            Fun::Builtin(Builtin::ArrIterBack) => builtins::arr_iter_back(args, cx),
+            Fun::Builtin(Builtin::ArrCursor) => builtins::arr_cursor(args, cx),
 
             Fun::Builtin(Builtin::AppCount) => builtins::app_count(args, cx),
             Fun::Builtin(Builtin::AppGet) => builtins::app_get(args, cx),
@@ -623,25 +777,37 @@ impl Fun {
             Fun::Builtin(Builtin::AppSlice) => builtins::app_slice(args, cx),
             Fun::Builtin(Builtin::AppSplice) => builtins::app_splice(args, cx),
             Fun::Builtin(Builtin::AppConcat) => builtins::app_concat(args, cx),
-            Fun::Builtin(Builtin::AppIter) => builtins::app_iter(args, cx),
-            Fun::Builtin(Builtin::AppIterBack) => builtins::app_iter_back(args, cx),
+            Fun::Builtin(Builtin::AppCursor) => builtins::app_cursor(args, cx),
             Fun::Builtin(Builtin::AppApply) => builtins::app_apply(args, cx),
 
             Fun::Builtin(Builtin::SetCount) => builtins::set_count(args, cx),
             Fun::Builtin(Builtin::SetContains) => builtins::set_contains(args, cx),
             Fun::Builtin(Builtin::SetMin) => builtins::set_min(args, cx),
             Fun::Builtin(Builtin::SetMax) => builtins::set_max(args, cx),
+            Fun::Builtin(Builtin::SetFindLT) => builtins::set_find_lt(args, cx),
+            Fun::Builtin(Builtin::SetFindGT) => builtins::set_find_gt(args, cx),
+            Fun::Builtin(Builtin::SetFindLTE) => builtins::set_find_lte(args, cx),
+            Fun::Builtin(Builtin::SetFindGTE) => builtins::set_find_gte(args, cx),
             Fun::Builtin(Builtin::SetInsert) => builtins::set_insert(args, cx),
             Fun::Builtin(Builtin::SetRemove) => builtins::set_remove(args, cx),
             Fun::Builtin(Builtin::SetUnion) => builtins::set_union(args, cx),
             Fun::Builtin(Builtin::SetIntersection) => builtins::set_intersection(args, cx),
             Fun::Builtin(Builtin::SetDifference) => builtins::set_difference(args, cx),
             Fun::Builtin(Builtin::SetSymmetricDifference) => builtins::set_symmetric_difference(args, cx),
-            Fun::Builtin(Builtin::SetIter) => builtins::set_iter(args, cx),
-            Fun::Builtin(Builtin::SetIterBack) => builtins::set_iter_back(args, cx),
+            // Fun::Builtin(Builtin::SetSplit) => builtins::set_split(args, cx),
+            Fun::Builtin(Builtin::SetCursorMin) => builtins::set_cursor_min(args, cx),
+            Fun::Builtin(Builtin::SetCursorMax) => builtins::set_cursor_max(args, cx),
+            Fun::Builtin(Builtin::SetCursorLessStrict) => builtins::set_cursor_less_strict(args, cx),
+            Fun::Builtin(Builtin::SetCursorGreaterStrict) => builtins::set_cursor_greater_strict(args, cx),
+            Fun::Builtin(Builtin::SetCursorLess) => builtins::set_cursor_less(args, cx),
+            Fun::Builtin(Builtin::SetCursorGreater) => builtins::set_cursor_greater(args, cx),
 
             Fun::Builtin(Builtin::MapCount) => builtins::map_count(args, cx),
             Fun::Builtin(Builtin::MapGet) => builtins::map_get(args, cx),
+            Fun::Builtin(Builtin::MapFindLT) => builtins::map_find_lt(args, cx),
+            Fun::Builtin(Builtin::MapFindGT) => builtins::map_find_gt(args, cx),
+            Fun::Builtin(Builtin::MapFindLTE) => builtins::map_find_lte(args, cx),
+            Fun::Builtin(Builtin::MapFindGTE) => builtins::map_find_gte(args, cx),
             Fun::Builtin(Builtin::MapContains) => builtins::map_contains(args, cx),
             Fun::Builtin(Builtin::MapMin) => builtins::map_min(args, cx),
             Fun::Builtin(Builtin::MapMinKey) => builtins::map_min_key(args, cx),
@@ -655,8 +821,12 @@ impl Fun {
             Fun::Builtin(Builtin::MapIntersection) => builtins::map_intersection(args, cx),
             Fun::Builtin(Builtin::MapDifference) => builtins::map_difference(args, cx),
             Fun::Builtin(Builtin::MapSymmetricDifference) => builtins::map_symmetric_difference(args, cx),
-            Fun::Builtin(Builtin::MapIter) => builtins::map_iter(args, cx),
-            Fun::Builtin(Builtin::MapIterBack) => builtins::map_iter_back(args, cx),
+            Fun::Builtin(Builtin::MapCursorMin) => builtins::map_cursor_min(args, cx),
+            Fun::Builtin(Builtin::MapCursorMax) => builtins::map_cursor_max(args, cx),
+            Fun::Builtin(Builtin::MapCursorLessStrict) => builtins::map_cursor_less_strict(args, cx),
+            Fun::Builtin(Builtin::MapCursorGreaterStrict) => builtins::map_cursor_greater_strict(args, cx),
+            Fun::Builtin(Builtin::MapCursorLess) => builtins::map_cursor_less(args, cx),
+            Fun::Builtin(Builtin::MapCursorGreater) => builtins::map_cursor_greater(args, cx),
 
             Fun::Builtin(Builtin::Symbol) => builtins::symbol(args, cx),
 
@@ -681,6 +851,24 @@ impl Fun {
             Fun::Builtin(Builtin::Exval) => builtins::exval(args, cx),
 
             Fun::Builtin(Builtin::Typeof) => builtins::typeof_(args, cx),
+            Fun::Builtin(Builtin::Not) => builtins::not(args, cx),
+            Fun::Builtin(Builtin::Diverge) => builtins::diverge(args, cx),
+            Fun::Builtin(Builtin::Trace) => builtins::trace(args, cx),
+
+            Fun::Builtin(Builtin::CursorArrNext) => builtins::cursor_arr_next(args, cx),
+            Fun::Builtin(Builtin::CursorArrPrev) => builtins::cursor_arr_prev(args, cx),
+            Fun::Builtin(Builtin::CursorAppNext) => builtins::cursor_app_next(args, cx),
+            Fun::Builtin(Builtin::CursorAppPrev) => builtins::cursor_app_prev(args, cx),
+            Fun::Builtin(Builtin::CursorBytesNext) => builtins::cursor_bytes_next(args, cx),
+            Fun::Builtin(Builtin::CursorBytesPrev) => builtins::cursor_bytes_prev(args, cx),
+            Fun::Builtin(Builtin::CursorStrNext) => builtins::cursor_str_next(args, cx),
+            Fun::Builtin(Builtin::CursorStrPrev) => builtins::cursor_str_prev(args, cx),
+            Fun::Builtin(Builtin::CursorStrUtf8Next) => builtins::cursor_str_utf8_next(args, cx),
+            Fun::Builtin(Builtin::CursorStrUtf8Prev) => builtins::cursor_str_utf8_prev(args, cx),
+            Fun::Builtin(Builtin::CursorSetNext) => builtins::cursor_set_next(args, cx),
+            Fun::Builtin(Builtin::CursorSetPrev) => builtins::cursor_set_prev(args, cx),
+            Fun::Builtin(Builtin::CursorMapNext) => builtins::cursor_map_next(args, cx),
+            Fun::Builtin(Builtin::CursorMapPrev) => builtins::cursor_map_prev(args, cx),
 
             Fun::Builtin(Builtin::MacroQuote) => builtins::macro_quote(args, cx),
             Fun::Builtin(Builtin::MacroDo) => builtins::macro_do(args, cx),
@@ -706,10 +894,9 @@ pub enum Builtin {
     AppApply,
     AppConcat,
     AppCount,
+    AppCursor,
     AppGet,
     AppInsert,
-    AppIter,
-    AppIterBack,
     AppRemove,
     AppSlice,
     AppSplice,
@@ -717,10 +904,9 @@ pub enum Builtin {
 
     ArrConcat,
     ArrCount,
+    ArrCursor,
     ArrGet,
     ArrInsert,
-    ArrIter,
-    ArrIterBack,
     ArrRemove,
     ArrSlice,
     ArrSplice,
@@ -738,10 +924,9 @@ pub enum Builtin {
 
     BytesConcat,
     BytesCount,
+    BytesCursor,
     BytesGet,
     BytesInsert,
-    BytesIter,
-    BytesIterBack,
     BytesRemove,
     BytesSlice,
     BytesSplice,
@@ -756,6 +941,21 @@ pub enum Builtin {
     Check,
 
     Cmp,
+
+    CursorAppNext,
+    CursorAppPrev,
+    CursorArrNext,
+    CursorArrPrev,
+    CursorBytesNext,
+    CursorBytesPrev,
+    CursorMapNext,
+    CursorMapPrev,
+    CursorSetNext,
+    CursorSetPrev,
+    CursorStrNext,
+    CursorStrPrev,
+    CursorStrUtf8Next,
+    CursorStrUtf8Prev,
 
     Diverge,
 
@@ -787,6 +987,7 @@ pub enum Builtin {
     FloatFloor,
     FloatFract,
     FloatHypot,
+    FloatIsIntegral,
     FloatLn,
     FloatLn1P,
     FloatLog10,
@@ -863,12 +1064,20 @@ pub enum Builtin {
 
     MapContains,
     MapCount,
+    MapCursorLessStrict,
+    MapCursorLess,
+    MapCursorGreaterStrict,
+    MapCursorGreater,
+    MapCursorMax,
+    MapCursorMin,
     MapDifference,
+    MapFindLT,
+    MapFindLTE,
+    MapFindGT,
+    MapFindGTE,
     MapGet,
     MapInsert,
     MapIntersection,
-    MapIter,
-    MapIterBack,
     MapMax,
     MapMaxEntry,
     MapMaxKey,
@@ -888,28 +1097,35 @@ pub enum Builtin {
 
     SetContains,
     SetCount,
+    SetCursorLessStrict,
+    SetCursorLess,
+    SetCursorGreaterStrict,
+    SetCursorGreater,
+    SetCursorMax,
+    SetCursorMin,
     SetDifference,
+    SetFindLT,
+    SetFindLTE,
+    SetFindGT,
+    SetFindGTE,
     SetInsert,
     SetIntersection,
-    SetIterBack,
-    SetIter,
     SetMax,
     SetMin,
     SetRemove,
+    // SetSplit,
     SetSymmetricDifference,
     SetUnion,
 
     StrConcat,
     StrCount,
     StrCountUtf8,
+    StrCursor,
+    StrCursorUtf8,
     StrGet,
     StrGetUtf8,
     StrIndexCharToUtf8,
     StrIndexUtf8ToChar,
-    StrIter,
-    StrIterBack,
-    StrIterUtf8,
-    StrIterUtf8Back,
     StrInsert,
     StrRemove,
     StrSlice,
@@ -923,7 +1139,49 @@ pub enum Builtin {
 
     Symbol,
 
+    Trace,
     Typeof,
 
     Write,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
+pub enum Opaque {
+    User(Box<Value>, u64),
+    Builtin(BuiltinOpaque),
+}
+
+// TODO implement the missing ones
+#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
+pub enum BuiltinOpaque {
+    CursorArr(Gc<GcCell<VectorCursor<Value>>>),
+    CursorApp(Gc<GcCell<VectorCursor<Value>>>),
+    CursorSet(Gc<GcCell<SetCursor<Value>>>),
+    CursorMap(Gc<GcCell<MapCursor<Value, Value>>>),
+    CursorBytes(Gc<GcCell<VectorCursor<u8>>>),
+    CursorStringChars(Gc<GcCell<RopeCursor>>),
+    CursorStringUtf8(Gc<GcCell<RopeCursor>>),
+}
+
+pub static CURSOR_APP_ID: u64 = 0;
+pub static CURSOR_ARR_ID: u64 = 1;
+pub static CURSOR_BYTES_ID: u64 = 2;
+pub static CURSOR_MAP_ID: u64 = 3;
+pub static CURSOR_SET_ID: u64 = 4;
+pub static CURSOR_STRING_CHARS_ID: u64 = 5;
+pub static CURSOR_STRING_UTF8_ID: u64 = 6;
+pub static NUM_BUILTIN_OPAQUES: u64 = 7;
+
+impl BuiltinOpaque {
+    pub fn type_id(&self) -> u64 {
+        match self {
+            BuiltinOpaque::CursorArr(..) => CURSOR_ARR_ID,
+            BuiltinOpaque::CursorApp(..) => CURSOR_APP_ID,
+            BuiltinOpaque::CursorSet(..) => CURSOR_SET_ID,
+            BuiltinOpaque::CursorMap(..) => CURSOR_MAP_ID,
+            BuiltinOpaque::CursorBytes(..) => CURSOR_BYTES_ID,
+            BuiltinOpaque::CursorStringChars(..) => CURSOR_STRING_CHARS_ID,
+            BuiltinOpaque::CursorStringUtf8(..) => CURSOR_STRING_UTF8_ID,
+        }
+    }
 }
