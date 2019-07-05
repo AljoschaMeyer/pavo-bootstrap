@@ -38,6 +38,12 @@ pub fn typeof__(v: &Value) -> Value {
     }
 }
 
+pub fn do_let_error() -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-do-let")),
+        ])))
+}
+
 pub fn static_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-static")),
@@ -359,15 +365,6 @@ macro_rules! map {
         match &$v {
             Value::Map(map) => map.clone(),
             _ => return Err(type_error(&$v, "map")),
-        }
-    )
-}
-
-macro_rules! fun {
-    ($v:expr) => (
-        match &$v {
-            Value::Fun(fun) => fun.clone(),
-            _ => return Err(type_error(&$v, "function")),
         }
     )
 }
@@ -2634,9 +2631,42 @@ pub fn macro_quote(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
 }
 
 pub fn macro_do(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    let mut tmp = args.clone();
-    tmp.0.push_front(Value::id_str("sf-do"));
-    Ok(Value::app(tmp))
+    let mut tmp = Vector(ImVector::unit(Value::id_str("sf-do")));
+
+    for (i, form) in args.0.iter().enumerate() {
+        match form.as_app() {
+            Some(app) => {
+                if app.0.len() == 0 {
+                    tmp.0.push_back(form.clone());
+                } else {
+                    if let Some(kw) = app.0[0].as_kw() {
+                        if kw == "let" {
+                            if app.0.len() != 3 {
+                                return Err(do_let_error());
+                            } else {
+                                let mut let_body = args.0.skip(i + 1);
+                                let_body.push_front(Value::id_str("do"));
+                                tmp.0.push_back(Value::app_from_vec(vec![
+                                        Value::id_str("let"),
+                                        app.0[1].clone(),
+                                        app.0[2].clone(),
+                                        Value::app(Vector(let_body)),
+                                    ]));
+                                return Ok(Value::app(tmp));
+                            }
+                        } else {
+                            tmp.0.push_back(form.clone());
+                        }
+                    } else {
+                        tmp.0.push_back(form.clone());
+                    }
+                }
+            }
+            None => tmp.0.push_back(form.clone()),
+        }
+    }
+
+    return Ok(Value::app(tmp));
 }
 
 pub fn macro_set_bang(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
@@ -2654,11 +2684,32 @@ pub fn macro_throw(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
     }
 }
 
-// TODO proper implementation (if-else like, inserting nil as final else)
 pub fn macro_if(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    let mut tmp = args.clone();
-    tmp.0.push_front(Value::id_str("sf-if"));
-    Ok(Value::app(tmp))
+    match args.0.len() {
+        0 | 1 => return Err(num_args_error()),
+        2 => return Ok(Value::app_from_vec(vec![
+                Value::id_str("sf-if"),
+                args.0[0].clone(),
+                args.0[1].clone(),
+                Value::nil(),
+            ])),
+        3 => return Ok(Value::app_from_vec(vec![
+                Value::id_str("sf-if"),
+                args.0[0].clone(),
+                args.0[1].clone(),
+                args.0[2].clone(),
+            ])),
+        _ => {
+            let mut rest = args.0.skip(2);
+            rest.push_front(Value::id_str("if"));
+            return Ok(Value::app_from_vec(vec![
+                    Value::id_str("sf-if"),
+                    args.0[0].clone(),
+                    args.0[1].clone(),
+                    Value::app(Vector(rest)),
+                ]));
+        }
+    }
 }
 
 pub fn macro_let(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
@@ -2666,7 +2717,7 @@ pub fn macro_let(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value>
 
     Ok(Value::app_from_vec(vec![
             Value::app_from_vec(vec![
-                    Value::id_str("fn"),
+                    Value::id_str("lambda"),
                     Value::arr_from_vec(vec![args.0[0].clone()]),
                     args.0[2].clone(),
                 ]),
@@ -2674,8 +2725,99 @@ pub fn macro_let(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value>
         ]))
 }
 
+pub fn macro_thread_first(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    match args.0.len() {
+        0 => return Err(num_args_error()),
+        1 => return Ok(args.0[0].clone()),
+        2 => {
+            let mut app = app!(args.0[1]);
+            if app.0.len() == 0 {
+                return Err(index_error(1));
+            }
+            app.0.insert(1, args.0[0].clone());
+            return Ok(Value::app(app));
+        }
+        _ => {
+            let mut app = app!(args.0[1]);
+            if app.0.len() == 0 {
+                return Err(index_error(1));
+            }
+            app.0.insert(1, args.0[0].clone());
+
+            let mut rest = args.0.skip(2);
+            rest.push_front(Value::app(app));
+            rest.push_front(Value::id_str("->"));
+
+            return Ok(Value::app(Vector(rest)));
+        }
+    }
+}
+
+pub fn macro_thread_last(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    match args.0.len() {
+        0 => return Err(num_args_error()),
+        1 => return Ok(args.0[0].clone()),
+        2 => {
+            let mut app = app!(args.0[1]);
+            if app.0.len() == 0 {
+                return Err(index_error(1));
+            }
+            app.0.insert(app.0.len(), args.0[0].clone());
+            return Ok(Value::app(app));
+        }
+        _ => {
+            let mut app = app!(args.0[1]);
+            if app.0.len() == 0 {
+                return Err(index_error(1));
+            }
+            app.0.insert(app.0.len(), args.0[0].clone());
+
+            let mut rest = args.0.skip(2);
+            rest.push_front(Value::app(app));
+            rest.push_front(Value::id_str("->>"));
+
+            return Ok(Value::app(Vector(rest)));
+        }
+    }
+}
+
+pub fn macro_thread_as(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    match args.0.len() {
+        0 | 1 => return Err(num_args_error()),
+        2 => return Ok(args.0[1].clone()),
+        3 => {
+            return Ok(Value::app_from_vec(vec![
+                    Value::id_str("let"),
+                    args.0[0].clone(),
+                    args.0[1].clone(),
+                    args.0[2].clone(),
+                ]))
+        }
+        _ => {
+            let mut rest = args.0.skip(3);
+            rest.push_front(Value::app_from_vec(vec![
+                    Value::id_str("let"),
+                    args.0[0].clone(),
+                    args.0[1].clone(),
+                    args.0[2].clone(),
+                ]));
+            rest.push_front(args.0[0].clone());
+            rest.push_front(Value::id_str("as->"));
+
+            return Ok(Value::app(Vector(rest)));
+        }
+    }
+}
+
 // TODO: proper implementation (named recursion, pattern matching)
 pub fn macro_fn(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+
+    Ok(Value::app_from_vec(vec![Value::id_str("sf-lambda"), args.0[0].clone(), args.0[1].clone()]))
+}
+
+// TODO: proper implementation (pattern matching)
+pub fn macro_lambda(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
 
     Ok(Value::app_from_vec(vec![Value::id_str("sf-lambda"), args.0[0].clone(), args.0[1].clone()]))

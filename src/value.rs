@@ -877,6 +877,10 @@ impl Fun {
             Fun::Builtin(Builtin::MacroIf) => builtins::macro_if(args, cx),
             Fun::Builtin(Builtin::MacroLet) => builtins::macro_let(args, cx),
             Fun::Builtin(Builtin::MacroFn) => builtins::macro_fn(args, cx),
+            Fun::Builtin(Builtin::MacroLambda) => builtins::macro_lambda(args, cx),
+            Fun::Builtin(Builtin::MacroThreadFirst) => builtins::macro_thread_first(args, cx),
+            Fun::Builtin(Builtin::MacroThreadLast) => builtins::macro_thread_last(args, cx),
+            Fun::Builtin(Builtin::MacroThreadAs) => builtins::macro_thread_as(args, cx),
 
             _ => unimplemented!(),
         }
@@ -1054,9 +1058,13 @@ pub enum Builtin {
 
     KwToStr,
 
+    MacroThreadFirst,
+    MacroThreadLast,
+    MacroThreadAs,
     MacroDo,
     MacroFn,
     MacroIf,
+    MacroLambda,
     MacroLet,
     MacroQuote,
     MacroSetBang,

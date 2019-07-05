@@ -78,9 +78,6 @@ pub fn exval(
     cx: &mut Context,
 ) -> Result<Value, E> {
     let expanded = expand::expand(v, m_env, macros, cx)?;
-    // let mut tmp = String::new();
-    // builtins::write_(&expanded, &mut tmp);
-    // println!("{}\n", tmp);
     let c = compile::compile(&expanded, env)?;
     c.compute(gc_foreign::Vector(im_rc::Vector::new()), cx).map_err(|nay| E::Eval(nay))
 }
@@ -2306,5 +2303,75 @@ mod tests {
     #[test]
     fn test_toplevel_trace() {
         test_example("(assert-eq (trace 42) 42)");
+    }
+
+    #[test]
+    fn test_macros() {
+        test_example("(assert-eq (macro-set! 42 43) $(sf-set! 42 43))");
+
+        test_example("(assert-eq (macro-quote 42) $(sf-quote 42))");
+
+        test_example("
+        (assert-eq (macro-throw 42) $(sf-throw 42))
+        (assert-eq (macro-throw) $(sf-throw nil))
+        ");
+
+        test_example("
+        (assert-eq (macro-do) $(sf-do))
+        (assert-eq (macro-do 0) $(sf-do 0))
+        (assert-eq (macro-do 0 1 2) $(sf-do 0 1 2))
+        (assert-eq (macro-do 0 $(:let a 42) 2 $a) $(sf-do 0 (let a 42 (do 2 a))))
+        (assert-eq (do 0 (:let a 42) 2 a) 42)
+        (assert-eq (macro-do 0 $(:let a 42)) $(sf-do 0 (let a 42 (do))))
+        (assert-throw (macro-do $(:let a)) {:tag :err-do-let})
+        ");
+
+        test_example("
+        (assert-eq (macro-if 0 1) $(sf-if 0 1 nil))
+        (assert-eq (macro-if 0 1 2) $(sf-if 0 1 2))
+        (assert-eq (macro-if 0 1 2 3) $(sf-if 0 1 (if 2 3)))
+        ");
+
+        test_example("
+        (assert-eq (let a 42 a) 42)
+        (assert-eq (macro-let 0 1 2) $((lambda [0] 2) 1))
+        ");
+
+        test_example("
+        (assert-eq (-> 42
+            (int-sub ,,, 2) # the commas are whitespace, used here to indicate the insertion point
+            (int->float ,,,)
+        ) 40.0)
+
+        (assert-eq (macro--> 42) 42)
+        (assert-eq (macro--> 42 $(int-sub 2)) $(int-sub 42 2))
+        (assert-eq (macro--> 42 $(int-sub 2) $(int->float)) $(-> (int-sub 42 2) (int->float)))
+        (assert-throw (macro--> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
+        (assert-throw (macro--> 42 $()) {:tag :err-lookup, :got 1})
+        ");
+
+        test_example("
+        (assert-eq (->> 42
+            (int-sub 2 ,,,) # the commas are whitespace, used here to indicate the insertion point
+            (int->float ,,,)
+        ) -40.0)
+
+        (assert-eq (macro-->> 42) 42)
+        (assert-eq (macro-->> 42 $(int-sub 2)) $(int-sub 2 42))
+        (assert-eq (macro-->> 42 $(int-sub 2) $(int->float)) $(->> (int-sub 2 42) (int->float)))
+        (assert-throw (macro-->> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
+        (assert-throw (macro-->> 42 $()) {:tag :err-lookup, :got 1})
+        ");
+
+        test_example("
+        (assert-eq (as-> foo 42
+            (int-sub foo 2)
+            (int-sub 3 foo)
+        ) -37)
+
+        (assert-eq (macro-as-> $foo 42) 42)
+        (assert-eq (macro-as-> $foo 42 $(int-sub foo 2)) $(let foo 42 (int-sub foo 2)))
+        (assert-eq (macro-as-> $foo 42 $(int-sub foo 2) $(int-sub 3 foo)) $(as-> foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
+        ");
     }
 }

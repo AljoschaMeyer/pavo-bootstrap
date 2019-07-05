@@ -5,7 +5,6 @@ use crate::value::{Value, Id, Builtin, self};
 pub fn default() -> HashMap<Id, (Value, bool)> {
     let mut m = HashMap::new();
 
-    // TODO macro functions
     env_add(&mut m, "bool-not", Builtin::BoolNot);
     env_add(&mut m, "bool-and", Builtin::BoolAnd);
     env_add(&mut m, "bool-or", Builtin::BoolOr);
@@ -264,6 +263,19 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add_val(&mut m, "cursor-map-type", Value::Id(Id::Symbol(value::CURSOR_MAP_ID)));
     env_add(&mut m, "cursor-map-next!", Builtin::CursorMapNext);
     env_add(&mut m, "cursor-map-prev!", Builtin::CursorMapPrev);
+
+    env_add(&mut m, "macro-set!", Builtin::MacroSetBang);
+    env_add(&mut m, "macro-quote", Builtin::MacroQuote);
+    env_add(&mut m, "macro-throw", Builtin::MacroThrow);
+    env_add(&mut m, "macro-do", Builtin::MacroDo);
+    env_add(&mut m, "macro-if", Builtin::MacroIf);
+    env_add(&mut m, "macro-let", Builtin::MacroLet);
+    env_add(&mut m, "macro-lambda", Builtin::MacroLambda);
+    env_add(&mut m, "macro-fn", Builtin::MacroFn);
+    env_add(&mut m, "macro-->", Builtin::MacroThreadFirst);
+    env_add(&mut m, "macro-->>", Builtin::MacroThreadLast);
+    env_add(&mut m, "macro-as->", Builtin::MacroThreadAs);
+    // TODO remaining macro functions
 
     m
 }

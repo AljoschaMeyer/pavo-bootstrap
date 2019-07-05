@@ -651,7 +651,7 @@ For all other applications, the expanded value is an application containing the 
 
 ## Toplevel Macros
 
-TODO
+There is a function named `macro-xyz` for each builtin macro `xyz` that is the implementation of the macro. For now, look up the documentation of these functions as documentation for the builtin macros.
 
 ## Toplevel Values
 
@@ -3896,6 +3896,159 @@ Outside the pavo semantics, when running in a debugging mode, this function is e
 (assert-eq (trace 42) 42)
 ```
 
+### Macros
+
+The functions that compute the builtin macros.
+
+#### `(macro-set! v w)`
+
+The `set!` macro is a shorthand to safe typing the `sf-` prefix of the `sf-set!` special form. `(set! id v)` expands to `(sf-set! id v)`.
+
+```pavo
+(assert-eq (macro-set! 42 43) $(sf-set! 42 43))
+```
+
+#### `(macro-quote v)`
+
+The `quote` macro is a shorthand to safe typing the `sf-` prefix of the `sf-quote` special form. `(quote v)` expands to `(sf-quote v)`.
+
+```pavo
+(assert-eq (macro-quote 42) $(sf-quote 42))
+```
+
+#### `(macro-throw)` `(macro-throw v)`
+
+Expands to `(sf-throw v)` or `(sf-throw nil)` if no value `v` was supplied.
+
+```pavo
+(assert-eq (macro-throw 42) $(sf-throw 42))
+(assert-eq (macro-throw) $(sf-throw nil))
+```
+
+#### `(macro-do [arguments])`
+
+Expands to `(sf-do arguments)`. Expressions that are applications whose first item is the keyword `:let` are treated specially: If they do not have exactly three items `(:let pattern v)`, throw `{:tag :err-do-let}`. Otherwise, it is replaced by `(let pattern v (do <remaining>))`, where `<remaining>` are the remaining arguments.
+
+```pavo
+(assert-eq (macro-do) $(sf-do))
+(assert-eq (macro-do 0) $(sf-do 0))
+(assert-eq (macro-do 0 1 2) $(sf-do 0 1 2))
+(assert-eq (macro-do 0 $(:let a 42) 2 $a) $(sf-do 0 (let a 42 (do 2 a))))
+(assert-eq (do 0 (:let a 42) 2 a) 42)
+(assert-eq (macro-do 0 $(:let a 42)) $(sf-do 0 (let a 42 (do))))
+(assert-throw (macro-do $(:let a)) {:tag :err-do-let})
+```
+
+#### `(macro-if cond then)` `(macro-if cond then else)` `(macro-if cond then rest...)`
+
+If applied to two arguments `cond` and `then`, returns `(sf-if cond then nil)`. If applied to three arguments `cond`, `then` and `else`, returns `(sf-if cond then else)`. If applied to more than three arguments `cond`, `then`, and `rest...`, returns `(sf-if cond then (if rest...))`.
+
+```pavo
+(assert-eq (macro-if 0 1) $(sf-if 0 1 nil))
+(assert-eq (macro-if 0 1 2) $(sf-if 0 1 2))
+(assert-eq (macro-if 0 1 2 3) $(sf-if 0 1 (if 2 3)))
+```
+
+#### `(macro-let pattern v body)`
+
+Returns `((lambda [pattern] body) v)`, effectively evaluating `body` in a context where the pattern has been destructured against the value `v`.
+
+```pavo
+(assert-eq (let a 42 a) 42)
+(assert-eq (macro-let 0 1 2) $((lambda [0] 2) 1))
+```
+
+#### `(macro--> v)` `(macro--> v app)` `(macro--> v app rest...)`
+
+If applied to one argument `v`, returns `v`. If applied to two arguments `v` and `app`, returns `(app-insert app 1 v)` (the result, not the literal). If applied to more than two arguments `v`, `app` and `rest..`, returns `(-> <spliced> rest...)` where `<spliced>` is the result of `(app-insert app 1 v)`.
+Throws `{:tag :err-lookup, :got 1}` if the `app` has length zero.
+
+In effect, this threads the value `v` through the applications, inserting it (or the result of the previous application) as the first argument of the next application.
+
+```pavo
+(assert-eq (-> 42
+    (int-sub ,,, 2) # the commas are whitespace, used here to indicate the insertion point
+    (int->float ,,,)
+) 40.0)
+
+(assert-eq (macro--> 42) 42)
+(assert-eq (macro--> 42 $(int-sub 2)) $(int-sub 42 2))
+(assert-eq (macro--> 42 $(int-sub 2) $(int->float)) $(-> (int-sub 42 2) (int->float)))
+(assert-throw (macro--> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
+(assert-throw (macro--> 42 $()) {:tag :err-lookup, :got 1})
+```
+
+#### `(macro-->> v)` `(macro-->> v app)` `(macro-->> v app rest...)`
+
+If applied to one argument `v`, returns `v`. If applied to two arguments `v` and `app`, returns the result of evaluating `(app-insert app (app-count app) v)`, throwing any error. If applied to more than two arguments `v`, `app` and `rest..`, returns `(->> <spliced> rest...)` where `<spliced>` is the result of evaluating `(app-insert app (app-count app) v)`, throwing any error.
+
+In effect, this threads the value `v` through the applications, inserting it (or the result of the previous application) as the last argument of the next application.
+
+```pavo
+(assert-eq (->> 42
+    (int-sub 2 ,,,) # the commas are whitespace, used here to indicate the insertion point
+    (int->float ,,,)
+) -40.0)
+
+(assert-eq (macro-->> 42) 42)
+(assert-eq (macro-->> 42 $(int-sub 2)) $(int-sub 2 42))
+(assert-eq (macro-->> 42 $(int-sub 2) $(int->float)) $(->> (int-sub 2 42) (int->float)))
+(assert-throw (macro-->> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
+(assert-throw (macro-->> 42 $()) {:tag :err-lookup, :got 1})
+```
+
+#### `(macro-as-> pattern v)` `(macro-as-> pattern v w)` `(macro-as-> pattern v w rest...)`
+
+If applied to two arguments `pattern` and `v`, returns `v`. If applied to three arguments `pattern`, `v` and `w`, returns `(let pattern v w)`. If applied to more than three arguments `pattern`, `v`, `w` and `rest..`, returns `(as-> pattern <prev> rest...)`, where `<prev>` is `(let pattern v w)`.
+
+In effect, this threads the value `v` through the applications, matching it against the pattern between each step to update the bindings with the result of the previous application.
+
+```pavo
+(assert-eq (as-> foo 42
+    (int-sub foo 2)
+    (int-sub 3 foo)
+) -37)
+
+(assert-eq (macro-as-> $foo 42) 42)
+(assert-eq (macro-as-> $foo 42 $(int-sub foo 2)) $(let foo 42 (int-sub foo 2)))
+(assert-eq (macro-as-> $foo 42 $(int-sub foo 2) $(int-sub 3 foo)) $(as-> foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
+```
+
+<!-- #### `(macro-quasiquote v)`
+
+TODO
+
+Emulates quotation but with support for unquoting, splicing unquoting and generation of fresh names.
+
+In its most basic form, if the value `v` does not contain any values of the form `(:unquote w)`, `(:unquote-splice w)` or `(:fresh-name id)` TODO
+
+Syntax sugar: Backtick for quasiquote, `;` for :unquote, `%` for :unquote-splice, `@id` for :fresh-name
+
+
+```pavo
+(quasiquote 42) ~> $42
+`[1 2 3] ~> $[1 2 3]
+`[1 2 ;3 %(4) 5 6] ~> $(arr-concat [1 2] (arr-concat [3] (arr-concat [4] (arr-concat [5 6]))))
+
+(-> [1 2]
+    (arr-concat [3])
+    (arr-concat [4])
+    (arr-concat [5 6])
+)
+``` -->
+
+TODO
+
+- `fn`
+- `letfn`
+- `lambda`
+- `try`
+- `quasiquote`
+- `and`, `or`
+- `while`
+
+- `case`, `loop` ?
+
 ## Appendix: Precise Definition of `(write v)`
 
 This section defines the return value of `(write v)` for any expression `v`, defined through structural induction (examples/tests are below).
@@ -4014,6 +4167,7 @@ Macros:
 - `quote`
 - `throw`
 - `if`
+- `lambda`
 - `fn`
 - `letfn`
 - `let`
@@ -4024,7 +4178,6 @@ Macros:
 - `and`, `or`
 - `while`
 
-- `dotimes` ?
 - `case`, `loop` ?
 
 letfn:
