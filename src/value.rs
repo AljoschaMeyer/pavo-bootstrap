@@ -759,6 +759,7 @@ impl Fun {
             Fun::Builtin(Builtin::IsStrToKw) => builtins::is_str_to_kw(args, cx),
             Fun::Builtin(Builtin::KwToStr) => builtins::kw_to_str(args, cx),
 
+            Fun::Builtin(Builtin::ArrToApp) => builtins::arr_to_app(args, cx),
             Fun::Builtin(Builtin::ArrCount) => builtins::arr_count(args, cx),
             Fun::Builtin(Builtin::ArrGet) => builtins::arr_get(args, cx),
             Fun::Builtin(Builtin::ArrInsert) => builtins::arr_insert(args, cx),
@@ -769,6 +770,7 @@ impl Fun {
             Fun::Builtin(Builtin::ArrConcat) => builtins::arr_concat(args, cx),
             Fun::Builtin(Builtin::ArrCursor) => builtins::arr_cursor(args, cx),
 
+            Fun::Builtin(Builtin::AppToArr) => builtins::app_to_arr(args, cx),
             Fun::Builtin(Builtin::AppCount) => builtins::app_count(args, cx),
             Fun::Builtin(Builtin::AppGet) => builtins::app_get(args, cx),
             Fun::Builtin(Builtin::AppInsert) => builtins::app_insert(args, cx),
@@ -881,6 +883,7 @@ impl Fun {
             Fun::Builtin(Builtin::MacroThreadFirst) => builtins::macro_thread_first(args, cx),
             Fun::Builtin(Builtin::MacroThreadLast) => builtins::macro_thread_last(args, cx),
             Fun::Builtin(Builtin::MacroThreadAs) => builtins::macro_thread_as(args, cx),
+            Fun::Builtin(Builtin::MacroQuasiquote) => builtins::macro_quasiquote(args, cx),
 
             _ => unimplemented!(),
         }
@@ -895,6 +898,7 @@ pub enum Builtin {
     Gt,
     Gte,
 
+    AppToArr,
     AppApply,
     AppConcat,
     AppCount,
@@ -906,6 +910,7 @@ pub enum Builtin {
     AppSplice,
     AppUpdate,
 
+    ArrToApp,
     ArrConcat,
     ArrCount,
     ArrCursor,
@@ -1066,6 +1071,7 @@ pub enum Builtin {
     MacroIf,
     MacroLambda,
     MacroLet,
+    MacroQuasiquote,
     MacroQuote,
     MacroSetBang,
     MacroThrow,
@@ -1159,7 +1165,6 @@ pub enum Opaque {
     Builtin(BuiltinOpaque),
 }
 
-// TODO implement the missing ones
 #[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
 pub enum BuiltinOpaque {
     CursorArr(Gc<GcCell<VectorCursor<Value>>>),

@@ -1400,6 +1400,11 @@ mod tests {
     #[test]
     fn test_toplevel_array() {
         test_example("
+        (assert-eq (arr->app []) $())
+        (assert-eq (arr->app [0 1 2]) $(0 1 2))
+        ");
+
+        test_example("
         (assert-eq (arr-count []) 0)
         (assert-eq (arr-count [nil]) 1)
         (assert-eq (arr-count [0, 1, 2]) 3)
@@ -1489,6 +1494,11 @@ mod tests {
 
     #[test]
     fn test_toplevel_application() {
+        test_example("
+        (assert-eq (app->arr $()) [])
+        (assert-eq (app->arr $(0 1 2)) [0 1 2])
+        ");
+
         test_example("
         (assert-eq (app-count $()) 0)
         (assert-eq (app-count $(nil)) 1)
@@ -2320,16 +2330,16 @@ mod tests {
         (assert-eq (macro-do) $(sf-do))
         (assert-eq (macro-do 0) $(sf-do 0))
         (assert-eq (macro-do 0 1 2) $(sf-do 0 1 2))
-        (assert-eq (macro-do 0 $(:let a 42) 2 $a) $(sf-do 0 (let a 42 (do 2 a))))
+        (assert-eq (macro-do 0 $(:let a 42) 2 $a) $(sf-do 0 (let a 42 (sf-do 2 a))))
         (assert-eq (do 0 (:let a 42) 2 a) 42)
-        (assert-eq (macro-do 0 $(:let a 42)) $(sf-do 0 (let a 42 (do))))
-        (assert-throw (macro-do $(:let a)) {:tag :err-do-let})
+        (assert-eq (macro-do 0 $(:let a 42)) $(sf-do 0 (let a 42 (sf-do))))
+        (assert-throw (macro-do $(:let a)) {:tag :err-num-args})
         ");
 
         test_example("
         (assert-eq (macro-if 0 1) $(sf-if 0 1 nil))
         (assert-eq (macro-if 0 1 2) $(sf-if 0 1 2))
-        (assert-eq (macro-if 0 1 2 3) $(sf-if 0 1 (if 2 3)))
+        (assert-eq (macro-if 0 1 2 3) $(sf-if 0 1 (sf-if 2 3 nil)))
         ");
 
         test_example("
@@ -2343,11 +2353,11 @@ mod tests {
             (int->float ,,,)
         ) 40.0)
 
-        (assert-eq (macro--> 42) 42)
         (assert-eq (macro--> 42 $(int-sub 2)) $(int-sub 42 2))
-        (assert-eq (macro--> 42 $(int-sub 2) $(int->float)) $(-> (int-sub 42 2) (int->float)))
+        (assert-eq (macro--> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 42 2)))
         (assert-throw (macro--> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
         (assert-throw (macro--> 42 $()) {:tag :err-lookup, :got 1})
+        (assert-throw (macro--> 42) {:tag :err-num-args})
         ");
 
         test_example("
@@ -2356,11 +2366,11 @@ mod tests {
             (int->float ,,,)
         ) -40.0)
 
-        (assert-eq (macro-->> 42) 42)
         (assert-eq (macro-->> 42 $(int-sub 2)) $(int-sub 2 42))
-        (assert-eq (macro-->> 42 $(int-sub 2) $(int->float)) $(->> (int-sub 2 42) (int->float)))
+        (assert-eq (macro-->> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 2 42)))
         (assert-throw (macro-->> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
         (assert-throw (macro-->> 42 $()) {:tag :err-lookup, :got 1})
+        (assert-throw (macro-->> 42) {:tag :err-num-args})
         ");
 
         test_example("
@@ -2369,9 +2379,28 @@ mod tests {
             (int-sub 3 foo)
         ) -37)
 
-        (assert-eq (macro-as-> $foo 42) 42)
         (assert-eq (macro-as-> $foo 42 $(int-sub foo 2)) $(let foo 42 (int-sub foo 2)))
-        (assert-eq (macro-as-> $foo 42 $(int-sub foo 2) $(int-sub 3 foo)) $(as-> foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
+        (assert-eq (macro-as-> $foo 42 $(int-sub foo 2) $(int-sub 3 foo)) $(let foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
+        (assert-throw (macro-as-> $foo 42) {:tag :err-num-args})
+        ");
+
+        test_example("
+        (assert-eq `int-add $int-add)
+        (assert-eq `;int-add int-add)
+        (assert-eq `(%(0 1) 2) $(0 1 2))
+        (assert-eq (typeof `@foo) :symbol)
+        (let expanded `[@foo @bar @foo] (do
+            (assert-eq (= (arr-get expanded 0) (arr-get expanded 1)) false)
+            (assert-eq (arr-get expanded 0) (arr-get expanded 2))
+        ))
+
+        (assert-eq `(1 `;(+ 1 ;(+ 2 3)) 4) $(1 `;(+ 1 5) 4))
+        (assert-eq `(1 ```;%;%(list (+ 1 2)) 4) $(1 ```;%;3 4))
+
+        (assert-throw (macro-quasiquote $(:unquote 0 1)) {:tag :err-num-args})
+        (assert-throw (macro-quasiquote $((:unquote-splice 0 1))) {:tag :err-num-args})
+        (assert-throw (macro-quasiquote $[%(0 1)]) {:tag :err-type :expected :application :got :array})
+        (assert-throw (macro-quasiquote $(%{})) {:tag :err-type :expected :application :got :set})
         ");
     }
 }

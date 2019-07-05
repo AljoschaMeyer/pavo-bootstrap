@@ -138,6 +138,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "str=>kw?", Builtin::IsStrToKw);
     env_add(&mut m, "kw->str", Builtin::KwToStr);
 
+    env_add(&mut m, "arr->app", Builtin::ArrToApp);
     env_add(&mut m, "arr-count", Builtin::ArrCount);
     env_add(&mut m, "arr-get", Builtin::ArrGet);
     env_add(&mut m, "arr-insert", Builtin::ArrInsert);
@@ -148,6 +149,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "arr-concat", Builtin::ArrConcat);
     env_add(&mut m, "arr-cursor", Builtin::ArrCursor);
 
+    env_add(&mut m, "app->arr", Builtin::AppToArr);
     env_add(&mut m, "app-count", Builtin::AppCount);
     env_add(&mut m, "app-get", Builtin::AppGet);
     env_add(&mut m, "app-insert", Builtin::AppInsert);
@@ -275,6 +277,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "macro-->", Builtin::MacroThreadFirst);
     env_add(&mut m, "macro-->>", Builtin::MacroThreadLast);
     env_add(&mut m, "macro-as->", Builtin::MacroThreadAs);
+    env_add(&mut m, "macro-quasiquote", Builtin::MacroQuasiquote);
     // TODO remaining macro functions
 
     m
