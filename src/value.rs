@@ -14,7 +14,7 @@ use im_rc::{
 };
 use ropey::Rope as Ropey;
 
-use crate::builtins::{self, type_error, type_error_, num_args_error};
+use crate::builtins::{self, type_error, type_error_, num_args_error, write_spaces};
 use crate::context::Context;
 use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
 use crate::vm::Closure;
@@ -883,6 +883,8 @@ impl Fun {
             Fun::Builtin(Builtin::MacroThreadFirst) => builtins::macro_thread_first(args, cx),
             Fun::Builtin(Builtin::MacroThreadLast) => builtins::macro_thread_last(args, cx),
             Fun::Builtin(Builtin::MacroThreadAs) => builtins::macro_thread_as(args, cx),
+            Fun::Builtin(Builtin::MacroOr) => builtins::macro_or(args, cx),
+            Fun::Builtin(Builtin::MacroAnd) => builtins::macro_and(args, cx),
             Fun::Builtin(Builtin::MacroQuasiquote) => builtins::macro_quasiquote(args, cx),
 
             _ => unimplemented!(),
@@ -1066,11 +1068,13 @@ pub enum Builtin {
     MacroThreadFirst,
     MacroThreadLast,
     MacroThreadAs,
+    MacroAnd,
     MacroDo,
     MacroFn,
     MacroIf,
     MacroLambda,
     MacroLet,
+    MacroOr,
     MacroQuasiquote,
     MacroQuote,
     MacroSetBang,
@@ -1165,6 +1169,15 @@ pub enum Opaque {
     Builtin(BuiltinOpaque),
 }
 
+impl Opaque {
+    fn type_id(&self) -> u64 {
+        match self {
+            Opaque::User(_, id) => *id,
+            Opaque::Builtin(o) => o.type_id(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
 pub enum BuiltinOpaque {
     CursorArr(Gc<GcCell<VectorCursor<Value>>>),
@@ -1195,6 +1208,167 @@ impl BuiltinOpaque {
             BuiltinOpaque::CursorBytes(..) => CURSOR_BYTES_ID,
             BuiltinOpaque::CursorStringChars(..) => CURSOR_STRING_CHARS_ID,
             BuiltinOpaque::CursorStringUtf8(..) => CURSOR_STRING_UTF8_ID,
+        }
+    }
+}
+
+
+pub fn debug_print(v: &Value, mut indent: usize, indent_inc: usize, out: &mut String) {
+    match v {
+        Value::Atomic(a) => builtins::write_atomic(a, indent, indent_inc, out),
+        Value::Id(Id::User(id)) => out.push_str(id),
+        Value::Arr(arr) => {
+            if arr.0.len() == 0 {
+                out.push_str("[]");
+                return;
+            } else if arr.0.len() == 1 || indent_inc == 0 {
+                out.push_str("[");
+                for (i, w) in arr.0.iter().enumerate() {
+                    debug_print(w, indent, indent_inc, out);
+                    if i + 1 < arr.0.len() {
+                        out.push_str(" ")
+                    }
+                }
+                out.push_str("]");
+                return;
+            } else {
+                out.push_str("[\n");
+                indent += indent_inc;
+
+                for w in arr.0.iter() {
+                    write_spaces(indent, out);
+                    debug_print(w, indent, indent_inc, out);
+                    out.push_str(",\n");
+                }
+
+                indent -= indent_inc;
+                write_spaces(indent, out);
+                out.push_str("]");
+                return;
+            }
+        }
+        Value::App(app) => {
+            if app.0.len() == 0 {
+                out.push_str("()");
+                return;
+            } else if app.0.len() == 1 || indent_inc == 0 {
+                out.push_str("(");
+                for (i, w) in app.0.iter().enumerate() {
+                    debug_print(w, indent, indent_inc, out);
+                    if i + 1 < app.0.len() {
+                        out.push_str(" ")
+                    }
+                }
+                out.push_str(")");
+                return;
+            } else {
+                out.push_str("(\n");
+                indent += indent_inc;
+
+                for w in app.0.iter() {
+                    write_spaces(indent, out);
+                    debug_print(w, indent, indent_inc, out);
+                    out.push_str(",\n");
+                }
+
+                indent -= indent_inc;
+                write_spaces(indent, out);
+                out.push_str(")");
+                return;
+            }
+        }
+        Value::Set(set) => {
+            if set.0.len() == 0 {
+                out.push_str("@{}");
+                return;
+            } else if set.0.len() == 1 || indent_inc == 0 {
+                out.push_str("@{");
+                for (i, w) in set.0.iter().enumerate() {
+                    debug_print(w, indent, indent_inc, out);
+                    if i + 1 < set.0.len() {
+                        out.push_str(" ")
+                    }
+                }
+                out.push_str("}");
+                return;
+            } else {
+                out.push_str("@{\n");
+                indent += indent_inc;
+
+                for w in set.0.iter() {
+                    write_spaces(indent, out);
+                    debug_print(w, indent, indent_inc, out);
+                    out.push_str(",\n");
+                }
+
+                indent -= indent_inc;
+                write_spaces(indent, out);
+                out.push_str("}");
+                return;
+            }
+        }
+        Value::Map(map) => {
+            if map.0.len() == 0 {
+                out.push_str("{}");
+                return;
+            } else if map.0.len() == 1 || indent_inc == 0 {
+                out.push_str("{");
+                for (i, (key, value)) in map.0.iter().enumerate() {
+                    debug_print(key, indent, indent_inc, out);
+                    out.push_str(" ");
+                    debug_print(value, indent, indent_inc, out);
+                    if i + 1 < map.0.len() {
+                        out.push_str(" ")
+                    }
+                }
+                out.push_str("}");
+                return;
+            } else {
+                out.push_str("{\n");
+                indent += indent_inc;
+
+                for (key, value) in map.0.iter() {
+                    write_spaces(indent, out);
+                    debug_print(key, indent, indent_inc, out);
+                    out.push_str(" ");
+                    debug_print(value, indent, indent_inc, out);
+                    out.push_str(",\n");
+                }
+
+                indent -= indent_inc;
+                write_spaces(indent, out);
+                out.push_str("}");
+                return;
+            }
+        }
+        Value::Id(Id::Symbol(id)) => {
+            out.push_str(";symbol ");
+            out.push_str(&id.to_string());
+            out.push_str(";")
+        }
+        Value::Cell(_, id) => {
+            out.push_str(";cell ");
+            out.push_str(&id.to_string());
+            out.push_str(";")
+        }
+        Value::Opaque(creation_id, o) => {
+            out.push_str(";opaque type: ");
+            out.push_str(&o.type_id().to_string());
+            out.push_str(" created: ");
+            out.push_str(&creation_id.to_string());
+            out.push_str(";")
+        }
+        Value::Fun(fun) => {
+            out.push_str(";function ");
+            match fun {
+                Fun::Closure(_, id) | Fun::Opaque { fun_id: id, ..} => {
+                    out.push_str(&id.to_string());
+                }
+                Fun::Builtin(b) => {
+                    std::fmt::write(out, format_args!("{:?}", b)).unwrap();
+                }
+            }
+            out.push_str(";");
         }
     }
 }

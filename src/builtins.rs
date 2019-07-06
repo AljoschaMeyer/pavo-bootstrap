@@ -2626,7 +2626,9 @@ pub fn diverge(_args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> 
 
 pub fn trace(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 1)?;
-    println!("{:?}", args.0[0]);
+    let mut buf = String::new();
+    value::debug_print(&args.0[0].clone(), 0, 2, &mut buf);
+    println!("{}", buf);
     Ok(args.0[0].clone())
 }
 
@@ -2754,7 +2756,8 @@ fn macro_thread_first_(v: Value, fst: &Value, rest: &Vector<Value>) -> Result<Va
 
 pub fn macro_thread_first(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     match args.0.len() {
-        0 | 1 => return Err(num_args_error()),
+        0 => return Err(num_args_error()),
+        1 => return Ok(args.0[0].clone()),
         _ => return macro_thread_first_(args.0[0].clone(), &args.0[1], &Vector(args.0.skip(2))),
     }
 }
@@ -2775,7 +2778,8 @@ fn macro_thread_last_(v: Value, fst: &Value, rest: &Vector<Value>) -> Result<Val
 
 pub fn macro_thread_last(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     match args.0.len() {
-        0 | 1 => return Err(num_args_error()),
+        0 => return Err(num_args_error()),
+        1 => return Ok(args.0[0].clone()),
         _ => return macro_thread_last_(args.0[0].clone(), &args.0[1], &Vector(args.0.skip(2))),
     }
 }
@@ -2797,7 +2801,8 @@ fn macro_thread_as_(pattern: Value, v: Value, w: Value, rest: &Vector<Value>) ->
 
 pub fn macro_thread_as(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     match args.0.len() {
-        0 | 1 | 2 => return Err(num_args_error()),
+        0 | 1=> return Err(num_args_error()),
+        2 => return Ok(args.0[1].clone()),
         _ => return macro_thread_as_(
                 args.0[0].clone(),
                 args.0[1].clone(),
@@ -2807,20 +2812,73 @@ pub fn macro_thread_as(args: Vector<Value>, _cx: &mut Context) -> Result<Value, 
     }
 }
 
-fn quasiquote(v: &Value, fresh_names: &mut HashMap<Id, u64>, outer: &str, nesting: usize, cx: &mut Context) -> Result<Value, Value> {
+fn macro_or_(v: Value, rest: &Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    if rest.0.len() == 0 {
+        return Ok(v)
+    } else {
+        let id = Value::id(Id::Symbol(cx.next_symbol_id()));
+        return Ok(Value::app_from_vec(vec![
+                Value::id_str("let"),
+                id.clone(),
+                v,
+                Value::app_from_vec(vec![
+                        Value::id_str("sf-if"),
+                        id.clone(),
+                        id.clone(),
+                        macro_or_(rest.0[0].clone(), &Vector(rest.0.skip(1)), cx)?,
+                    ]),
+            ]));
+    }
+}
+
+pub fn macro_or(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    match args.0.len() {
+        0 => return Ok(Value::bool_(false)),
+        _ => return macro_or_(args.0[0].clone(), &Vector(args.0.skip(1)), cx),
+    }
+}
+
+fn macro_and_(v: Value, rest: &Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    if rest.0.len() == 0 {
+        return Ok(v)
+    } else {
+        let id = Value::id(Id::Symbol(cx.next_symbol_id()));
+        return Ok(Value::app_from_vec(vec![
+                Value::id_str("let"),
+                id.clone(),
+                v,
+                Value::app_from_vec(vec![
+                        Value::id_str("sf-if"),
+                        id.clone(),
+                        macro_and_(rest.0[0].clone(), &Vector(rest.0.skip(1)), cx)?,
+                        id.clone(),
+                    ]),
+            ]));
+    }
+}
+
+pub fn macro_and(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    match args.0.len() {
+        0 => return Ok(Value::bool_(true)),
+        _ => return macro_and_(args.0[0].clone(), &Vector(args.0.skip(1)), cx),
+    }
+}
+
+fn quasiquote(v: &Value, fresh_names: &mut HashMap<Id, u64>, cx: &mut Context) -> Result<Value, Value> {
     match v {
-        Value::Atomic(_) | Value::Id(_) | Value::Fun(..) | Value::Cell(..) | Value::Opaque(..) => Ok(v.clone()),
+        Value::Atomic(_) | Value::Fun(..) | Value::Cell(..) | Value::Opaque(..) => Ok(v.clone()),
+        Value::Id(_) => Ok(Value::app_from_vec(vec![Value::id_str("quote"), v.clone()])),
         Value::Arr(arr) => {
             let mut new_arr = ImVector::new();
             for w in arr.0.iter() {
-                new_arr.push_back(quasiquote(w, fresh_names, "array", nesting, cx)?);
+                new_arr.push_back(quasiquote(w, fresh_names, cx)?);
             }
             Ok(Value::arr(Vector(new_arr)))
         }
         Value::Set(set) => {
             let mut new_set = ImOrdSet::new();
             for w in set.0.iter() {
-                new_set.insert(quasiquote(w, fresh_names, "set", nesting, cx)?);
+                new_set.insert(quasiquote(w, fresh_names, cx)?);
             }
             Ok(Value::set(OrdSet(new_set)))
         }
@@ -2828,38 +2886,120 @@ fn quasiquote(v: &Value, fresh_names: &mut HashMap<Id, u64>, outer: &str, nestin
             let mut new_map = ImOrdMap::new();
             for (key, value) in map.0.iter() {
                 new_map.insert(
-                    quasiquote(key, fresh_names, "map", nesting, cx)?,
-                    quasiquote(value, fresh_names, "map", nesting, cx)?,
+                    quasiquote(key, fresh_names, cx)?,
+                    quasiquote(value, fresh_names, cx)?,
                 );
             }
             Ok(Value::map(OrdMap(new_map)))
         }
         Value::App(app) => {
             if app.0.len() == 0 {
-                return Ok(Value::app_from_vec(vec![]));
+                return Ok(Value::app_from_vec(vec![
+                        Value::builtin(value::Builtin::ArrToApp),
+                        Value::arr(app.clone()),
+                    ]));
             }
 
             if let Some(kw) = app.0[0].as_kw() {
                 match kw {
-                    ":unquote" => {
+                    "unquote" => {
                         if app.0.len() != 2 {
                             return Err(num_args_error());
+                        } else {
+                            return Ok(app.0[1].clone());
                         }
-                        unimplemented!();
                     }
-                    _ => unimplemented!(),
+                    "fresh-name" => {
+                        if app.0.len() != 2 {
+                            return Err(num_args_error());
+                        } else {
+                            match &app.0[1].as_id() {
+                                None => return Err(type_error(&app.0[1], "identifier")),
+                                Some(id) => {
+                                    if let Some(symbol_id) = fresh_names.get(id) {
+                                        return Ok(Value::Id(Id::Symbol(*symbol_id)));
+                                    } else {
+                                        let symbol_id = cx.next_symbol_id();
+                                        fresh_names.insert((*id).clone(), symbol_id);
+                                        return Ok(Value::Id(Id::Symbol(symbol_id)));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
                 }
             }
 
+            // we are in an application, our first entry is neither `:unquote` nor `:fresh-name`
+            let mut ret = ImVector::unit(Value::id_str("->"));
 
-            unimplemented!()
+            let mut current = ImVector::new();
+
+            for w in app.0.iter() {
+                if let Some(inner_app) = w.as_app() {
+                    if inner_app.0.len() > 0 {
+                        if let Some("unquote-splice") = inner_app.0[0].as_kw() {
+                            if inner_app.0.len() != 2 {
+                                return Err(num_args_error());
+                            }
+                            // got an unquote-splice form
+
+                            if ret.len() == 1 {
+                                ret.push_back(Value::app_from_vec(vec![
+                                        Value::builtin(value::Builtin::ArrToApp),
+                                        Value::arr(Vector(current)),
+                                    ]));
+                                current = ImVector::new();
+                            } else {
+                                if current.len() != 0 {
+                                    ret.push_back(Value::app_from_vec(vec![
+                                            Value::builtin(value::Builtin::AppConcat),
+                                            Value::app_from_vec(vec![
+                                                    Value::builtin(value::Builtin::ArrToApp),
+                                                    Value::arr(Vector(current)),
+                                                ])
+                                        ]));
+                                    current = ImVector::new();
+                                }
+                            }
+                            ret.push_back(Value::app_from_vec(vec![
+                                    Value::builtin(value::Builtin::AppConcat),
+                                    inner_app.0[1].clone(),
+                                ]));
+
+                            continue;
+                        }
+                    }
+                }
+                // not an unquote-splice form
+
+                current.push_back(quasiquote(w, fresh_names, cx)?);
+            }
+
+            if ret.len() == 1 {
+                ret.push_back(Value::app_from_vec(vec![
+                        Value::builtin(value::Builtin::ArrToApp),
+                        Value::arr(Vector(current)),
+                    ]));
+            } else {
+                ret.push_back(Value::app_from_vec(vec![
+                        Value::builtin(value::Builtin::AppConcat),
+                        Value::app_from_vec(vec![
+                                Value::builtin(value::Builtin::ArrToApp),
+                                Value::arr(Vector(current)),
+                            ])
+                    ]));
+            }
+
+            return Ok(Value::app(Vector(ret)));
         }
     }
 }
 
 pub fn macro_quasiquote(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 1)?;
-    return quasiquote(&args.0[0], &mut HashMap::new(), "nil", 0, cx);
+    return quasiquote(&args.0[0], &mut HashMap::new(), cx);
 }
 
 // TODO: proper implementation (named recursion, pattern matching)
@@ -2878,45 +3018,50 @@ pub fn macro_lambda(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Val
 
 //////////////////////////////////////////////////////////////////////////////
 
-pub fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
-    match v {
-        Value::Atomic(Atomic::Nil) => Ok(out.push_str("nil")),
-        Value::Atomic(Atomic::Bool(true)) => Ok(out.push_str("true")),
-        Value::Atomic(Atomic::Bool(false)) => Ok(out.push_str("false")),
-        Value::Atomic(Atomic::Int(n)) => Ok(out.push_str(&n.to_string())),
-        Value::Atomic(Atomic::Float(n)) => {
+pub fn write_spaces(indent: usize, out: &mut String) {
+    for _ in 0..indent {
+        out.push(' ');
+    }
+}
+
+pub fn write_atomic(a: &Atomic, mut indent: usize, indent_inc: usize, out: &mut String) {
+    match a {
+        Atomic::Nil => out.push_str("nil"),
+        Atomic::Bool(true) => out.push_str("true"),
+        Atomic::Bool(false) => out.push_str("false"),
+        Atomic::Int(n) => out.push_str(&n.to_string()),
+        Atomic::Float(n) => {
             let mut b = Buffer::new();
             let ecmaliteral = b.format(n.0.into_inner());
 
             match ecmaliteral.find('.') {
-                Some(_) => Ok(out.push_str(ecmaliteral)),
+                Some(_) => out.push_str(ecmaliteral),
                 None => {
                     match ecmaliteral.find('e') {
                         Some(index) => {
                             let (fst, snd) = ecmaliteral.split_at(index);
                             out.push_str(fst);
                             out.push_str(".0");
-                            Ok(out.push_str(snd))
+                            out.push_str(snd)
                         }
                         None => {
                             out.push_str(ecmaliteral);
-                            Ok(out.push_str(".0"))
+                            out.push_str(".0")
                         }
                     }
                 }
             }
         }
-        Value::Atomic(Atomic::Char('\\')) => Ok(out.push_str("'\\\\'")),
-        Value::Atomic(Atomic::Char('\'')) => Ok(out.push_str("'\\''")),
-        Value::Atomic(Atomic::Char('\t')) => Ok(out.push_str("'\\t'")),
-        Value::Atomic(Atomic::Char('\n')) => Ok(out.push_str("'\\n'")),
-        Value::Atomic(Atomic::Char(other)) => {
+        Atomic::Char('\\') => out.push_str("'\\\\'"),
+        Atomic::Char('\'') => out.push_str("'\\''"),
+        Atomic::Char('\t') => out.push_str("'\\t'"),
+        Atomic::Char('\n') => out.push_str("'\\n'"),
+        Atomic::Char(other) => {
             out.push('\'');
             out.push(*other);
             out.push('\'');
-            Ok(())
         }
-        Value::Atomic(Atomic::String(chars)) => {
+        Atomic::String(chars) => {
             out.push('"');
             for c in chars.0.chars() {
                 match c {
@@ -2928,24 +3073,47 @@ pub fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
                 }
             }
             out.push('"');
-            Ok(())
         }
-        Value::Atomic(Atomic::Bytes(bytes)) => {
-            out.push_str("@[");
-            for (i, b) in bytes.0.iter().enumerate() {
-                out.push_str(&b.to_string());
-                if i + 1 < bytes.0.len() {
-                    out.push(' ');
+        Atomic::Bytes(bytes) => {
+            if bytes.0.len() == 0 {
+                out.push_str("@[]");
+                return;
+            } else if bytes.0.len() == 1 || indent_inc == 0 {
+                out.push_str("@[");
+                for (i, b) in bytes.0.iter().enumerate() {
+                    out.push_str(&b.to_string());
+                    if i + 1 < bytes.0.len() {
+                        out.push_str(" ")
+                    }
                 }
+                out.push_str("]");
+                return;
+            } else {
+                out.push_str("@[\n");
+                indent += indent_inc;
+
+                for b in bytes.0.iter() {
+                    write_spaces(indent, out);
+                    out.push_str(&b.to_string());
+                    out.push_str(",\n");
+                }
+
+                indent -= indent_inc;
+                write_spaces(indent, out);
+                out.push_str("]");
+                return;
             }
-            out.push(']');
-            Ok(())
         }
-        Value::Atomic(Atomic::Keyword(kw)) => {
+        Atomic::Keyword(kw) => {
             out.push(':');
             out.push_str(kw);
-            Ok(())
         }
+    }
+}
+
+pub fn write_(v: &Value, out: &mut String) -> Result<(), Value> {
+    match v {
+        Value::Atomic(a) => Ok(write_atomic(a, 0, 0, out)),
         Value::Id(Id::User(id)) => Ok(out.push_str(id)),
         Value::Arr(arr) => {
             out.push_str("[");

@@ -49,10 +49,11 @@ named!(lparen(CompleteStr) -> (), do_parse!(tag!("(") >> (())));
 named!(rparen(CompleteStr) -> (), do_parse!(tag!(")") >> (())));
 named!(at_lbrace(CompleteStr) -> (), do_parse!(tag!("@{") >> (())));
 named!(at_lbracket(CompleteStr) -> (), do_parse!(tag!("@[") >> (())));
+named!(at_tilde(CompleteStr) -> (), do_parse!(tag!("@~") >> (())));
 
 pub fn is_id_char(c: char) -> bool {
     return c.is_ascii_alphanumeric() || c == '!' || c == '*' || c == '+'
-        || c == '-' || c == '_' || c == '?' || c == '~' || c == '<'
+        || c == '-' || c == '_' || c == '?' || c == '%' || c == '<'
         || c == '>' || c == '=' || c == '/' || c == '\\'
         || c == '|' || c == '&';
 }
@@ -289,13 +290,13 @@ named!(quasiquote(CompleteStr) -> Value, do_parse!(
 ));
 
 named!(unquote(CompleteStr) -> Value, do_parse!(
-    tag!(";") >>
+    tag!("~") >>
     inner: obj >>
     (Value::app_from_vec(vec![Value::kw_str("unquote"), inner]))
 ));
 
 named!(unquote_splice(CompleteStr) -> Value, do_parse!(
-    tag!("%") >>
+    at_tilde >>
     inner: obj >>
     (Value::app_from_vec(vec![Value::kw_str("unquote-splice"), inner]))
 ));

@@ -16,6 +16,8 @@ pub fn default() -> ImOrdMap<Id, Value> {
     env_add(&mut m, "->", Builtin::MacroThreadFirst);
     env_add(&mut m, "->>", Builtin::MacroThreadLast);
     env_add(&mut m, "as->", Builtin::MacroThreadAs);
+    env_add(&mut m, "or", Builtin::MacroOr);
+    env_add(&mut m, "and", Builtin::MacroAnd);
     env_add(&mut m, "quasiquote", Builtin::MacroQuasiquote);
 
     return m;

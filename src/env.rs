@@ -277,6 +277,8 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "macro-->", Builtin::MacroThreadFirst);
     env_add(&mut m, "macro-->>", Builtin::MacroThreadLast);
     env_add(&mut m, "macro-as->", Builtin::MacroThreadAs);
+    env_add(&mut m, "macro-or", Builtin::MacroOr);
+    env_add(&mut m, "macro-and", Builtin::MacroAnd);
     env_add(&mut m, "macro-quasiquote", Builtin::MacroQuasiquote);
     // TODO remaining macro functions
 

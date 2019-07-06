@@ -61,25 +61,25 @@ The expressions are:
 
 ### Identifier
 
-Identifiers, a sequence of at least one and at most 255 of the following characters: `!*+-_?~<>=/\&|` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error. Additionally, that sequence may not match the syntax of any other expression (such as `nil`, `true`, `false`, valid or overflowing integers, valid or overflowing floats).
+Identifiers, a sequence of at least one and at most 255 of the following characters: `!*+-_?%<>=/\&|` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error. Additionally, that sequence may not match the syntax of any other expression (such as `nil`, `true`, `false`, valid or overflowing integers, valid or overflowing floats).
 
 ```pavo
 !
 =P
 -_-
-!*+-_?~<>=/\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+!*+-_?%<>=/\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
 abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg
 # too long: abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh
 ```
 
 ### Keyword
 
-A keyword consists of a colon (`:`) followed by at least one and at most 255 of the following characters: `!*+-_?~<>=/\&|` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error.
+A keyword consists of a colon (`:`) followed by at least one and at most 255 of the following characters: `!*+-_?%<>=/\&|` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error.
 
 ```pavo
 :!
 :nil # while not an identifier, this is ok for a keyword
-:!*+-_?~<>=/\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+:!*+-_?%<>=/\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
 :abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg
 # too long: abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh
 ```
@@ -304,15 +304,15 @@ The previous expressions have all been *literals*. There are five more expressio
 
 - A dollar sign `$` followed by an expression `exp` is parsed to the same value as `(quote exp)`
 - A backtick `\`` followed by an expression `exp` is parsed to the same value as `(quasiquote exp)`
-- A semicolon `;` followed by an expression `exp` is parsed to the same value as `(:unquote exp)`
-- A percent sign `%` followed by an expression `exp` is parsed to the same value as `(:unquote-splice exp)`
+- A tilde `~` followed by an expression `exp` is parsed to the same value as `(:unquote exp)`
+- `@~` followed by an expression `exp` is parsed to the same value as `(:unquote-splice exp)`
 - An at sign `@` followed by an identifier `id` is parsed to the same value as `(:fresh-name id)`
 
 ```pavo
 (assert-eq (sf-quote $a) (sf-quote (quote a)))
 (assert-eq (sf-quote `a) (sf-quote (quasiquote a)))
-(assert-eq (sf-quote ;a) (sf-quote (:unquote a)))
-(assert-eq (sf-quote %a) (sf-quote (:unquote-splice a)))
+(assert-eq (sf-quote ~a) (sf-quote (:unquote a)))
+(assert-eq (sf-quote @~a) (sf-quote (:unquote-splice a)))
 (assert-eq (sf-quote @a) (sf-quote (:fresh-name a)))
 (assert-eq (sf-quote $$a) (sf-quote (quote (quote a))))
 # $ by itself is a parse error (same for the other shorthands)
@@ -2524,8 +2524,8 @@ Time: Worst-case O(log(n)), where n is the number of elements in the underlying 
 Applies the first value in the application `app` to the remaining values.
 
 ```pavo
-(assert-eq (app-apply `(;int-add 1 2)) 3)
-(assert-throw (app-apply `(;int-add 1)) {:tag :err-num-args})
+(assert-eq (app-apply `(~int-add 1 2)) 3)
+(assert-throw (app-apply `(~int-add 1)) {:tag :err-num-args})
 (assert-throw (app-apply $()) {:tag :err-lookup :got 0})
 (assert-throw (app-apply $(42)) {:tag :err-type, :expected :function, :got :int})
 ```
@@ -3980,9 +3980,9 @@ Returns `((lambda [pattern] body) v)`, effectively evaluating `body` in a contex
 (assert-eq (macro-let 0 1 2) $((lambda [0] 2) 1))
 ```
 
-#### `(macro--> v app)` `(macro--> v app rest...)`
+#### `(macro--> v)` `(macro--> v app)` `(macro--> v app rest...)`
 
-If applied to two arguments `v` and `app`, returns the result of evaluating `(app-insert app 1 v)`, throwing any error. If applied to more than two arguments `v`, `app` and `rest..`, returns the result of evaluating `(macro--> <spliced> rest...)` (propagating any error), where `<spliced>` is the result of evaluating `(app-insert app 1 v)`, throwing any error.
+If applied to one argment `v`, returns `v`. If applied to two arguments `v` and `app`, returns the result of evaluating `(app-insert app 1 v)`, throwing any error. If applied to more than two arguments `v`, `app` and `rest..`, returns the result of evaluating `(macro--> <spliced> rest...)` (propagating any error), where `<spliced>` is the result of evaluating `(app-insert app 1 v)`, throwing any error.
 
 In effect, this threads the value `v` through the applications, inserting it (or the result of the previous application) as the first argument of the next application.
 
@@ -3992,16 +3992,16 @@ In effect, this threads the value `v` through the applications, inserting it (or
     (int->float ,,,)
 ) 40.0)
 
+(assert-eq (macro--> 42) 42)
 (assert-eq (macro--> 42 $(int-sub 2)) $(int-sub 42 2))
 (assert-eq (macro--> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 42 2)))
 (assert-throw (macro--> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
 (assert-throw (macro--> 42 $()) {:tag :err-lookup, :got 1})
-(assert-throw (macro--> 42) {:tag :err-num-args})
 ```
 
-#### `(macro-->> v app)` `(macro-->> v app rest...)`
+#### `(macro-->> v)` `(macro-->> v app)` `(macro-->> v app rest...)`
 
-If applied to two arguments `v` and `app`, returns the result of evaluating `(app-insert app (app-count app) v)`, throwing any error. If `app` is the empty application, throws `{:tag :err-lookup, :got 1}` instead. If applied to more than two arguments `v`, `app` and `rest..`, returns `(->> <spliced> rest...)` where `<spliced>` is the result of evaluating `(app-insert app (app-count app) v)`, throwing any error. If `app` is the empty application, throws `{:tag :err-lookup, :got 1}` instead.
+If applied to one argment `v`, returns `v`. If applied to two arguments `v` and `app`, returns the result of evaluating `(app-insert app (app-count app) v)`, throwing any error. If `app` is the empty application, throws `{:tag :err-lookup, :got 1}` instead. If applied to more than two arguments `v`, `app` and `rest..`, returns `(->> <spliced> rest...)` where `<spliced>` is the result of evaluating `(app-insert app (app-count app) v)`, throwing any error. If `app` is the empty application, throws `{:tag :err-lookup, :got 1}` instead.
 
 In effect, this threads the value `v` through the applications, inserting it (or the result of the previous application) as the last argument of the next application.
 
@@ -4011,16 +4011,16 @@ In effect, this threads the value `v` through the applications, inserting it (or
     (int->float ,,,)
 ) -40.0)
 
+(assert-eq (macro-->> 42) 42)
 (assert-eq (macro-->> 42 $(int-sub 2)) $(int-sub 2 42))
 (assert-eq (macro-->> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 2 42)))
 (assert-throw (macro-->> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
 (assert-throw (macro-->> 42 $()) {:tag :err-lookup, :got 1})
-(assert-throw (macro-->> 42) {:tag :err-num-args})
 ```
 
-#### `(macro-as-> pattern v w)` `(macro-as-> pattern v w rest...)`
+#### `(macro-as-> pattern v)` `(macro-as-> pattern v w)` `(macro-as-> pattern v w rest...)`
 
-If applied to three arguments `pattern`, `v` and `w`, returns `(let pattern v w)`. If applied to more than three arguments `pattern`, `v`, `w` and `rest..`, returns the result of evaluating `(macro-as-> pattern (let pattern v w) rest...)`, throwing any error.
+If applied to two arguments `pattern` and `v`, returns `v`. If applied to three arguments `pattern`, `v` and `w`, returns `(let pattern v w)`. If applied to more than three arguments `pattern`, `v`, `w` and `rest..`, returns the result of evaluating `(macro-as-> pattern (let pattern v w) rest...)`, throwing any error.
 
 In effect, this threads the value `v` through the applications, matching it against the pattern between each step to update the bindings with the result of the previous application.
 
@@ -4030,43 +4030,75 @@ In effect, this threads the value `v` through the applications, matching it agai
     (int-sub 3 foo)
 ) -37)
 
+(assert-eq (macro-as-> $foo 42) 42)
 (assert-eq (macro-as-> $foo 42 $(int-sub foo 2)) $(let foo 42 (int-sub foo 2)))
 (assert-eq (macro-as-> $foo 42 $(int-sub foo 2) $(int-sub 3 foo)) $(let foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
-(assert-throw (macro-as-> $foo 42) {:tag :err-num-args})
+```
+
+#### `(macro-or)` `(macro-or v)` `(macro-or v rest...)`
+
+If applied to zero arguments, returns `false`. If applied to one argument `v`, returns `v`. If applied to two arguments, returns `(let <sym> v (sf-if <sym> <sym> <rec>))`, where `<sym>` is a freshly generated symbol, and `<rec>` is the result of evaluating `(macro-or rest...)`.
+
+```pavo
+(assert-eq (macro-or) false)
+(assert-eq (macro-or 42) 42)
+(assert-eq (macro-or nil) nil)
+(assert-eq (or 0 1) 0)
+(assert-eq (or 0 false) 0)
+(assert-eq (or false 1) 1)
+(assert-eq (or false nil) nil)
+(assert-eq (or nil false 2) 2)
+(assert-eq (or nil false 2 3) 2)
+```
+
+#### `(macro-and)` `(macro-and v)` `(macro-or and rest...)`
+
+If applied to zero arguments, returns `true`. If applied to one argument `v`, returns `v`. If applied to two arguments, returns `(let <sym> v (sf-if <sym> <rec> <sym>))`, where `<sym>` is a freshly generated symbol, and `<rec>` is the result of evaluating `(macro-and rest...)`.
+
+```pavo
+(assert-eq (macro-and) true)
+(assert-eq (macro-and 42) 42)
+(assert-eq (macro-and nil) nil)
+(assert-eq (and 0 1) 1)
+(assert-eq (and 0 false) false)
+(assert-eq (and false 1) false)
+(assert-eq (and false nil) false)
+(assert-eq (and nil false 2) nil)
+(assert-eq (and nil false 2 3) nil)
 ```
 
 #### `(macro-quasiquote v)`
 
-Like quoting, but traversing all subvalues of `v` (depth-first) to perform the following special actions:
+Returns an expression that evaluates to the value `v` (*not* to the result of evaluating `v`), except that:
 
-- `(:unquote w)` is replaced with the result of evaluating `w` (throwing if evaluating `w` throws)
-- throws `{:tag :err-num-args}` when encountering an application whose first item is `:unquote` but that does contain exactly two items
-- if an application contains `(:unquote-splice w)`: evaluate `w` (propagating any errors) and `app-splice` it into the application (propagating any errors)
-- throws `{:tag :err-num-args}` if an application contains an application whose first item is `:unquote-splice` but that does contain exactly two items
-- throws a type error with `:expected` mapped to `:application` if a non-application value contains an application whose first item is `:unquote-splice`
-- throws `{:tag :err-num-args}` when encountering an application whose first item is `:fresh-name` but that does contain exactly two items
-- throws a type error when encountering an application of two items whose first item is `:fresh-name` but whose second item is not a name (identifier or symbol)
-- `(:fresh-name name)` is replaced with a newly generated symbol if this is the first `:fresh-name` form for the name `name`, or with the previously used symbol for that name if it is not the first `:fresh-name` form for that name
+- occurences of `(:unquote w)` within `v` evaluate to the result of evaluating `w`
+- for each occurence of `(:unquote-splice w)` within an application within `v`, `w` is evaluated and the result is spliced into the containing application.
+- occurences of `(:fresh-name some-name)` (names are identifiers or symbols) are replaced with a freshly generated symbol, all such forms with the same name receive the same symbol.
 
-Nested applications that begin with `:quasiquote` modify this behavior: Each quasiquote increases the number of unquotes (plain or splicing) that is needed to escape an inner value by one.
+For a precise definition of this function, see the corresponding appendix.
+
+Reminder: \`v is a shorthand for `(quasiquote v)`, `~v` for `(:unquote v)`, `@~v` for `(:unquote-splice v)` and `(@name)` for `(:fresh-name name)` if `name` is a name.
 
 ```pavo
-(assert-eq `int-add $int-add)
-(assert-eq `;int-add int-add)
-(assert-eq `(%(0 1) 2) $(0 1 2))
-(assert-eq (typeof `@foo) :symbol)
-(let expanded `[@foo @bar @foo] (do
+(assert-eq `42 42)
+(assert-eq `foo $foo)
+(assert-eq `[42 foo] [42 $foo])
+
+(assert-eq `() $())
+(assert-eq `(42 foo) (arr->app [42 $foo]))
+
+(assert-eq `~(int-add 1 2) 3)
+(assert-eq `[42 ~(int-add 1 2)] [42 3])
+(assert-eq `(42 ~(int-add 1 2)) $(42 3))
+
+(assert-eq `(0 @~$() 1) $(0 1))
+(assert-eq `(0 @~$(1) 2) $(0 1 2))
+(assert-eq `(0 @~$(1 2) 3) $(0 1 2 3))
+
+(let expanded (macro-quasiquote $[@foo @bar @foo]) (do
     (assert-eq (= (arr-get expanded 0) (arr-get expanded 1)) false)
     (assert-eq (arr-get expanded 0) (arr-get expanded 2))
 ))
-
-(assert-eq `(1 `;(+ 1 ;(+ 2 3)) 4) $(1 `;(+ 1 5) 4))
-(assert-eq `(1 ```;%;%(list (+ 1 2)) 4) $(1 ```;%;3 4))
-
-(assert-throw (macro-quasiquote $(:unquote 0 1)) {:tag :err-num-args})
-(assert-throw (macro-quasiquote $((:unquote-splice 0 1))) {:tag :err-num-args})
-(assert-throw (macro-quasiquote $[%(0 1)]) {:tag :err-type :expected :application :got :array})
-(assert-throw (macro-quasiquote $(%{})) {:tag :err-type :expected :application :got :set})
 ```
 
 TODO
@@ -4184,9 +4216,13 @@ Collections serialize their components and separate them by a single space (ther
 (assert-eq (write {2 nil , 1 nil  3 nil}) "{1 nil 2 nil 3 nil}")
 ```
 
+## Appendix: Precise Definition of `(quasiquote v)`
+
+TODO, refer to the reference implementation for now.
+
 ---
 
-TODO recursive macros should fully expand
+TODO set-split and map-split ??
 
 TODO `require` (dynamic linking, *not* loading)
 

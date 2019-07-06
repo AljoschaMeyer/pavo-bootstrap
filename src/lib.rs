@@ -182,14 +182,14 @@ mod tests {
         assert_ok("false", Value::bool_(false));
 
         assert_ok("(sf-quote =P)", Value::id_str("=P"));
-        assert_ok("(sf-quote !*+-_?~<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ)", Value::id_str("!*+-_?~<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
+        assert_ok("(sf-quote !*+-_?%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ)", Value::id_str("!*+-_?%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
         assert_ok("(sf-quote abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg)", Value::id_str("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg"));
         assert_any_parse_error("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh");
         assert_any_parse_error("[abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh]");
 
         assert_ok(":!", Value::kw_str("!"));
         assert_ok(":nil", Value::kw_str("nil"));
-        assert_ok(":!*+-_?~<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", Value::kw_str("!*+-_?~<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
+        assert_ok(":!*+-_?%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", Value::kw_str("!*+-_?%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
         assert_ok(":abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg", Value::kw_str("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg"));
         assert_any_parse_error(":");
         assert_any_parse_error(":abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh");
@@ -339,19 +339,19 @@ mod tests {
 
         assert_ok("(sf-quote $a)", Value::app_from_vec(vec![Value::id_str("quote"), Value::id_str("a")]));
         assert_ok("(sf-quote `a)", Value::app_from_vec(vec![Value::id_str("quasiquote"), Value::id_str("a")]));
-        assert_ok("(sf-quote ;a)", Value::app_from_vec(vec![Value::kw_str("unquote"), Value::id_str("a")]));
-        assert_ok("(sf-quote %a)", Value::app_from_vec(vec![Value::kw_str("unquote-splice"), Value::id_str("a")]));
+        assert_ok("(sf-quote ~a)", Value::app_from_vec(vec![Value::kw_str("unquote"), Value::id_str("a")]));
+        assert_ok("(sf-quote @~a)", Value::app_from_vec(vec![Value::kw_str("unquote-splice"), Value::id_str("a")]));
         assert_ok("(sf-quote @a)", Value::app_from_vec(vec![Value::kw_str("fresh-name"), Value::id_str("a")]));
         assert_ok("(sf-quote $$a)", Value::app_from_vec(vec![Value::id_str("quote"), Value::app_from_vec(vec![Value::id_str("quote"), Value::id_str("a")])]));
         assert_any_parse_error("$");
         assert_any_parse_error("`");
-        assert_any_parse_error(";");
-        assert_any_parse_error("%");
+        assert_any_parse_error("~");
+        assert_any_parse_error("@~");
         assert_any_parse_error("@");
         assert_any_parse_error("$ a");
         assert_any_parse_error("` a");
-        assert_any_parse_error("; a");
-        assert_any_parse_error("% a");
+        assert_any_parse_error("~ a");
+        assert_any_parse_error("@~ a");
         assert_any_parse_error("@ a");
         assert_any_parse_error("@0");
         assert_any_parse_error("@:a");
@@ -1552,10 +1552,9 @@ mod tests {
         (assert-eq (app-concat $(0 1) $()) $(0 1))
         ");
 
-        // TODO uncomment when quasiquote has been implemented
         test_example("
-        #(assert-eq (app-apply `(;int-add 1 2)) 3)
-        #(assert-throw (app-apply `(;int-add 1)) {:tag :err-num-args})
+        (assert-eq (app-apply `(~int-add 1 2)) 3)
+        (assert-throw (app-apply `(~int-add 1)) {:tag :err-num-args})
         (assert-throw (app-apply $()) {:tag :err-lookup :got 0})
         (assert-throw (app-apply $(42)) {:tag :err-type, :expected :function, :got :int})
         ");
@@ -2353,11 +2352,11 @@ mod tests {
             (int->float ,,,)
         ) 40.0)
 
+        (assert-eq (macro--> 42) 42)
         (assert-eq (macro--> 42 $(int-sub 2)) $(int-sub 42 2))
         (assert-eq (macro--> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 42 2)))
         (assert-throw (macro--> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
         (assert-throw (macro--> 42 $()) {:tag :err-lookup, :got 1})
-        (assert-throw (macro--> 42) {:tag :err-num-args})
         ");
 
         test_example("
@@ -2366,11 +2365,11 @@ mod tests {
             (int->float ,,,)
         ) -40.0)
 
+        (assert-eq (macro-->> 42) 42)
         (assert-eq (macro-->> 42 $(int-sub 2)) $(int-sub 2 42))
         (assert-eq (macro-->> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 2 42)))
         (assert-throw (macro-->> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
         (assert-throw (macro-->> 42 $()) {:tag :err-lookup, :got 1})
-        (assert-throw (macro-->> 42) {:tag :err-num-args})
         ");
 
         test_example("
@@ -2379,28 +2378,55 @@ mod tests {
             (int-sub 3 foo)
         ) -37)
 
+        (assert-eq (macro-as-> $foo 42) 42)
         (assert-eq (macro-as-> $foo 42 $(int-sub foo 2)) $(let foo 42 (int-sub foo 2)))
         (assert-eq (macro-as-> $foo 42 $(int-sub foo 2) $(int-sub 3 foo)) $(let foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
-        (assert-throw (macro-as-> $foo 42) {:tag :err-num-args})
         ");
 
         test_example("
-        (assert-eq `int-add $int-add)
-        (assert-eq `;int-add int-add)
-        (assert-eq `(%(0 1) 2) $(0 1 2))
-        (assert-eq (typeof `@foo) :symbol)
-        (let expanded `[@foo @bar @foo] (do
+        (assert-eq (macro-or) false)
+        (assert-eq (macro-or 42) 42)
+        (assert-eq (macro-or nil) nil)
+        (assert-eq (or 0 1) 0)
+        (assert-eq (or 0 false) 0)
+        (assert-eq (or false 1) 1)
+        (assert-eq (or false nil) nil)
+        (assert-eq (or nil false 2) 2)
+        (assert-eq (or nil false 2 3) 2)
+        ");
+
+        test_example("
+        (assert-eq (macro-and) true)
+        (assert-eq (macro-and 42) 42)
+        (assert-eq (macro-and nil) nil)
+        (assert-eq (and 0 1) 1)
+        (assert-eq (and 0 false) false)
+        (assert-eq (and false 1) false)
+        (assert-eq (and false nil) false)
+        (assert-eq (and nil false 2) nil)
+        (assert-eq (and nil false 2 3) nil)
+        ");
+
+        test_example("
+        (assert-eq `42 42)
+        (assert-eq `foo $foo)
+        (assert-eq `[42 foo] [42 $foo])
+
+        (assert-eq `() $())
+        (assert-eq `(42 foo) (arr->app [42 $foo]))
+
+        (assert-eq `~(int-add 1 2) 3)
+        (assert-eq `[42 ~(int-add 1 2)] [42 3])
+        (assert-eq `(42 ~(int-add 1 2)) $(42 3))
+
+        (assert-eq `(0 @~$() 1) $(0 1))
+        (assert-eq `(0 @~$(1) 2) $(0 1 2))
+        (assert-eq `(0 @~$(1 2) 3) $(0 1 2 3))
+
+        (let expanded (macro-quasiquote $[@foo @bar @foo]) (do
             (assert-eq (= (arr-get expanded 0) (arr-get expanded 1)) false)
             (assert-eq (arr-get expanded 0) (arr-get expanded 2))
         ))
-
-        (assert-eq `(1 `;(+ 1 ;(+ 2 3)) 4) $(1 `;(+ 1 5) 4))
-        (assert-eq `(1 ```;%;%(list (+ 1 2)) 4) $(1 ```;%;3 4))
-
-        (assert-throw (macro-quasiquote $(:unquote 0 1)) {:tag :err-num-args})
-        (assert-throw (macro-quasiquote $((:unquote-splice 0 1))) {:tag :err-num-args})
-        (assert-throw (macro-quasiquote $[%(0 1)]) {:tag :err-type :expected :application :got :array})
-        (assert-throw (macro-quasiquote $(%{})) {:tag :err-type :expected :application :got :set})
         ");
     }
 }
