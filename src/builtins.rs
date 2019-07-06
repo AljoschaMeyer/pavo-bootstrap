@@ -83,61 +83,49 @@ pub fn coll_empty_error() -> Value {
         ])))
 }
 
-pub fn type_error_(got: &Value, expected: Value) -> Value {
+pub fn type_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-type")),
-            (Value::kw_str("expected"), expected),
-            (Value::kw_str("got"), typeof__(got)),
         ])))
 }
 
-pub fn type_error(got: &Value, expected: &str) -> Value {
-    type_error_(got, Value::kw_str(expected))
-}
-
-pub fn byte_error(got: &Value) -> Value {
+pub fn byte_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-not-byte")),
-            (Value::kw_str("got"), got.clone()),
         ])))
 }
 
-pub fn char_error(got: &Value) -> Value {
+pub fn char_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-not-unicode-scalar")),
-            (Value::kw_str("got"), got.clone()),
         ])))
 }
 
-pub fn kw_error(got: &Value) -> Value {
+pub fn kw_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-kw")),
-            (Value::kw_str("got"), got.clone()),
         ])))
 }
 
-pub fn id_error(got: &Value) -> Value {
+pub fn id_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-identifier")),
-            (Value::kw_str("got"), got.clone()),
         ])))
 }
 
-pub fn lookup_error(got: Value) -> Value {
+pub fn lookup_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
         (Value::kw_str("tag"), Value::kw_str("err-lookup")),
-        (Value::kw_str("got"), got),
         ])))
 }
 
-pub fn index_error(got: usize) -> Value {
-    lookup_error(Value::int(got as i64))
+pub fn index_error() -> Value {
+    lookup_error()
 }
 
-pub fn negative_error(got: i64) -> Value {
+pub fn negative_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
         (Value::kw_str("tag"), Value::kw_str("err-negative")),
-        (Value::kw_str("got"), Value::int(got)),
         ])))
 }
 
@@ -163,7 +151,7 @@ fn int_to_u64(n: i64) -> Result<u64, Value> {
     if n >= 0 {
         Ok(n as u64)
     } else {
-        Err(negative_error(n))
+        Err(negative_error())
     }
 }
 
@@ -175,14 +163,14 @@ fn int_to_u32(n: i64) -> Result<u32, Value> {
             Ok(n as u32)
         }
     } else {
-        Err(negative_error(n))
+        Err(negative_error())
     }
 }
 
 macro_rules! index {
     ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize >= $arr.0.len() {
-            return Err(index_error($n as usize));
+            return Err(index_error());
         } else {
             $n as usize
         }
@@ -192,7 +180,7 @@ macro_rules! index {
 macro_rules! index_incl {
     ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize > $arr.0.len() {
-            return Err(index_error($n as usize));
+            return Err(index_error());
         } else {
             $n as usize
         }
@@ -202,7 +190,7 @@ macro_rules! index_incl {
 macro_rules! index_char {
     ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize >= $arr.0.len_chars() {
-            return Err(index_error($n as usize));
+            return Err(index_error());
         } else {
             $n as usize
         }
@@ -212,7 +200,7 @@ macro_rules! index_char {
 macro_rules! string_index_byte {
     ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize >= $arr.0.len_bytes() {
-            return Err(index_error($n as usize));
+            return Err(index_error());
         } else {
             $n as usize
         }
@@ -222,7 +210,7 @@ macro_rules! string_index_byte {
 macro_rules! index_char_incl {
     ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize > $arr.0.len_chars() {
-            return Err(index_error($n as usize));
+            return Err(index_error());
         } else {
             $n as usize
         }
@@ -232,7 +220,7 @@ macro_rules! index_char_incl {
 macro_rules! string_index_byte_incl {
     ($arr:expr, $n:expr) => (
         if $n < 0 || $n as usize > $arr.0.len_bytes() {
-            return Err(index_error($n as usize));
+            return Err(index_error());
         } else {
             $n as usize
         }
@@ -243,7 +231,7 @@ macro_rules! bool_ {
     ($v:expr) => (
         match &$v {
             Value::Atomic(Atomic::Bool(b)) => *b,
-            _ => return Err(type_error(&$v, "bool")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -252,7 +240,7 @@ macro_rules! int {
     ($v:expr) => (
         match &$v {
             Value::Atomic(Atomic::Int(n)) => *n,
-            _ => return Err(type_error(&$v, "int")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -261,7 +249,7 @@ macro_rules! bytes {
     ($v:expr) => (
         match &$v {
             Value::Atomic(Atomic::Bytes(b)) => b.clone(),
-            _ => return Err(type_error(&$v, "bytes")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -270,7 +258,7 @@ macro_rules! char {
     ($v:expr) => (
         match &$v {
             Value::Atomic(Atomic::Char(c)) => *c,
-            _ => return Err(type_error(&$v, "char")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -279,7 +267,7 @@ macro_rules! string {
     ($v:expr) => (
         match &$v {
             Value::Atomic(Atomic::String(s)) => s.clone(),
-            _ => return Err(type_error(&$v, "string")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -288,7 +276,7 @@ macro_rules! float {
     ($v:expr) => (
         match &$v {
             Value::Atomic(Atomic::Float(n)) => (*n).0.into_inner(),
-            _ => return Err(type_error(&$v, "float")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -297,7 +285,7 @@ macro_rules! byte {
     ($v:expr) => (
         match int!($v) {
             b@0...255 => b as u8,
-            _ => return Err(byte_error(&$v))
+            _ => return Err(byte_error())
         }
     )
 }
@@ -306,7 +294,7 @@ macro_rules! arr {
     ($v:expr) => (
         match &$v {
             Value::Arr(arr) => arr.clone(),
-            _ => return Err(type_error(&$v, "array")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -315,7 +303,7 @@ macro_rules! id {
     ($v:expr) => (
         match &$v {
             Value::Id(id) => id.clone(),
-            _ => return Err(type_error(&$v, "identifier")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -324,7 +312,7 @@ macro_rules! user_id {
     ($v:expr) => (
         match &$v {
             Value::Id(Id::User(id)) => id.clone(),
-            _ => return Err(type_error(&$v, "identifier")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -333,7 +321,7 @@ macro_rules! kw {
     ($v:expr) => (
         match &$v {
             Value::Atomic(Atomic::Keyword(kw)) => kw.clone(),
-            _ => return Err(type_error(&$v, "keyword")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -342,7 +330,7 @@ macro_rules! app {
     ($v:expr) => (
         match &$v {
             Value::App(app) => app.clone(),
-            _ => return Err(type_error(&$v, "application")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -351,7 +339,7 @@ macro_rules! set {
     ($v:expr) => (
         match &$v {
             Value::Set(set) => set.clone(),
-            _ => return Err(type_error(&$v, "set")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -360,7 +348,7 @@ macro_rules! map {
     ($v:expr) => (
         match &$v {
             Value::Map(map) => map.clone(),
-            _ => return Err(type_error(&$v, "map")),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -369,7 +357,7 @@ macro_rules! cursor_arr {
     ($v:expr) => (
         match &$v {
             Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorArr(cell))) => cell,
-            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_ARR_ID)))),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -378,7 +366,7 @@ macro_rules! cursor_app {
     ($v:expr) => (
         match &$v {
             Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorApp(cell))) => cell,
-            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_APP_ID)))),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -387,7 +375,7 @@ macro_rules! cursor_bytes {
     ($v:expr) => (
         match &$v {
             Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorBytes(cell))) => cell,
-            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_BYTES_ID)))),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -396,7 +384,7 @@ macro_rules! cursor_str {
     ($v:expr) => (
         match &$v {
             Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorStringChars(cell))) => cell,
-            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_STRING_CHARS_ID)))),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -405,7 +393,7 @@ macro_rules! cursor_str_utf8 {
     ($v:expr) => (
         match &$v {
             Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorStringUtf8(cell))) => cell,
-            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_STRING_UTF8_ID)))),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -414,7 +402,7 @@ macro_rules! cursor_set {
     ($v:expr) => (
         match &$v {
             Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorSet(cell))) => cell,
-            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_SET_ID)))),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -423,7 +411,7 @@ macro_rules! cursor_map {
     ($v:expr) => (
         match &$v {
             Value::Opaque(_, Opaque::Builtin(BuiltinOpaque::CursorMap(cell))) => cell,
-            _ => return Err(type_error_(&$v, Value::Id(Id::Symbol(value::CURSOR_MAP_ID)))),
+            _ => return Err(type_error()),
         }
     )
 }
@@ -879,7 +867,7 @@ pub fn bytes_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
     let end = index_incl!(&b, int!(args.0[2]));
 
     if start > end {
-        return Err(index_error(end));
+        return Err(index_error());
     }
 
     let mut tmp = b.0.clone();
@@ -956,7 +944,7 @@ pub fn int_to_char(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
         Some(c) => {
             Ok(Value::char_(c))
         }
-        None => Err(char_error(&Value::int(n))),
+        None => Err(char_error()),
     }
 }
 
@@ -1072,7 +1060,7 @@ pub fn str_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value>
     let end = index_char_incl!(&s, int!(args.0[2]));
 
     if start > end {
-        return Err(index_error(end));
+        return Err(index_error());
     }
 
     let mut tmp = s.0.clone();
@@ -1517,16 +1505,16 @@ pub fn str_to_id(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value>
     let s = string!(a);
 
     if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
-        return Err(id_error(a));
+        return Err(id_error());
     }
 
     match parse_id(CompleteStr(&s.0.to_string())) {
         Ok(v) => match v.as_user_id() {
             Some(_) => return Ok(v),
-            None => return Err(id_error(a)),
+            None => return Err(id_error()),
         },
         Err(_) => {
-            return Err(id_error(a));
+            return Err(id_error());
         }
     }
 }
@@ -1553,12 +1541,12 @@ pub fn str_to_kw(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value>
     let s = string!(a);
 
     if s.0.len_bytes() == 0 || s.0.len_bytes() > 255 {
-        return Err(kw_error(a));
+        return Err(kw_error());
     }
 
     for c in s.0.chars() {
         if !is_id_char(c) {
-            return Err(kw_error(a));
+            return Err(kw_error());
         }
     }
 
@@ -1651,7 +1639,7 @@ pub fn arr_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value>
     let end = index_incl!(&arr, int!(args.0[2]));
 
     if start > end {
-        return Err(index_error(end));
+        return Err(index_error());
     }
 
     let mut tmp = arr.0.clone();
@@ -1781,7 +1769,7 @@ pub fn app_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value>
     let end = index_incl!(&app, int!(args.0[2]));
 
     if start > end {
-        return Err(index_error(end));
+        return Err(index_error());
     }
 
     let mut tmp = app.0.clone();
@@ -1853,10 +1841,10 @@ pub fn app_apply(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> 
     let a = app!(args.0[0]);
 
     if a.0.len() == 0 {
-        return Err(lookup_error(Value::int(0)));
+        return Err(lookup_error());
     } else {
         match a.0[0].as_fun() {
-            None => return Err(type_error(&a.0[0], "function")),
+            None => return Err(type_error()),
             Some(fun) => fun.compute(Vector(a.0.skip(1)), cx),
         }
     }
@@ -1905,7 +1893,7 @@ pub fn set_find_lt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
 
     match set_cursor::set_find_strict_lesser(&set, &needle) {
         Some(yay) => return Ok(yay),
-        None => return Err(lookup_error(needle))
+        None => return Err(lookup_error())
     }
 }
 
@@ -1916,7 +1904,7 @@ pub fn set_find_gt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
 
     match set_cursor::set_find_strict_greater(&set, &needle) {
         Some(yay) => return Ok(yay),
-        None => return Err(lookup_error(needle))
+        None => return Err(lookup_error())
     }
 }
 
@@ -1927,7 +1915,7 @@ pub fn set_find_lte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Val
 
     match set_cursor::set_find_lesser(&set, &needle) {
         Some(yay) => return Ok(yay),
-        None => return Err(lookup_error(needle))
+        None => return Err(lookup_error())
     }
 }
 
@@ -1938,7 +1926,7 @@ pub fn set_find_gte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Val
 
     match set_cursor::set_find_greater(&set, &needle) {
         Some(yay) => return Ok(yay),
-        None => return Err(lookup_error(needle))
+        None => return Err(lookup_error())
     }
 }
 
@@ -2101,7 +2089,7 @@ pub fn map_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
 
     match map.0.get(&key) {
         Some(val) => Ok(val.clone()),
-        None => Err(lookup_error(key)),
+        None => Err(lookup_error()),
     }
 }
 
@@ -2120,7 +2108,7 @@ pub fn map_find_lt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
 
     match map_cursor::map_find_strict_lesser(&map, &needle) {
         Some(yay) => return Ok(yay),
-        None => return Err(lookup_error(needle))
+        None => return Err(lookup_error())
     }
 }
 
@@ -2131,7 +2119,7 @@ pub fn map_find_gt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
 
     match map_cursor::map_find_strict_greater(&map, &needle) {
         Some(yay) => return Ok(yay),
-        None => return Err(lookup_error(needle))
+        None => return Err(lookup_error())
     }
 }
 
@@ -2142,7 +2130,7 @@ pub fn map_find_lte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Val
 
     match map_cursor::map_find_lesser(&map, &needle) {
         Some(yay) => return Ok(yay),
-        None => return Err(lookup_error(needle))
+        None => return Err(lookup_error())
     }
 }
 
@@ -2153,7 +2141,7 @@ pub fn map_find_gte(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Val
 
     match map_cursor::map_find_greater(&map, &needle) {
         Some(yay) => return Ok(yay),
-        None => return Err(lookup_error(needle))
+        None => return Err(lookup_error())
     }
 }
 
@@ -2365,7 +2353,7 @@ pub fn cell(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
 pub fn cell_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 1)?;
     match args.0[0].as_cell() {
-        None => Err(type_error(&args.0[0], "cell")),
+        None => Err(type_error()),
         Some(inner) => Ok(inner.borrow().clone()),
     }
 }
@@ -2373,7 +2361,7 @@ pub fn cell_get(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> 
 pub fn cell_set(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
     match args.0[0].as_cell() {
-        None => Err(type_error(&args.0[0], "cell")),
+        None => Err(type_error()),
         Some(inner) => {
             *inner.borrow_mut() = args.0[1].clone();
             Ok(Value::nil())
@@ -2743,7 +2731,7 @@ pub fn macro_let(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value>
 fn macro_thread_first_(v: Value, fst: &Value, rest: &Vector<Value>) -> Result<Value, Value> {
     let mut app = app!(fst);
     if app.0.len() == 0 {
-        return Err(index_error(1));
+        return Err(index_error());
     }
     app.0.insert(1, v);
 
@@ -2765,7 +2753,7 @@ pub fn macro_thread_first(args: Vector<Value>, _cx: &mut Context) -> Result<Valu
 fn macro_thread_last_(v: Value, fst: &Value, rest: &Vector<Value>) -> Result<Value, Value> {
     let mut app = app!(fst);
     if app.0.len() == 0 {
-        return Err(index_error(1));
+        return Err(index_error());
     }
     app.0.insert(app.0.len(), v);
 
@@ -2914,7 +2902,7 @@ fn quasiquote(v: &Value, fresh_names: &mut HashMap<Id, u64>, cx: &mut Context) -
                             return Err(num_args_error());
                         } else {
                             match &app.0[1].as_id() {
-                                None => return Err(type_error(&app.0[1], "identifier")),
+                                None => return Err(type_error()),
                                 Some(id) => {
                                     if let Some(symbol_id) = fresh_names.get(id) {
                                         return Ok(Value::Id(Id::Symbol(*symbol_id)));

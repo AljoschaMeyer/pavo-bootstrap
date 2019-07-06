@@ -14,7 +14,7 @@ use im_rc::{
 };
 use ropey::Rope as Ropey;
 
-use crate::builtins::{self, type_error, type_error_, num_args_error, write_spaces};
+use crate::builtins::{self, type_error, num_args_error, write_spaces};
 use crate::context::Context;
 use crate::gc_foreign::{Vector, OrdSet, OrdMap, NotNan, Rope};
 use crate::vm::Closure;
@@ -528,7 +528,7 @@ impl Value {
     pub fn compute(&self, args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
         match self {
             Value::Fun(fun) => fun.compute(args, cx),
-            _ => Err(type_error(self, "function")),
+            _ => Err(type_error()),
         }
     }
 }
@@ -619,12 +619,12 @@ impl Fun {
                 } else {
                     let arg = &args.0[0];
                     match arg.as_user_opaque() {
-                        None => return Err(type_error_(arg, Value::Id(Id::Symbol(*type_id)))),
+                        None => return Err(type_error()),
                         Some((inner, actual_type_id)) => {
                             if actual_type_id == *type_id {
                                 return Ok(inner.clone());
                             } else {
-                                return Err(type_error_(arg, Value::Id(Id::Symbol(*type_id))));
+                                return Err(type_error());
                             }
                         }
                     }

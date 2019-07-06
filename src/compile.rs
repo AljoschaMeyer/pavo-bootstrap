@@ -176,7 +176,7 @@ fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
                 // ordinary function application
                 Ok(None) => {
                     if app.0.len() == 0 {
-                        bbb.append(Literal(builtins::index_error(0)));
+                        bbb.append(Literal(builtins::index_error()));
                         bbb.append(Throw);
                     } else {
                         for inner in app.0.iter() {

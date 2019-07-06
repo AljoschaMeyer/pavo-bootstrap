@@ -400,7 +400,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                         }
 
                         _ => {
-                            let err = type_error(&fun.clone(), "function");
+                            let err = type_error();
                             if state.catch_handler == BB_RETURN {
                                 return Err(err);
                             } else {

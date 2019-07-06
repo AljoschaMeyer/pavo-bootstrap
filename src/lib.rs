@@ -464,8 +464,8 @@ mod tests {
     #[test]
     fn test_application_errors() {
         assert_throw("(int-add 1)", execute("{:tag :err-num-args}").unwrap());
-        assert_throw("()", execute("{:tag :err-lookup :got 0}").unwrap());
-        assert_throw("(42)", execute("{:tag :err-type, :expected :function, :got :int}").unwrap());
+        assert_throw("()", execute("{:tag :err-lookup}").unwrap());
+        assert_throw("(42)", execute("{:tag :err-type}").unwrap());
     }
 
     // ### Special Forms
@@ -544,10 +544,10 @@ mod tests {
         test_example("
         (assert-throw (bool-not) { :tag :err-num-args})
         #(assert-throw (bool-not 42 43) { :tag :err-num-args })
-        #(assert-throw (bool-not 42) { :tag :err-type, :expected :bool, :got :int })
-        #(assert-throw (int-pow-wrap :nope \"nope\") { :tag :err-type, :expected :int, :got :keyword})
-        #(assert-throw (int-pow-wrap 2 :nope) { :tag :err-type, :expected :int, :got :keyword})
-        #(assert-throw (int-pow-wrap 2 -2) { :tag :err-negative, :got -2})
+        #(assert-throw (bool-not 42) { :tag :err-type })
+        #(assert-throw (int-pow-wrap :nope \"nope\") { :tag :err-type })
+        #(assert-throw (int-pow-wrap 2 :nope) { :tag :err-type })
+        #(assert-throw (int-pow-wrap 2 -2) { :tag :err-negative })
         ");
     }
 
@@ -556,11 +556,7 @@ mod tests {
         test_example("
         (assert (bool-not false))
         (assert-not (bool-not true))
-        (assert-throw (bool-not 0) {
-            :tag :err-type,
-            :expected :bool,
-            :got :int,
-        })
+        (assert-throw (bool-not 0) {:tag :err-type})
         ");
 
         test_example("
@@ -569,11 +565,7 @@ mod tests {
         (assert-not (bool-and true false))
         (assert (bool-and true true))
 
-        (assert-throw (bool-and false 0) {
-            :tag :err-type,
-            :expected :bool,
-            :got :int,
-        })
+        (assert-throw (bool-and false 0) {:tag :err-type})
         ");
 
         test_example("
@@ -582,11 +574,7 @@ mod tests {
         (assert (bool-or true false))
         (assert (bool-or true true))
 
-        (assert-throw (bool-or true 1) {
-            :tag :err-type,
-            :expected :bool,
-            :got :int,
-        })
+        (assert-throw (bool-or true 1) {:tag :err-type})
         ");
 
         test_example("
@@ -595,11 +583,7 @@ mod tests {
         (assert-not (bool-if true false))
         (assert (bool-if true true))
 
-        (assert-throw (bool-if false 1) {
-            :tag :err-type,
-            :expected :bool,
-            :got :int,
-        })
+        (assert-throw (bool-if false 1) {:tag :err-type})
         ");
 
         test_example("
@@ -608,11 +592,7 @@ mod tests {
         (assert-not (bool-iff true false))
         (assert (bool-iff true true))
 
-        (assert-throw (bool-iff false 1) {
-            :tag :err-type,
-            :expected :bool,
-            :got :int,
-        })
+        (assert-throw (bool-iff false 1) {:tag :err-type})
         ");
 
         test_example("
@@ -621,11 +601,7 @@ mod tests {
         (assert (bool-xor true false))
         (assert-not (bool-xor true true))
 
-        (assert-throw (bool-xor false 1) {
-            :tag :err-type,
-            :expected :bool,
-            :got :int,
-        })
+        (assert-throw (bool-xor false 1) {:tag :err-type})
         ");
     }
 
@@ -840,7 +816,7 @@ mod tests {
         (assert-eq (int-pow-wrap 1 999) 1)
         (assert-eq (int-pow-wrap -1 999) -1)
         (assert-eq (int-pow-wrap 99 99) -7394533151961528133)
-        (assert-throw (int-pow-wrap 2 -1) {:tag :err-negative :got -1 })
+        (assert-throw (int-pow-wrap 2 -1) {:tag :err-negative })
         ");
 
         test_example("
@@ -860,29 +836,29 @@ mod tests {
 
         test_example("
         (assert-eq (bytes-get @[42] 0) 42)
-        (assert-throw (bytes-get @[] 0) { :tag :err-lookup, :got 0})
+        (assert-throw (bytes-get @[] 0) { :tag :err-lookup})
         ");
 
         test_example("
         (assert-eq (bytes-insert @[0 1] 0 42) @[42 0 1])
         (assert-eq (bytes-insert @[0 1] 1 42) @[0 42 1])
         (assert-eq (bytes-insert @[0 1] 2 42) @[0 1 42])
-        (assert-throw (bytes-insert @[0 1] 3 42) { :tag :err-lookup, :got 3})
-        (assert-throw (bytes-insert @[] 0 256) { :tag :err-not-byte, :got 256})
-        (assert-throw (bytes-insert @[] 0 :256) { :tag :err-type, :expected :int, :got :keyword})
+        (assert-throw (bytes-insert @[0 1] 3 42) { :tag :err-lookup})
+        (assert-throw (bytes-insert @[] 0 256) { :tag :err-not-byte})
+        (assert-throw (bytes-insert @[] 0 :256) { :tag :err-type})
         ");
 
         test_example("
         (assert-eq (bytes-remove @[0 1] 0) @[1])
         (assert-eq (bytes-remove @[0 1] 1) @[0])
-        (assert-throw (bytes-remove @[0 1] 3) { :tag :err-lookup, :got 3})
+        (assert-throw (bytes-remove @[0 1] 3) { :tag :err-lookup})
         ");
 
         test_example("
         (assert-eq (bytes-update @[0 1] 0 42) @[42 1])
         (assert-eq (bytes-update @[0 1] 1 42) @[0 42])
-        (assert-throw (bytes-update @[0 1] 2 42) { :tag :err-lookup, :got 2})
-        (assert-throw (bytes-update @[0] 0 256) { :tag :err-not-byte, :got 256})
+        (assert-throw (bytes-update @[0 1] 2 42) { :tag :err-lookup})
+        (assert-throw (bytes-update @[0] 0 256) { :tag :err-not-byte})
         ");
 
         test_example("
@@ -890,16 +866,16 @@ mod tests {
         (assert-eq (bytes-slice @[42 43] 0 1) @[42])
         (assert-eq (bytes-slice @[42 43] 1 2) @[43])
         (assert-eq (bytes-slice @[42 43] 0 2) @[42 43])
-        (assert-throw (bytes-slice @[] 0 1) { :tag :err-lookup, :got 1})
-        (assert-throw (bytes-slice @[] 2 3) { :tag :err-lookup, :got 2})
-        (assert-throw (bytes-slice @[0 1 2 3] 2 1) { :tag :err-lookup, :got 1})
+        (assert-throw (bytes-slice @[] 0 1) { :tag :err-lookup})
+        (assert-throw (bytes-slice @[] 2 3) { :tag :err-lookup})
+        (assert-throw (bytes-slice @[0 1 2 3] 2 1) { :tag :err-lookup })
         ");
 
         test_example("
         (assert-eq (bytes-splice @[0 1] 0 @[10 11]) @[10 11 0 1])
         (assert-eq (bytes-splice @[0 1] 1 @[10 11]) @[0 10 11 1])
         (assert-eq (bytes-splice @[0 1] 2 @[10 11]) @[0 1 10 11])
-        (assert-throw (bytes-splice @[0 1] 3 @[10 11]) { :tag :err-lookup, :got 3})
+        (assert-throw (bytes-splice @[0 1] 3 @[10 11]) { :tag :err-lookup })
         ");
 
         test_example("
@@ -909,12 +885,12 @@ mod tests {
         ");
 
         test_example("
-        (assert-throw (bytes-cursor @[0 1 2] -1) {:tag :err-lookup, :got -1})
+        (assert-throw (bytes-cursor @[0 1 2] -1) {:tag :err-lookup})
         (assert-eq (cursor-bytes-next! (bytes-cursor @[0 1 2] 0)) 0)
         (assert-eq (cursor-bytes-next! (bytes-cursor @[0 1 2] 1)) 1)
         (assert-eq (cursor-bytes-next! (bytes-cursor @[0 1 2] 2)) 2)
         (assert-throw (cursor-bytes-next! (bytes-cursor @[0 1 2] 3)) :cursor-end)
-        (assert-throw (bytes-cursor @[0 1 2] 4) {:tag :err-lookup, :got 4})
+        (assert-throw (bytes-cursor @[0 1 2] 4) {:tag :err-lookup})
         ");
     }
 
@@ -949,7 +925,7 @@ mod tests {
 
         test_example("
         (assert-eq (int=>char 0x41) 'A')
-        (assert-throw (int=>char 0x110000) { :tag :err-not-unicode-scalar, :got 0x110000})
+        (assert-throw (int=>char 0x110000) {:tag :err-not-unicode-scalar})
         ");
 
         test_example("
@@ -979,7 +955,7 @@ mod tests {
         test_example(r#"
         (assert-eq (str-get "a" 0) 'a')
         (assert-eq (str-get "⚗b" 1) 'b')
-        (assert-throw (str-get "" 0) { :tag :err-lookup, :got 0})
+        (assert-throw (str-get "" 0) { :tag :err-lookup})
         "#);
 
         test_example(r#"
@@ -987,14 +963,14 @@ mod tests {
         (assert-eq (str-get-utf8 "⚗" 0) 226)
         (assert-eq (str-get-utf8 "⚗" 1) 154)
         (assert-eq (str-get-utf8 "⚗" 2) 151)
-        (assert-throw (str-get-utf8 "" 0) { :tag :err-lookup, :got 0})
+        (assert-throw (str-get-utf8 "" 0) { :tag :err-lookup})
         "#);
 
         test_example(r#"
         (assert-eq (str-index-char->utf8 "a" 0) 0)
         (assert-eq (str-index-char->utf8 "ab" 1) 1)
         (assert-eq (str-index-char->utf8 "⚗b" 1) 3)
-        (assert-throw (str-index-char->utf8 "" 0) { :tag :err-lookup, :got 0})
+        (assert-throw (str-index-char->utf8 "" 0) { :tag :err-lookup})
         "#);
 
         test_example(r#"
@@ -1003,26 +979,26 @@ mod tests {
         (assert-eq (str-index-utf8->char "⚗b" 1) 0)
         (assert-eq (str-index-utf8->char "⚗b" 2) 0)
         (assert-eq (str-index-utf8->char "⚗b" 3) 1)
-        (assert-throw (str-index-char->utf8 "" 0) { :tag :err-lookup, :got 0})
+        (assert-throw (str-index-char->utf8 "" 0) { :tag :err-lookup})
         "#);
 
         test_example(r#"
         (assert-eq (str-insert "ab" 0 'z') "zab")
         (assert-eq (str-insert "ab" 1 'z') "azb")
         (assert-eq (str-insert "ab" 2 'z') "abz")
-        (assert-throw (str-insert "ab" 3 'z') { :tag :err-lookup, :got 3})
+        (assert-throw (str-insert "ab" 3 'z') { :tag :err-lookup})
         "#);
 
         test_example(r#"
         (assert-eq (str-remove "ab" 0) "b")
         (assert-eq (str-remove "ab" 1) "a")
-        (assert-throw (str-remove "ab" 2) { :tag :err-lookup, :got 2})
+        (assert-throw (str-remove "ab" 2) { :tag :err-lookup})
         "#);
 
         test_example(r#"
         (assert-eq (str-update "ab" 0 'z') "zb")
         (assert-eq (str-update "ab" 1 'z') "az")
-        (assert-throw (str-update "ab" 2 'z') { :tag :err-lookup, :got 2})
+        (assert-throw (str-update "ab" 2 'z') { :tag :err-lookup})
         "#);
 
         test_example(r#"
@@ -1030,16 +1006,16 @@ mod tests {
         (assert-eq (str-slice "ab" 0 1) "a")
         (assert-eq (str-slice "ab" 1 2) "b")
         (assert-eq (str-slice "ab" 0 2) "ab")
-        (assert-throw (str-slice "" 0 1) { :tag :err-lookup, :got 1})
-        (assert-throw (str-slice "" 2 3) { :tag :err-lookup, :got 2})
-        (assert-throw (str-slice "abcd" 2 1) { :tag :err-lookup, :got 1})
+        (assert-throw (str-slice "" 0 1) { :tag :err-lookup})
+        (assert-throw (str-slice "" 2 3) {:tag :err-lookup})
+        (assert-throw (str-slice "abcd" 2 1) {:tag :err-lookup})
         "#);
 
         test_example(r#"
         (assert-eq (str-splice "ab" 0 "cd") "cdab")
         (assert-eq (str-splice "ab" 1 "cd") "acdb")
         (assert-eq (str-splice "ab" 2 "cd") "abcd")
-        (assert-throw (str-splice "ab" 3 "cd") { :tag :err-lookup, :got 3})
+        (assert-throw (str-splice "ab" 3 "cd") {:tag :err-lookup})
         "#);
 
         test_example(r#"
@@ -1049,23 +1025,23 @@ mod tests {
         "#);
 
         test_example(r#"
-        (assert-throw (str-cursor "a⚗c" -1) {:tag :err-lookup, :got -1})
+        (assert-throw (str-cursor "a⚗c" -1) {:tag :err-lookup})
         (assert-eq (cursor-str-next! (str-cursor "a⚗c" 0)) 'a')
         (assert-eq (cursor-str-next! (str-cursor "a⚗c" 1)) '⚗')
         (assert-eq (cursor-str-next! (str-cursor "a⚗c" 2)) 'c')
         (assert-throw (cursor-str-next! (str-cursor "a⚗c" 3)) :cursor-end)
-        (assert-throw (str-cursor "a⚗c" 4) {:tag :err-lookup, :got 4})
+        (assert-throw (str-cursor "a⚗c" 4) {:tag :err-lookup})
         "#);
 
         test_example(r#"
-        (assert-throw (str-cursor-utf8 "a⚗c" -1) {:tag :err-lookup, :got -1})
+        (assert-throw (str-cursor-utf8 "a⚗c" -1) {:tag :err-lookup})
         (assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 0)) 97)
         (assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 1)) 226)
         (assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 2)) 154)
         (assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 3)) 151)
         (assert-eq (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 4)) 99)
         (assert-throw (cursor-str-utf8-next! (str-cursor-utf8 "a⚗c" 5)) :cursor-end)
-        (assert-throw (str-cursor-utf8 "a⚗c" 6) {:tag :err-lookup, :got 6})
+        (assert-throw (str-cursor-utf8 "a⚗c" 6) {:tag :err-lookup})
         "#);
     }
 
@@ -1341,15 +1317,15 @@ mod tests {
     fn test_toplevel_identifier() {
         test_example(r#"
         (assert-eq (str=>id "foo") $foo)
-        (assert-throw (str=>id "nil") { :tag :err-identifier, :got "nil" })
-        (assert-throw (str=>id "true") { :tag :err-identifier, :got "true" })
-        (assert-throw (str=>id "false") { :tag :err-identifier, :got "false" })
-        (assert-throw (str=>id "42") { :tag :err-identifier, :got "42" })
-        (assert-throw (str=>id "1.2") { :tag :err-identifier, :got "1.2" })
-        (assert-throw (str=>id "") { :tag :err-identifier, :got ""})
-        (assert-throw (str=>id "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-identifier, :got "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"})
-        (assert-throw (str=>id ":a") { :tag :err-identifier, :got ":a"})
-        (assert-throw (str=>id "ß") { :tag :err-identifier, :got "ß"})
+        (assert-throw (str=>id "nil") { :tag :err-identifier })
+        (assert-throw (str=>id "true") { :tag :err-identifier })
+        (assert-throw (str=>id "false") { :tag :err-identifier })
+        (assert-throw (str=>id "42") { :tag :err-identifier })
+        (assert-throw (str=>id "1.2") { :tag :err-identifier })
+        (assert-throw (str=>id "") { :tag :err-identifier})
+        (assert-throw (str=>id "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-identifier})
+        (assert-throw (str=>id ":a") { :tag :err-identifier})
+        (assert-throw (str=>id "ß") { :tag :err-identifier})
         "#);
 
         test_example(r#"
@@ -1376,10 +1352,10 @@ mod tests {
         (assert-eq (str=>kw "foo") :foo)
         (assert-eq (str=>kw "nil") :nil)
         (assert-eq (str=>kw "42") :42)
-        (assert-throw (str=>kw "") { :tag :err-kw, :got ""})
-        (assert-throw (str=>kw "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-kw, :got "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"})
-        (assert-throw (str=>kw ":a") { :tag :err-kw, :got ":a"})
-        (assert-throw (str=>kw "ß") { :tag :err-kw, :got "ß"})
+        (assert-throw (str=>kw "") { :tag :err-kw})
+        (assert-throw (str=>kw "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789") { :tag :err-kw})
+        (assert-throw (str=>kw ":a") { :tag :err-kw})
+        (assert-throw (str=>kw "ß") { :tag :err-kw})
         "#);
 
         test_example(r#"
@@ -1412,26 +1388,26 @@ mod tests {
 
         test_example("
         (assert-eq (arr-get [true] 0) true)
-        (assert-throw (arr-get [] 0) { :tag :err-lookup, :got 0})
+        (assert-throw (arr-get [] 0) {:tag :err-lookup})
         ");
 
         test_example("
         (assert-eq (arr-insert [0 1] 0 42) [42 0 1])
         (assert-eq (arr-insert [0 1] 1 42) [0 42 1])
         (assert-eq (arr-insert [0 1] 2 42) [0 1 42])
-        (assert-throw (arr-insert [0 1] 3 42) { :tag :err-lookup, :got 3})
+        (assert-throw (arr-insert [0 1] 3 42) {:tag :err-lookup})
         ");
 
         test_example("
         (assert-eq (arr-remove [0 1] 0) [1])
         (assert-eq (arr-remove [0 1] 1) [0])
-        (assert-throw (arr-remove [0 1] 3) { :tag :err-lookup, :got 3})
+        (assert-throw (arr-remove [0 1] 3) {:tag :err-lookup})
         ");
 
         test_example("
         (assert-eq (arr-update [0 1] 0 42) [42 1])
         (assert-eq (arr-update [0 1] 1 42) [0 42])
-        (assert-throw (arr-update [0 1] 2 42) { :tag :err-lookup, :got 2})
+        (assert-throw (arr-update [0 1] 2 42) {:tag :err-lookup})
         ");
 
         test_example("
@@ -1439,16 +1415,16 @@ mod tests {
         (assert-eq (arr-slice [true false] 0 1) [true])
         (assert-eq (arr-slice [true false] 1 2) [false])
         (assert-eq (arr-slice [true false] 0 2) [true false])
-        (assert-throw (arr-slice [] 0 1) { :tag :err-lookup, :got 1})
-        (assert-throw (arr-slice [] 2 3) { :tag :err-lookup, :got 2})
-        (assert-throw (arr-slice [0 1 2 3] 2 1) { :tag :err-lookup, :got 1})
+        (assert-throw (arr-slice [] 0 1) {:tag :err-lookup})
+        (assert-throw (arr-slice [] 2 3) {:tag :err-lookup})
+        (assert-throw (arr-slice [0 1 2 3] 2 1) {:tag :err-lookup})
         ");
 
         test_example("
         (assert-eq (arr-splice [0 1] 0 [10 11]) [10 11 0 1])
         (assert-eq (arr-splice [0 1] 1 [10 11]) [0 10 11 1])
         (assert-eq (arr-splice [0 1] 2 [10 11]) [0 1 10 11])
-        (assert-throw (arr-splice [0 1] 3 [10 11]) { :tag :err-lookup, :got 3})
+        (assert-throw (arr-splice [0 1] 3 [10 11]) {:tag :err-lookup})
         ");
 
         test_example("
@@ -1458,12 +1434,12 @@ mod tests {
         ");
 
         test_example("
-        (assert-throw (arr-cursor [0 1 2] -1) {:tag :err-lookup, :got -1})
+        (assert-throw (arr-cursor [0 1 2] -1) {:tag :err-lookup})
         (assert-eq (cursor-arr-next! (arr-cursor [0 1 2] 0)) 0)
         (assert-eq (cursor-arr-next! (arr-cursor [0 1 2] 1)) 1)
         (assert-eq (cursor-arr-next! (arr-cursor [0 1 2] 2)) 2)
         (assert-throw (cursor-arr-next! (arr-cursor [0 1 2] 3)) :cursor-end)
-        (assert-throw (arr-cursor [0 1 2] 4) {:tag :err-lookup, :got 4})
+        (assert-throw (arr-cursor [0 1 2] 4) {:tag :err-lookup})
         ");
     }
 
@@ -1507,26 +1483,26 @@ mod tests {
 
         test_example("
         (assert-eq (app-get $(true) 0) true)
-        (assert-throw (app-get $() 0) { :tag :err-lookup, :got 0})
+        (assert-throw (app-get $() 0) {:tag :err-lookup})
         ");
 
         test_example("
         (assert-eq (app-insert $(0 1) 0 42) $(42 0 1))
         (assert-eq (app-insert $(0 1) 1 42) $(0 42 1))
         (assert-eq (app-insert $(0 1) 2 42) $(0 1 42))
-        (assert-throw (app-insert $(0 1) 3 42) { :tag :err-lookup, :got 3})
+        (assert-throw (app-insert $(0 1) 3 42) {:tag :err-lookup})
         ");
 
         test_example("
         (assert-eq (app-remove $(0 1) 0) $(1))
         (assert-eq (app-remove $(0 1) 1) $(0))
-        (assert-throw (app-remove $(0 1) 3) { :tag :err-lookup, :got 3})
+        (assert-throw (app-remove $(0 1) 3) {:tag :err-lookup})
         ");
 
         test_example("
         (assert-eq (app-update $(0 1) 0 42) $(42 1))
         (assert-eq (app-update $(0 1) 1 42) $(0 42))
-        (assert-throw (app-update $(0 1) 2 42) { :tag :err-lookup, :got 2})
+        (assert-throw (app-update $(0 1) 2 42) {:tag :err-lookup})
         ");
 
         test_example("
@@ -1534,16 +1510,16 @@ mod tests {
         (assert-eq (app-slice $(true false) 0 1) $(true))
         (assert-eq (app-slice $(true false) 1 2) $(false))
         (assert-eq (app-slice $(true false) 0 2) $(true false))
-        (assert-throw (app-slice $() 0 1) { :tag :err-lookup, :got 1})
-        (assert-throw (app-slice $() 2 3) { :tag :err-lookup, :got 2})
-        (assert-throw (app-slice $(0 1 2 3) 2 1) { :tag :err-lookup, :got 1})
+        (assert-throw (app-slice $() 0 1) {:tag :err-lookup})
+        (assert-throw (app-slice $() 2 3) {:tag :err-lookup})
+        (assert-throw (app-slice $(0 1 2 3) 2 1) {:tag :err-lookup})
         ");
 
         test_example("
         (assert-eq (app-splice $(0 1) 0 $(10 11)) $(10 11 0 1))
         (assert-eq (app-splice $(0 1) 1 $(10 11)) $(0 10 11 1))
         (assert-eq (app-splice $(0 1) 2 $(10 11)) $(0 1 10 11))
-        (assert-throw (app-splice $(0 1) 3 $(10 11)) { :tag :err-lookup, :got 3})
+        (assert-throw (app-splice $(0 1) 3 $(10 11)) {:tag :err-lookup})
         ");
 
         test_example("
@@ -1555,17 +1531,17 @@ mod tests {
         test_example("
         (assert-eq (app-apply `(~int-add 1 2)) 3)
         (assert-throw (app-apply `(~int-add 1)) {:tag :err-num-args})
-        (assert-throw (app-apply $()) {:tag :err-lookup :got 0})
-        (assert-throw (app-apply $(42)) {:tag :err-type, :expected :function, :got :int})
+        (assert-throw (app-apply $()) {:tag :err-lookup})
+        (assert-throw (app-apply $(42)) {:tag :err-type})
         ");
 
         test_example("
-        (assert-throw (app-cursor $(0 1 2) -1) {:tag :err-lookup, :got -1})
+        (assert-throw (app-cursor $(0 1 2) -1) {:tag :err-lookup})
         (assert-eq (cursor-app-next! (app-cursor $(0 1 2) 0)) 0)
         (assert-eq (cursor-app-next! (app-cursor $(0 1 2) 1)) 1)
         (assert-eq (cursor-app-next! (app-cursor $(0 1 2) 2)) 2)
         (assert-throw (cursor-app-next! (app-cursor $(0 1 2) 3)) :cursor-end)
-        (assert-throw (app-cursor $(0 1 2) 4) {:tag :err-lookup, :got 4})
+        (assert-throw (app-cursor $(0 1 2) 4) {:tag :err-lookup})
         ");
     }
 
@@ -1619,8 +1595,8 @@ mod tests {
         ");
 
         test_example("
-        (assert-throw (set-find-< @{1 3} 0) {:tag :err-lookup :got 0})
-        (assert-throw (set-find-< @{1 3} 1) {:tag :err-lookup :got 1})
+        (assert-throw (set-find-< @{1 3} 0) {:tag :err-lookup})
+        (assert-throw (set-find-< @{1 3} 1) {:tag :err-lookup})
         (assert-eq (set-find-< @{1 3} 2) 1)
         (assert-eq (set-find-< @{1 3} 3) 1)
         (assert-eq (set-find-< @{1 3} 4) 3)
@@ -1630,12 +1606,12 @@ mod tests {
         (assert-eq (set-find-> @{1 3} 0) 1)
         (assert-eq (set-find-> @{1 3} 1) 3)
         (assert-eq (set-find-> @{1 3} 2) 3)
-        (assert-throw (set-find-> @{1 3} 3) {:tag :err-lookup :got 3})
-        (assert-throw (set-find-> @{1 3} 4) {:tag :err-lookup :got 4})
+        (assert-throw (set-find-> @{1 3} 3) {:tag :err-lookup})
+        (assert-throw (set-find-> @{1 3} 4) {:tag :err-lookup})
         ");
 
         test_example("
-        (assert-throw (set-find-<= @{1 3} 0) {:tag :err-lookup :got 0})
+        (assert-throw (set-find-<= @{1 3} 0) {:tag :err-lookup})
         (assert-eq (set-find-<= @{1 3} 1) 1)
         (assert-eq (set-find-<= @{1 3} 2) 1)
         (assert-eq (set-find-<= @{1 3} 3) 3)
@@ -1647,7 +1623,7 @@ mod tests {
         (assert-eq (set-find->= @{1 3} 1) 1)
         (assert-eq (set-find->= @{1 3} 2) 3)
         (assert-eq (set-find->= @{1 3} 3) 3)
-        (assert-throw (set-find->= @{1 3} 4) {:tag :err-lookup :got 4})
+        (assert-throw (set-find->= @{1 3} 4) {:tag :err-lookup})
         ");
 
         test_example("
@@ -1780,7 +1756,7 @@ mod tests {
 
         test_example("
         (assert-eq (map-get {0 42} 0) 42)
-        (assert-throw (map-get {} 0) { :tag :err-lookup, :got 0})
+        (assert-throw (map-get {} 0) {:tag :err-lookup})
         ");
 
         test_example("
@@ -1790,8 +1766,8 @@ mod tests {
         ");
 
         test_example("
-        (assert-throw (map-find-< {1 nil 3 nil} 0) {:tag :err-lookup :got 0})
-        (assert-throw (map-find-< {1 nil 3 nil} 1) {:tag :err-lookup :got 1})
+        (assert-throw (map-find-< {1 nil 3 nil} 0) {:tag :err-lookup})
+        (assert-throw (map-find-< {1 nil 3 nil} 1) {:tag :err-lookup})
         (assert-eq (map-find-< {1 nil 3 nil} 2) 1)
         (assert-eq (map-find-< {1 nil 3 nil} 3) 1)
         (assert-eq (map-find-< {1 nil 3 nil} 4) 3)
@@ -1801,12 +1777,12 @@ mod tests {
         (assert-eq (map-find-> {1 nil 3 nil} 0) 1)
         (assert-eq (map-find-> {1 nil 3 nil} 1) 3)
         (assert-eq (map-find-> {1 nil 3 nil} 2) 3)
-        (assert-throw (map-find-> {1 nil 3 nil} 3) {:tag :err-lookup :got 3})
-        (assert-throw (map-find-> {1 nil 3 nil} 4) {:tag :err-lookup :got 4})
+        (assert-throw (map-find-> {1 nil 3 nil} 3) {:tag :err-lookup})
+        (assert-throw (map-find-> {1 nil 3 nil} 4) {:tag :err-lookup})
         ");
 
         test_example("
-        (assert-throw (map-find-<= {1 nil 3 nil} 0) {:tag :err-lookup :got 0})
+        (assert-throw (map-find-<= {1 nil 3 nil} 0) {:tag :err-lookup})
         (assert-eq (map-find-<= {1 nil 3 nil} 1) 1)
         (assert-eq (map-find-<= {1 nil 3 nil} 2) 1)
         (assert-eq (map-find-<= {1 nil 3 nil} 3) 3)
@@ -1818,7 +1794,7 @@ mod tests {
         (assert-eq (map-find->= {1 nil 3 nil} 1) 1)
         (assert-eq (map-find->= {1 nil 3 nil} 2) 3)
         (assert-eq (map-find->= {1 nil 3 nil} 3) 3)
-        (assert-throw (map-find->= {1 nil 3 nil} 4) {:tag :err-lookup :got 4})
+        (assert-throw (map-find->= {1 nil 3 nil} 4) {:tag :err-lookup})
         ");
 
         test_example("
@@ -1990,7 +1966,7 @@ mod tests {
         (let o (opaque) (sf-do
             (assert-eq ((map-get o :unhide) ((map-get o :hide) 42)) 42)
             (assert-eq (typeof ((map-get o :hide) 42)) (map-get o :type))
-            (assert-throw ((map-get o :unhide) 42) {:tag :err-type :expected (map-get o :type) :got :int})
+            (assert-throw ((map-get o :unhide) 42) {:tag :err-type})
         ))
         (assert-eq (= (map-get (opaque) :type) (map-get (opaque) :type)) false)
         ");
@@ -2190,12 +2166,12 @@ mod tests {
         (assert-eq (check $(sf-set! int-add 42) {}) false)
         (assert-eq (check $(sf-set! int-add 42) {:mutable @{$int-add}}) true)
         (assert-eq (check $(sf-set! int-add 42) {:immutable @{$int-add}, :mutable @{$int-add}}) false)
-        (assert-throw (check 42 {:remove :foo}) {:tag :err-type :expected :set :got :keyword})
-        (assert-throw (check 42 {:remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
-        (assert-throw (check 42 {:mutable :foo}) {:tag :err-type :expected :set :got :keyword})
-        (assert-throw (check 42 {:mutable @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
-        (assert-throw (check 42 {:immutable :foo}) {:tag :err-type :expected :set :got :keyword})
-        (assert-throw (check 42 {:immutable @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (check 42 {:remove :foo}) {:tag :err-type})
+        (assert-throw (check 42 {:remove @{:foo}}) {:tag :err-type})
+        (assert-throw (check 42 {:mutable :foo}) {:tag :err-type})
+        (assert-throw (check 42 {:mutable @{:foo}}) {:tag :err-type})
+        (assert-throw (check 42 {:immutable :foo}) {:tag :err-type})
+        (assert-throw (check 42 {:immutable @{:foo}}) {:tag :err-type})
         "#);
 
         test_example(r#"
@@ -2213,12 +2189,12 @@ mod tests {
         (assert-throw (eval $(sf-set! int-add 42) {}) {:tag :err-static})
         (assert-eq (eval $(sf-set! int-add 42) {:mutable {$int-add int-add}}) nil)
         (assert-throw (eval $(sf-set! int-add 42) {:immutable {$int-add int-add}, :mutable {$int-add int-add}}) {:tag :err-static})
-        (assert-throw (eval 42 {:remove :foo}) {:tag :err-type :expected :set :got :keyword})
-        (assert-throw (eval 42 {:remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
-        (assert-throw (eval 42 {:mutable :foo}) {:tag :err-type :expected :map :got :keyword})
-        (assert-throw (eval 42 {:mutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
-        (assert-throw (eval 42 {:immutable :foo}) {:tag :err-type :expected :map :got :keyword})
-        (assert-throw (eval 42 {:immutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (eval 42 {:remove :foo}) {:tag :err-type})
+        (assert-throw (eval 42 {:remove @{:foo}}) {:tag :err-type})
+        (assert-throw (eval 42 {:mutable :foo}) {:tag :err-type})
+        (assert-throw (eval 42 {:mutable {:foo 42}}) {:tag :err-type})
+        (assert-throw (eval 42 {:immutable :foo}) {:tag :err-type})
+        (assert-throw (eval 42 {:immutable {:foo 42}}) {:tag :err-type})
         "#);
 
         test_example(r#"
@@ -2254,16 +2230,16 @@ mod tests {
         (assert-eq (expand $(macro a (sf-lambda [] foo) (a)) {:def-mutable {$foo 42}}) 42)
         (assert-throw (expand $(macro a (sf-lambda [] int-max-val) (a)) {:def-remove @{$int-max-val}}) {:tag :err-expand})
 
-        (assert-throw (expand 42 {:macro-remove :foo}) {:tag :err-type :expected :set :got :keyword})
-        (assert-throw (expand 42 {:macro-remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
-        (assert-throw (expand 42 {:macro-add :foo}) {:tag :err-type :expected :map :got :keyword})
-        (assert-throw (expand 42 {:macro-add {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
-        (assert-throw (expand 42 {:def-remove :foo}) {:tag :err-type :expected :set :got :keyword})
-        (assert-throw (expand 42 {:def-remove @{:foo}}) {:tag :err-type :expected :identifier :got :keyword})
-        (assert-throw (expand 42 {:def-mutable :foo}) {:tag :err-type :expected :map :got :keyword})
-        (assert-throw (expand 42 {:def-mutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
-        (assert-throw (expand 42 {:def-immutable :foo}) {:tag :err-type :expected :map :got :keyword})
-        (assert-throw (expand 42 {:def-immutable {:foo 42}}) {:tag :err-type :expected :identifier :got :keyword})
+        (assert-throw (expand 42 {:macro-remove :foo}) {:tag :err-type})
+        (assert-throw (expand 42 {:macro-remove @{:foo}}) {:tag :err-type})
+        (assert-throw (expand 42 {:macro-add :foo}) {:tag :err-type})
+        (assert-throw (expand 42 {:macro-add {:foo 42}}) {:tag :err-type})
+        (assert-throw (expand 42 {:def-remove :foo}) {:tag :err-type})
+        (assert-throw (expand 42 {:def-remove @{:foo}}) {:tag :err-type})
+        (assert-throw (expand 42 {:def-mutable :foo}) {:tag :err-type})
+        (assert-throw (expand 42 {:def-mutable {:foo 42}}) {:tag :err-type})
+        (assert-throw (expand 42 {:def-immutable :foo}) {:tag :err-type})
+        (assert-throw (expand 42 {:def-immutable {:foo 42}}) {:tag :err-type})
         "#);
     }
 
@@ -2355,8 +2331,8 @@ mod tests {
         (assert-eq (macro--> 42) 42)
         (assert-eq (macro--> 42 $(int-sub 2)) $(int-sub 42 2))
         (assert-eq (macro--> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 42 2)))
-        (assert-throw (macro--> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
-        (assert-throw (macro--> 42 $()) {:tag :err-lookup, :got 1})
+        (assert-throw (macro--> 42 $int->float) {:tag :err-type})
+        (assert-throw (macro--> 42 $()) {:tag :err-lookup})
         ");
 
         test_example("
@@ -2368,8 +2344,8 @@ mod tests {
         (assert-eq (macro-->> 42) 42)
         (assert-eq (macro-->> 42 $(int-sub 2)) $(int-sub 2 42))
         (assert-eq (macro-->> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 2 42)))
-        (assert-throw (macro-->> 42 $int->float) {:tag :err-type, :expected :application, :got :identifier})
-        (assert-throw (macro-->> 42 $()) {:tag :err-lookup, :got 1})
+        (assert-throw (macro-->> 42 $int->float) {:tag :err-type})
+        (assert-throw (macro-->> 42 $()) {:tag :err-lookup})
         ");
 
         test_example("
