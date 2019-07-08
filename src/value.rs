@@ -873,10 +873,11 @@ impl Fun {
             Fun::Builtin(Builtin::CursorMapPrev) => builtins::cursor_map_prev(args, cx),
 
             Fun::Builtin(Builtin::MacroQuote) => builtins::macro_quote(args, cx),
-            Fun::Builtin(Builtin::MacroDo) => builtins::macro_do(args, cx),
+            Fun::Builtin(Builtin::MacroIf) => builtins::macro_if(args, cx),
             Fun::Builtin(Builtin::MacroSetBang) => builtins::macro_set_bang(args, cx),
             Fun::Builtin(Builtin::MacroThrow) => builtins::macro_throw(args, cx),
-            Fun::Builtin(Builtin::MacroIf) => builtins::macro_if(args, cx),
+            Fun::Builtin(Builtin::MacroDo) => builtins::macro_do(args, cx),
+            Fun::Builtin(Builtin::MacroCond) => builtins::macro_cond(args, cx),
             Fun::Builtin(Builtin::MacroLet) => builtins::macro_let(args, cx),
             Fun::Builtin(Builtin::MacroFn) => builtins::macro_fn(args, cx),
             Fun::Builtin(Builtin::MacroLambda) => builtins::macro_lambda(args, cx),
@@ -884,7 +885,9 @@ impl Fun {
             Fun::Builtin(Builtin::MacroThreadLast) => builtins::macro_thread_last(args, cx),
             Fun::Builtin(Builtin::MacroThreadAs) => builtins::macro_thread_as(args, cx),
             Fun::Builtin(Builtin::MacroOr) => builtins::macro_or(args, cx),
+            Fun::Builtin(Builtin::MacroOr2) => builtins::macro_or2(args, cx),
             Fun::Builtin(Builtin::MacroAnd) => builtins::macro_and(args, cx),
+            Fun::Builtin(Builtin::MacroAnd2) => builtins::macro_and2(args, cx),
             Fun::Builtin(Builtin::MacroQuasiquote) => builtins::macro_quasiquote(args, cx),
 
             _ => unimplemented!(),
@@ -1065,10 +1068,12 @@ pub enum Builtin {
 
     KwToStr,
 
+    MacroAnd2,
     MacroThreadFirst,
     MacroThreadLast,
     MacroThreadAs,
     MacroAnd,
+    MacroCond,
     MacroDo,
     MacroFn,
     MacroIf,
@@ -1079,6 +1084,7 @@ pub enum Builtin {
     MacroQuote,
     MacroSetBang,
     MacroThrow,
+    MacroOr2,
 
     MapContains,
     MapCount,

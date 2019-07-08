@@ -51,7 +51,7 @@ pub enum Instruction {
     Map(usize),
     /// Create a closure value with the given IrChunk, push it to the stack.
     /// This can't be done via `Instruction::Literal` since the environmen must be set at runtime.
-    FunLiteral(Rc<IrChunk>, Option<usize>),
+    FunLiteral(Rc<IrChunk>, usize),
     /// Jump to the given basic block. If the bb is `BB_RETURN`, return from the function instead.
     Jump(BBId),
     /// Pop the topmost stack element. Jump to the first basic block if the value was truthy,
@@ -193,12 +193,11 @@ pub struct Closure {
     #[unsafe_ignore_trace]
     pub fun: Rc<IrChunk>,
     pub env: Gc<GcCell<Environment>>,
-    // How many arguments the closure takes, or `None` if it takes a variable number.
-    pub args: Option<usize>,
+    pub args: usize,
 }
 
 impl Closure {
-    fn from_chunk(fun: Rc<IrChunk>, env: Gc<GcCell<Environment>>, args: Option<usize>) -> Closure {
+    fn from_chunk(fun: Rc<IrChunk>, env: Gc<GcCell<Environment>>, args: usize) -> Closure {
         Closure {
             fun,
             env,
@@ -244,19 +243,12 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
     loop {
         state = LocalState::new(&c.fun);
 
-        match c.args {
-            None => {
-                Addr::env(DeBruijn { up: 0, id: 0 }).store(Value::arr(args), &mut state, &c.env);
-            }
-            Some(num_args) => {
-                if args.0.len() != num_args {
-                    return Err(num_args_error());
-                }
+        if args.0.len() != c.args {
+            return Err(num_args_error());
+        }
 
-                for (i, arg) in args.0.iter().enumerate() {
-                    Addr::env(DeBruijn { up: 0, id: i }).store(arg.clone(), &mut state, &c.env);
-                }
-            }
+        for (i, arg) in args.0.iter().enumerate() {
+            Addr::env(DeBruijn { up: 0, id: i }).store(arg.clone(), &mut state, &c.env);
         }
 
         loop {

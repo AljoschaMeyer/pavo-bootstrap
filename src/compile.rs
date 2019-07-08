@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::builtins;
 use crate::check::{check_toplevel, StaticError};
-use crate::special_forms::{SpecialForm, Args, special};
+use crate::special_forms::{SpecialForm, special};
 use crate::value::{Value, Id};
 use crate::vm::{Closure, DeBruijn, BindingId, BBId, BB_RETURN, Instruction, IrChunk, Addr, Environment};
 
@@ -116,12 +116,12 @@ pub fn compile<'a>(
     check_toplevel(v, toplevel)?;
 
     let mut s = Stack::from_toplevel(toplevel);
-    let chunk = Rc::new(compile_lambda(&Args::Destructured(vec![]), v, &mut s));
+    let chunk = Rc::new(compile_lambda(&vec![], v, &mut s));
 
     return Ok(Closure {
         fun: chunk,
         env: Environment::child(Environment::from_toplevel(toplevel)),
-        args: Some(0),
+        args: 0,
     });
 }
 
@@ -271,29 +271,19 @@ fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
 
                 Ok(Some(SpecialForm::Lambda(args, body))) => {
                     let ir_chunk = Rc::new(compile_lambda(&args, body, s));
-                    bbb.append(FunLiteral(ir_chunk, match args {
-                        Args::All(..) => None,
-                        Args::Destructured(all) => Some(all.len()),
-                    }));
+                    bbb.append(FunLiteral(ir_chunk, args.len()));
                 }
             }
         }
     }
 }
 
-fn compile_lambda(args: &Args, body: &Value, s: &mut Stack) -> IrChunk {
+fn compile_lambda(args: &Vec<(bool, &Id)>, body: &Value, s: &mut Stack) -> IrChunk {
     let mut bbb = BBB::new();
     s.push_scope();
 
-    match args {
-        Args::All(_, binder) => {
-            s.add(binder);
-        }
-        Args::Destructured(ids) => {
-            for (_, binder) in ids {
-                s.add(binder);
-            }
-        }
+    for (_, binder) in args {
+        s.add(binder);
     }
 
     val_to_ir(body, true, &mut bbb, true, s);

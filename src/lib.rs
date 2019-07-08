@@ -129,34 +129,23 @@ mod tests {
 
     fn test_example(src: &str) {
         let mut src_in_context = "
-        (macro assert-throw (sf-lambda [try exception]
-            (app-insert
-                (app-insert
-                    (sf-quote (sf-try e))
-                    1
-                    (app-insert
-                        (sf-quote (sf-do (sf-throw :assert-throw)))
-                        1
-                        try
+        (macro
+            assert-throw
+            (sf-lambda [totry exception]
+                `(sf-try
+                    (sf-do [~totry (sf-throw :assert-throw)])
+                    errlklkl
+                    (sf-if
+                        (= errlklkl ~exception) nil
+                        (sf-throw errlklkl)
                     )
-                )
-                3
-                (app-insert
-                    (sf-quote (sf-if nil (sf-throw :assert-eq-throw)))
-                    1
-                    (app-insert
-                        (sf-quote (= e))
-                        2
-                        exception
-                    )
-                )
+                 )
             )
-        )
-
-        ((sf-lambda [assert assert-not assert-eq] (sf-do ".to_string();
+            ((sf-lambda [assert assert-not assert-eq] (sf-do [
+        ".to_string();
         src_in_context.push_str(src);
         src_in_context.push_str("
-            ))
+            ]))
         (sf-lambda [v] (sf-if (= v true) nil (sf-throw :assert)))
         (sf-lambda [v] (sf-if (= v false) nil (sf-throw :assert-not)))
         (sf-lambda [v w] (sf-if (= v w) nil (sf-throw v)))
@@ -164,7 +153,7 @@ mod tests {
 
         )");
 
-        assert_ok(&src_in_context, Value::nil())
+        assert_ok(&src_in_context, Value::nil());
     }
 
     // ## Syntax
@@ -373,7 +362,9 @@ mod tests {
 
     #[test]
     fn test_static_sf_do() {
-        // no-op, nothing to test here
+        assert_any_static_error("(sf-do)");
+        assert_any_static_error("(sf-do foo)");
+        assert_any_static_error("(sf-do foo bar)");
     }
 
     #[test]
@@ -412,6 +403,8 @@ mod tests {
 
     #[test]
     fn test_static_sf_lambda() {
+        assert_any_static_error("(sf-lambda a 0)");
+        assert_any_static_error("(sf-lambda (:mut a) 0)");
         assert_any_static_error("(sf-lambda 0 1)");
         assert_any_static_error("(sf-lambda (:mut 0) 1)");
         assert_any_static_error("(sf-lambda [0] 1)");
@@ -438,15 +431,15 @@ mod tests {
         assert_ok("(sf-try 0 a a)", Value::int(0));
         assert_ok("(sf-try 0 (:mut a) (sf-set! a 42))", Value::int(0));
         assert_ok("((sf-lambda [a] a) 0)", Value::int(0));
-        assert_ok("((sf-lambda (:mut a) (sf-set! a 42)) 0)", Value::nil());
-        assert_ok("(((sf-lambda a (sf-lambda (:mut a) (sf-set! a 0))) 0) 0)", Value::nil());
+        assert_ok("((sf-lambda [(:mut a)] (sf-set! a 42)) 0)", Value::nil());
+        assert_ok("(((sf-lambda [a] (sf-lambda [(:mut a)] (sf-set! a 0))) 0) 0)", Value::nil());
         assert_ok("((sf-lambda [a (:mut a)] (sf-set! a 42)) 0 1)", Value::nil());
         assert_any_static_error("some-id");
         assert_any_static_error("[some-id]");
         assert_any_static_error("(sf-set! some-id 42)");
         assert_any_static_error("(sf-set! int-max-val 42)");
         assert_any_static_error("(sf-try 0 a (sf-set! a 42))");
-        assert_any_static_error("(sf-lambda a (sf-set! a 42))");
+        assert_any_static_error("(sf-lambda [a] (sf-set! a 42))");
         assert_any_static_error("(sf-lambda [(:mut a) a] (sf-set! a 42))");
     }
 
@@ -480,9 +473,9 @@ mod tests {
 
     #[test]
     fn test_sf_do() {
-        assert_ok("(sf-do)", Value::nil());
-        assert_ok("(sf-do 1)", Value::int(1));
-        assert_ok("(sf-do 1 2 3)", Value::int(3));
+        assert_ok("(sf-do [])", Value::nil());
+        assert_ok("(sf-do [1])", Value::int(1));
+        assert_ok("(sf-do [1 2 3])", Value::int(3));
     }
 
     #[test]
@@ -497,14 +490,14 @@ mod tests {
 
     #[test]
     fn test_sf_set_bang() {
-        assert_ok("((sf-lambda [(:mut a)] (sf-do (sf-set! a 42) a)) 17)", Value::int(42));
+        assert_ok("((sf-lambda [(:mut a)] (sf-do [(sf-set! a 42) a])) 17)", Value::int(42));
         assert_ok("((sf-lambda [(:mut a)] (sf-set! a 42)) 17)", Value::nil());
     }
 
     #[test]
     fn test_sf_throw() {
         assert_throw("(sf-throw 0)", Value::int(0));
-        assert_throw("(sf-do 0 (sf-throw 1) (sf-throw 2) 3)", Value::int(1));
+        assert_throw("(sf-do [0 (sf-throw 1) (sf-throw 2) 3])", Value::int(1));
         assert_throw("(sf-if (sf-throw 0) (sf-throw 1) (sf-throw 2))", Value::int(0));
     }
 
@@ -519,13 +512,6 @@ mod tests {
 
     #[test]
     fn test_sf_lambda() {
-        assert_ok("(typeof (sf-lambda foo nil))", Value::kw_str("function"));
-        assert_ok(
-            "((sf-lambda foo foo) 0 1 2)",
-            Value::arr_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)])
-        );
-        assert_ok("((sf-lambda (:mut foo) (sf-do (sf-set! foo 42) foo)) 0 1 2)", Value::int(42));
-
         assert_ok("(typeof (sf-lambda [] nil))", Value::kw_str("function"));
         assert_ok("((sf-lambda [] 42))", Value::int(42));
         assert_throw(
@@ -533,7 +519,7 @@ mod tests {
             execute("{:tag :err-num-args}").unwrap()
         );
         assert_ok("((sf-lambda [a b] (int-add a b)) 1 2)", Value::int(3));
-        assert_ok("((sf-lambda [a (:mut b)] (sf-do (sf-set! b 3) (int-add a b))) 1 2)", Value::int(4));
+        assert_ok("((sf-lambda [a (:mut b)] (sf-do [(sf-set! b 3) (int-add a b)])) 1 2)", Value::int(4));
         assert_ok("((sf-lambda [a a] a) 0 1)", Value::int(1));
     }
 
@@ -543,11 +529,11 @@ mod tests {
     fn test_function_argument_errors() {
         test_example("
         (assert-throw (bool-not) { :tag :err-num-args})
-        #(assert-throw (bool-not 42 43) { :tag :err-num-args })
-        #(assert-throw (bool-not 42) { :tag :err-type })
-        #(assert-throw (int-pow-wrap :nope \"nope\") { :tag :err-type })
-        #(assert-throw (int-pow-wrap 2 :nope) { :tag :err-type })
-        #(assert-throw (int-pow-wrap 2 -2) { :tag :err-negative })
+        (assert-throw (bool-not 42 43) { :tag :err-num-args })
+        (assert-throw (bool-not 42) { :tag :err-type })
+        (assert-throw (int-pow-wrap :nope \"nope\") { :tag :err-type })
+        (assert-throw (int-pow-wrap 2 :nope) { :tag :err-type })
+        (assert-throw (int-pow-wrap 2 -2) { :tag :err-negative })
         ");
     }
 
@@ -763,8 +749,8 @@ mod tests {
         (assert-eq (int-mul-wrap 2 3) 6)
         (assert-eq (int-mul-wrap int-max-val 2) -2)
         (assert-eq (int-mul-wrap int-max-val -2) 2)
-        #(assert-eq (int-mul-wrap int-min-val 2) 0)
-        #(assert-eq (int-mul-wrap int-min-val -2) 0)
+        (assert-eq (int-mul-wrap int-min-val 2) 0)
+        (assert-eq (int-mul-wrap int-min-val -2) 0)
         ");
 
         test_example("
@@ -899,23 +885,23 @@ mod tests {
         test_example("(assert-eq cursor-bytes-type (typeof (bytes-cursor @[] 0)))");
 
         test_example("
-        (let cursor (bytes-cursor @[0 1 2] 0) (do
+        (let cursor (bytes-cursor @[0 1 2] 0) (do [
             (assert-eq (cursor-bytes-next! cursor) 0)
             (assert-eq (cursor-bytes-next! cursor) 1)
             (assert-eq (cursor-bytes-next! cursor) 2)
             (assert-throw (cursor-bytes-next! cursor) :cursor-end)
             (assert-throw (cursor-bytes-next! cursor) :cursor-end)
-        ))
+        ]))
         ");
 
         test_example("
-        (let cursor (bytes-cursor @[0 1 2] 3) (do
+        (let cursor (bytes-cursor @[0 1 2] 3) (do [
             (assert-eq (cursor-bytes-prev! cursor) 2)
             (assert-eq (cursor-bytes-prev! cursor) 1)
             (assert-eq (cursor-bytes-prev! cursor) 0)
             (assert-throw (cursor-bytes-prev! cursor) :cursor-end)
             (assert-throw (cursor-bytes-prev! cursor) :cursor-end)
-        ))
+        ]))
         ");
     }
 
@@ -1050,23 +1036,23 @@ mod tests {
         test_example(r#"(assert-eq cursor-str-type (typeof (str-cursor "" 0)))"#);
 
         test_example(r#"
-        (let cursor (str-cursor "a⚗c" 0) (do
+        (let cursor (str-cursor "a⚗c" 0) (do [
             (assert-eq (cursor-str-next! cursor) 'a')
             (assert-eq (cursor-str-next! cursor) '⚗')
             (assert-eq (cursor-str-next! cursor) 'c')
             (assert-throw (cursor-str-next! cursor) :cursor-end)
             (assert-throw (cursor-str-next! cursor) :cursor-end)
-        ))
+        ]))
         "#);
 
         test_example(r#"
-        (let cursor (str-cursor "a⚗c" 3) (do
+        (let cursor (str-cursor "a⚗c" 3) (do [
             (assert-eq (cursor-str-prev! cursor) 'c')
             (assert-eq (cursor-str-prev! cursor) '⚗')
             (assert-eq (cursor-str-prev! cursor) 'a')
             (assert-throw (cursor-str-prev! cursor) :cursor-end)
             (assert-throw (cursor-str-prev! cursor) :cursor-end)
-        ))
+        ]))
         "#);
     }
 
@@ -1075,7 +1061,7 @@ mod tests {
         test_example(r#"(assert-eq cursor-str-utf8-type (typeof (str-cursor-utf8 "" 0)))"#);
 
         test_example(r#"
-        (let cursor (str-cursor-utf8 "a⚗c" 0) (do
+        (let cursor (str-cursor-utf8 "a⚗c" 0) (do [
             (assert-eq (cursor-str-utf8-next! cursor) 97)
             (assert-eq (cursor-str-utf8-next! cursor) 226)
             (assert-eq (cursor-str-utf8-next! cursor) 154)
@@ -1083,11 +1069,11 @@ mod tests {
             (assert-eq (cursor-str-utf8-next! cursor) 99)
             (assert-throw (cursor-str-utf8-next! cursor) :cursor-end)
             (assert-throw (cursor-str-utf8-next! cursor) :cursor-end)
-        ))
+        ]))
         "#);
 
         test_example(r#"
-        (let cursor (str-cursor-utf8 "a⚗c" 5) (do
+        (let cursor (str-cursor-utf8 "a⚗c" 5) (do [
             (assert-eq (cursor-str-utf8-prev! cursor) 99)
             (assert-eq (cursor-str-utf8-prev! cursor) 151)
             (assert-eq (cursor-str-utf8-prev! cursor) 154)
@@ -1095,7 +1081,7 @@ mod tests {
             (assert-eq (cursor-str-utf8-prev! cursor) 97)
             (assert-throw (cursor-str-utf8-prev! cursor) :cursor-end)
             (assert-throw (cursor-str-utf8-prev! cursor) :cursor-end)
-        ))
+        ]))
         "#);
     }
 
@@ -1448,23 +1434,23 @@ mod tests {
         test_example("(assert-eq cursor-arr-type (typeof (arr-cursor [] 0)))");
 
         test_example("
-        (let cursor (arr-cursor [0 1 2] 0) (do
+        (let cursor (arr-cursor [0 1 2] 0) (do [
             (assert-eq (cursor-arr-next! cursor) 0)
             (assert-eq (cursor-arr-next! cursor) 1)
             (assert-eq (cursor-arr-next! cursor) 2)
             (assert-throw (cursor-arr-next! cursor) :cursor-end)
             (assert-throw (cursor-arr-next! cursor) :cursor-end)
-        ))
+        ]))
         ");
 
         test_example("
-        (let cursor (arr-cursor [0 1 2] 3) (do
+        (let cursor (arr-cursor [0 1 2] 3) (do [
             (assert-eq (cursor-arr-prev! cursor) 2)
             (assert-eq (cursor-arr-prev! cursor) 1)
             (assert-eq (cursor-arr-prev! cursor) 0)
             (assert-throw (cursor-arr-prev! cursor) :cursor-end)
             (assert-throw (cursor-arr-prev! cursor) :cursor-end)
-        ))
+        ]))
         ");
     }
 
@@ -1550,23 +1536,23 @@ mod tests {
         test_example("(assert-eq cursor-app-type (typeof (app-cursor $() 0)))");
 
         test_example("
-        (let cursor (app-cursor $(0 1 2) 0) (do
+        (let cursor (app-cursor $(0 1 2) 0) (do [
             (assert-eq (cursor-app-next! cursor) 0)
             (assert-eq (cursor-app-next! cursor) 1)
             (assert-eq (cursor-app-next! cursor) 2)
             (assert-throw (cursor-app-next! cursor) :cursor-end)
             (assert-throw (cursor-app-next! cursor) :cursor-end)
-        ))
+        ]))
         ");
 
         test_example("
-        (let cursor (app-cursor $(0 1 2) 3) (do
+        (let cursor (app-cursor $(0 1 2) 3) (do [
             (assert-eq (cursor-app-prev! cursor) 2)
             (assert-eq (cursor-app-prev! cursor) 1)
             (assert-eq (cursor-app-prev! cursor) 0)
             (assert-throw (cursor-app-prev! cursor) :cursor-end)
             (assert-throw (cursor-app-prev! cursor) :cursor-end)
-        ))
+        ]))
         ");
     }
 
@@ -1726,23 +1712,23 @@ mod tests {
         test_example("(assert-eq cursor-set-type (typeof (set-cursor-min @{})))");
 
         test_example("
-        (let cursor (set-cursor-min @{0 1 2}) (do
+        (let cursor (set-cursor-min @{0 1 2}) (do [
             (assert-eq (cursor-set-next! cursor) 0)
             (assert-eq (cursor-set-next! cursor) 1)
             (assert-eq (cursor-set-next! cursor) 2)
             (assert-throw (cursor-set-next! cursor) :cursor-end)
             (assert-throw (cursor-set-next! cursor) :cursor-end)
-        ))
+        ]))
         ");
 
         test_example("
-        (let cursor (set-cursor-max @{0 1 2}) (do
+        (let cursor (set-cursor-max @{0 1 2}) (do [
             (assert-eq (cursor-set-prev! cursor) 2)
             (assert-eq (cursor-set-prev! cursor) 1)
             (assert-eq (cursor-set-prev! cursor) 0)
             (assert-throw (cursor-set-prev! cursor) :cursor-end)
             (assert-throw (cursor-set-prev! cursor) :cursor-end)
-        ))
+        ]))
         ");
     }
 
@@ -1917,23 +1903,23 @@ mod tests {
         test_example("(assert-eq cursor-map-type (typeof (map-cursor-min {})))");
 
         test_example("
-        (let cursor (map-cursor-min {0 :a 1 :b 2 :c}) (do
+        (let cursor (map-cursor-min {0 :a 1 :b 2 :c}) (do [
             (assert-eq (cursor-map-next! cursor) [0 :a])
             (assert-eq (cursor-map-next! cursor) [1 :b])
             (assert-eq (cursor-map-next! cursor) [2 :c])
             (assert-throw (cursor-map-next! cursor) :cursor-end)
             (assert-throw (cursor-map-next! cursor) :cursor-end)
-        ))
+        ]))
         ");
 
         test_example("
-        (let cursor (map-cursor-max {0 :a 1 :b 2 :c}) (do
+        (let cursor (map-cursor-max {0 :a 1 :b 2 :c}) (do [
             (assert-eq (cursor-map-prev! cursor) [2 :c])
             (assert-eq (cursor-map-prev! cursor) [1 :b])
             (assert-eq (cursor-map-prev! cursor) [0 :a])
             (assert-throw (cursor-map-prev! cursor) :cursor-end)
             (assert-throw (cursor-map-prev! cursor) :cursor-end)
-        ))
+        ]))
         ");
     }
 
@@ -1955,19 +1941,19 @@ mod tests {
         test_example("(assert-eq (cell-get (cell 42)) 42)");
 
         test_example("
-        #(assert-eq (cell-set (cell 42) 43) nil)
-        (assert-eq ((sf-lambda [x] (sf-do (cell-set x 43) (cell-get x))) (cell 42)) 43)
+        (assert-eq (cell-set (cell 42) 43) nil)
+        (assert-eq ((sf-lambda [x] (sf-do [(cell-set x 43) (cell-get x)])) (cell 42)) 43)
         ");
     }
 
     #[test]
     fn test_toplevel_opaque() {
         test_example("
-        (let o (opaque) (sf-do
+        (let o (opaque) (sf-do [
             (assert-eq ((map-get o :unhide) ((map-get o :hide) 42)) 42)
             (assert-eq (typeof ((map-get o :hide) 42)) (map-get o :type))
             (assert-throw ((map-get o :unhide) 42) {:tag :err-type})
-        ))
+        ]))
         (assert-eq (= (map-get (opaque) :type) (map-get (opaque) :type)) false)
         ");
     }
@@ -2040,11 +2026,11 @@ mod tests {
         (assert-eq (cmp (sf-lambda [] nil) (sf-lambda [] nil)) :<)
         (assert-eq (cmp (cell 42) (cell 41)) :<)
 
-        (let o (opaque) (let hide (map-get o :hide) (do
+        (let o (opaque) (let hide (map-get o :hide) (do [
             (assert-eq (cmp (hide 42) (hide 41)) :<)
             (assert-eq (cmp cursor-arr-type (hide 42)) :<)
             (assert-eq (cmp cursor-app-type cursor-arr-type) :<)
-        )))
+        ])))
         "#);
 
         test_example("
@@ -2201,9 +2187,9 @@ mod tests {
         (assert-eq (expand 42 {}) 42)
         (assert-eq (expand $throw {}) $throw)
         (assert-eq (expand $(sf-quote (macro)) {}) $(sf-quote (macro)))
-        (assert-eq (expand $(throw) {}) $(sf-throw nil))
+        (assert-eq (expand $(throw nil) {}) $(sf-throw nil))
         (assert-eq (expand $(x y) {}) $(x y))
-        (assert-eq (expand $(x (throw)) {}) $(x (sf-throw nil)))
+        (assert-eq (expand $(x (throw nil)) {}) $(x (sf-throw nil)))
         (assert-eq (expand (macro
             foo
             (sf-lambda [] 42)
@@ -2224,7 +2210,7 @@ mod tests {
         (assert-throw (expand $(macro foo 42 (foo)) {}) {:tag :err-expand})
         (assert-throw (expand $(macro {:foo foo} {} 42) {}) {:tag :err-expand})
 
-        (assert-eq (expand $(throw) {}) $(sf-throw nil))
+        (assert-eq (expand $(throw nil) {}) $(sf-throw nil))
         (assert-eq (expand $(throw) {:macro-remove @{$throw}}) $(throw))
         (assert-eq (expand $(foo 1 2) {:macro-add {$foo int-add}}) 3)
         (assert-eq (expand $(macro a (sf-lambda [] foo) (a)) {:def-mutable {$foo 42}}) 42)
@@ -2298,23 +2284,28 @@ mod tests {
 
         test_example("
         (assert-eq (macro-throw 42) $(sf-throw 42))
-        (assert-eq (macro-throw) $(sf-throw nil))
+        (assert-throw (macro-throw) {:tag :err-num-args})
+        ");
+
+        test_example("(assert-eq (macro-if 0 1 2) $(sf-if 0 1 2))");
+
+        test_example("
+        (assert-eq (macro-do []) $(sf-do []))
+        (assert-eq (macro-do [0]) $(sf-do [0]))
+        (assert-eq (macro-do [0 1 2]) $(sf-do [0 1 2]))
+        (assert-eq (macro-do [0 $(:let a 42) 2 $a]) $(sf-do [0 (let a 42 (sf-do [2 a]))]))
+        (assert-eq (do [0 (:let a 42) 2 a]) 42)
+        (assert-eq (macro-do [0 $(:let a 42)]) $(sf-do [0 (let a 42 (sf-do []))]))
+        (assert-throw (macro-do [$(:let a)]) {:tag :err-num-args})
         ");
 
         test_example("
-        (assert-eq (macro-do) $(sf-do))
-        (assert-eq (macro-do 0) $(sf-do 0))
-        (assert-eq (macro-do 0 1 2) $(sf-do 0 1 2))
-        (assert-eq (macro-do 0 $(:let a 42) 2 $a) $(sf-do 0 (let a 42 (sf-do 2 a))))
-        (assert-eq (do 0 (:let a 42) 2 a) 42)
-        (assert-eq (macro-do 0 $(:let a 42)) $(sf-do 0 (let a 42 (sf-do))))
-        (assert-throw (macro-do $(:let a)) {:tag :err-num-args})
-        ");
-
-        test_example("
-        (assert-eq (macro-if 0 1) $(sf-if 0 1 nil))
-        (assert-eq (macro-if 0 1 2) $(sf-if 0 1 2))
-        (assert-eq (macro-if 0 1 2 3) $(sf-if 0 1 (sf-if 2 3 nil)))
+        (assert-eq (macro-cond []) nil)
+        (assert-eq (macro-cond [0]) 0)
+        (assert-eq (macro-cond [0 1]) $(sf-if 0 1 nil))
+        (assert-eq (macro-cond [0 1 2]) $(sf-if 0 1 2))
+        (assert-eq (macro-cond [0 1 2 3]) $(sf-if 0 1 (sf-if 2 3 nil)))
+        (assert-eq (macro-cond [0 1 2 3 4]) $(sf-if 0 1 (sf-if 2 3 4)))
         ");
 
         test_example("
@@ -2323,64 +2314,79 @@ mod tests {
         ");
 
         test_example("
-        (assert-eq (-> 42
+        (assert-eq (-> 42 [
             (int-sub ,,, 2) # the commas are whitespace, used here to indicate the insertion point
             (int->float ,,,)
-        ) 40.0)
+        ]) 40.0)
 
-        (assert-eq (macro--> 42) 42)
-        (assert-eq (macro--> 42 $(int-sub 2)) $(int-sub 42 2))
-        (assert-eq (macro--> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 42 2)))
-        (assert-throw (macro--> 42 $int->float) {:tag :err-type})
-        (assert-throw (macro--> 42 $()) {:tag :err-lookup})
+        (assert-eq (macro--> 42 []) 42)
+        (assert-eq (macro--> 42 [$(int-sub 2)]) $(int-sub 42 2))
+        (assert-eq (macro--> 42 [$(int-sub 2) $(int->float)]) $(int->float (int-sub 42 2)))
+        (assert-throw (macro--> 42 [$int->float]) {:tag :err-type})
+        (assert-throw (macro--> 42 [$()]) {:tag :err-lookup})
         ");
 
         test_example("
-        (assert-eq (->> 42
+        (assert-eq (->> 42 [
             (int-sub 2 ,,,) # the commas are whitespace, used here to indicate the insertion point
             (int->float ,,,)
-        ) -40.0)
+        ]) -40.0)
 
-        (assert-eq (macro-->> 42) 42)
-        (assert-eq (macro-->> 42 $(int-sub 2)) $(int-sub 2 42))
-        (assert-eq (macro-->> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 2 42)))
-        (assert-throw (macro-->> 42 $int->float) {:tag :err-type})
-        (assert-throw (macro-->> 42 $()) {:tag :err-lookup})
+        (assert-eq (macro-->> 42 []) 42)
+        (assert-eq (macro-->> 42 [$(int-sub 2)]) $(int-sub 2 42))
+        (assert-eq (macro-->> 42 [$(int-sub 2) $(int->float)]) $(int->float (int-sub 2 42)))
+        (assert-eq (macro-->> 42 [$()]) $(42))
+        (assert-throw (macro-->> 42 [$int->float]) {:tag :err-type})
         ");
 
         test_example("
-        (assert-eq (as-> foo 42
+        (assert-eq (as-> foo 42 [
             (int-sub foo 2)
             (int-sub 3 foo)
-        ) -37)
+        ]) -37)
 
-        (assert-eq (macro-as-> $foo 42) 42)
-        (assert-eq (macro-as-> $foo 42 $(int-sub foo 2)) $(let foo 42 (int-sub foo 2)))
-        (assert-eq (macro-as-> $foo 42 $(int-sub foo 2) $(int-sub 3 foo)) $(let foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
+        (assert-eq (macro-as-> $foo 42 []) 42)
+        (assert-eq (macro-as-> $foo 42 [$(int-sub foo 2)]) $(let foo 42 (int-sub foo 2)))
+        (assert-eq (macro-as-> $foo 42 [$(int-sub foo 2) $(int-sub 3 foo)]) $(let foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
         ");
 
         test_example("
-        (assert-eq (macro-or) false)
-        (assert-eq (macro-or 42) 42)
-        (assert-eq (macro-or nil) nil)
-        (assert-eq (or 0 1) 0)
-        (assert-eq (or 0 false) 0)
-        (assert-eq (or false 1) 1)
-        (assert-eq (or false nil) nil)
-        (assert-eq (or nil false 2) 2)
-        (assert-eq (or nil false 2 3) 2)
+        (assert-eq (macro-or []) false)
+        (assert-eq (macro-or [42]) 42)
+        (assert-eq (macro-or [nil]) nil)
+        (assert-eq (or [0 1]) 0)
+        (assert-eq (or [0 false]) 0)
+        (assert-eq (or [false 1]) 1)
+        (assert-eq (or [false nil]) nil)
+        (assert-eq (or [nil false 2]) 2)
+        (assert-eq (or [nil false 2 3]) 2)
         ");
 
         test_example("
-        (assert-eq (macro-and) true)
-        (assert-eq (macro-and 42) 42)
-        (assert-eq (macro-and nil) nil)
-        (assert-eq (and 0 1) 1)
-        (assert-eq (and 0 false) false)
-        (assert-eq (and false 1) false)
-        (assert-eq (and false nil) false)
-        (assert-eq (and nil false 2) nil)
-        (assert-eq (and nil false 2 3) nil)
+        (assert-eq (|| 0 1) 0)
+        (assert-eq (|| 0 false) 0)
+        (assert-eq (|| false 1) 1)
+        (assert-eq (|| false nil) nil)
+        ");
+
+        test_example("
+        (assert-eq (macro-and []) true)
+        (assert-eq (macro-and [42]) 42)
+        (assert-eq (macro-and [nil]) nil)
+        (assert-eq (and [0 1]) 1)
+        (assert-eq (and [0 false]) false)
+        (assert-eq (and [false 1]) false)
+        (assert-eq (and [false nil]) false)
+        (assert-eq (and [nil false 2]) nil)
+        (assert-eq (and [nil false 2 3]) nil)
+        (assert-eq (and [3 2 false nil]) false)
+        ");
+
+        test_example("
+        (assert-eq (&& 0 1) 1)
+        (assert-eq (&& 0 false) false)
+        (assert-eq (&& false 1) false)
+        (assert-eq (&& false nil) false)
         ");
 
         test_example("
@@ -2399,10 +2405,69 @@ mod tests {
         (assert-eq `(0 @~$(1) 2) $(0 1 2))
         (assert-eq `(0 @~$(1 2) 3) $(0 1 2 3))
 
-        (let expanded (macro-quasiquote $[@foo @bar @foo]) (do
+        (let expanded (macro-quasiquote $[@foo @bar @foo]) (do [
             (assert-eq (= (arr-get expanded 0) (arr-get expanded 1)) false)
             (assert-eq (arr-get expanded 0) (arr-get expanded 2))
-        ))
+        ]))
         ");
+
+
+
+
+
+
+
+        // test_example("
+        // (lambda [r] (lambda [] (r)))
+        // ");
+
+        // test_example("
+        // (lambda [g]
+        //     ((lambda [x] (x x)) (lambda [x]
+        //         (g (lambda [y] ((x x) y))))))
+        // ");
+
+        // test_example("
+        // ((
+        //     (lambda [g]
+        //         (
+        //             (lambda [f] (f f))
+        //             (lambda [x] (
+        //                 g
+        //                 (lambda [] ((x x)))
+        //             ))
+        //         )
+        //     )
+        //     (lambda [r] (lambda [] (r)))
+        // ))
+        // ");
+
+        // test_example("
+        // ((
+        //     (lambda [g]
+        //         ((lambda [x] (x x)) (lambda [x]
+        //             (g (lambda [y] ((x x) y))))))
+        //     (lambda [r] (lambda [n] (if
+        //             (= n 0) 0
+        //             (= (int-mod n 10000) 0) (do (trace n) (r (int-sub n 1)))
+        //             (r (int-sub n 1))
+        //         )))
+        // ) 999999)
+        // ");
+
+        // test_example("
+        // ((
+        //     (lambda [g]
+        //         (
+        //             (lambda [f] (f f))
+        //             (lambda [x] (
+        //                 g
+        //                 (lambda [arg0 arg1] ((x x) arg0 arg1))
+        //             ))
+        //         )
+        //     )
+        //     (lambda [r] (lambda [a b] (r a b)))
+        // ) 0 1)
+        // ");
     }
 }

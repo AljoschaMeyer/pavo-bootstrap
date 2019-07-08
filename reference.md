@@ -347,7 +347,7 @@ An application literal whose first item is `sf-quote` must have exactly two item
 
 #### `sf-do`
 
-Any application literal whose first item is `sf-do` is well-formed.
+An application literal whose first item is `sf-do` must have exactly two items, the second one must be an array.
 
 #### `sf-if`
 
@@ -395,11 +395,9 @@ An application literal whose first item is `(sf-try)` must have exactly four ite
 
 #### `sf-lambda`
 
-An application literal whose first item is `(sf-lambda)` must have exactly three items, the second of which is either a name, a two-element application containing the keyword `:mut` followed by a name, or an array that contains any number of either names or such two-element applications.
+An application literal whose first item is `(sf-lambda)` must have exactly three items, the second of which is an array that contains any number of either names or two-element applications containing the keyword `:mut` followed by a name.
 
 ```pavo
-(sf-lambda a 0)
-(sf-lambda (:mut a) 0)
 (sf-lambda [] 0)
 (sf-lambda [a] 0)
 (sf-lambda [(:mut a)] 0)
@@ -408,13 +406,12 @@ An application literal whose first item is `(sf-lambda)` must have exactly three
 (sf-lambda [a (:mut b)] 0)
 (sf-lambda [(:mut a) (:mut b)] 0)
 (sf-lambda [a a] 0)
-# (sf-lambda 0 1) is a static error because the second item must be a name, array or :mut
-# (sf-lambda (:mut 0) 1) is a static error because the third item must be a name
+# (sf-lambda 0 1) is a static error because the second item must an array
 # (sf-lambda [0] 1) is a static error because the array may not contain arbitrary values
 # (sf-lambda [(:mut)] 0) is a static error because each :mut must correspond to an identifier
 # (sf-lambda [(:mut a b)] 0)
 # (sf-lambda [(a :mut)] 0) is a static error because each :mut must precede its identifier
-# (sf-lambda), (sf-lambda a), (sf-lambda a 0 1), (sf-lambda :mut), (sf-lambda :mut a), (sf-lambda :mut a 0 1), (sf-lambda []) and (sf-lambda [] 0 1) are static errors
+# (sf-lambda []) and (sf-lambda [] 0 1) are static errors
 ```
 
 ### Binding Correctness
@@ -427,8 +424,6 @@ Checking bindings for a value proceeds recursively. If the value is a name (iden
 - `(sf-set! <target-name> <rvalue-exp>)`: Is a static error if the `<target-name>` is not a mutable binding, otherwise `<rvalue-exp>` is checked in the check-environment `E`.
 - `(sf-try <try-exp> <binder-name> <caught-exp>)`: Check `<try-exp>` in the check-environment `E`. If successful, check `<caught-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
 - `(sf-try <try-exp> (:mut <binder-name>) <caught-exp>)`: Check `<try-exp>` in the check-environment `E`. If successful, check `<caught-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to true.
-- `(sf-lambda <binder-name> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
-- `(sf-lambda (:mut <binder-name>) <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to true.
 - `(sf-lambda <args-array> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that all names directly contained in the `<args-array>` map to false, and those inside an application with the `:mut` keyword map to `true`. For duplicate names, the mutability of the rightmost one is used.
 - Otherwise, all inner values are checked in the check-environment `E`.
 
@@ -436,12 +431,11 @@ Checking bindings for a value proceeds recursively. If the value is a name (iden
 (sf-quote a)
 (sf-try 0 a a)
 (sf-try 0 (:mut a) (sf-set! a 42))
-(sf-lambda a a)
-(sf-lambda (:mut a) (sf-set! a 42))
-(sf-lambda a (sf-lambda (:mut a) (sf-set! a 0)))
-(sf-lambda [a (:mut a)] (sf-set! a 42))
+(sf-lambda [a] a)
+(sf-lambda [(:mut a)] (sf-set! a 42))
+(sf-lambda [a] (sf-lambda [(:mut a)] (sf-set! a 0)))
 # some-id, [some-id] and (sf-set! some-id 0) are static errors because the name is not bound
-# (sf-set! int-max-val 42), (sf-try 0 a (sf-set! a 42)) and (sf-lambda a (sf-set! a 42)) are static errors because the name is bound immutably
+# (sf-set! int-max-val 42), (sf-try 0 a (sf-set! a 42)) and (sf-lambda [a] (sf-set! a 42)) are static errors because the name is bound immutably
 # (sf-lambda [(:mut a) a] (sf-set! a 42)) is a static error because the name is bound immutably
 ```
 
@@ -474,7 +468,7 @@ Note that the iteration order of a map might not be the same as the order in whi
 (assert-throw {(sf-throw :b) 42, (sf-throw :a) 42} :a)
 ```
 
-Names (identifiers and symbols) evaluate to the value to which they are bound in the current environment. Unbound names never get evaluated, the static checks prevent evaluation in such a case.
+Names (identifiers and symbols) evaluate to the value to which they are bound in the current environment. It can not happen that an unbound name needs to be evaluated, the static checks prevent such situations from arising.
 
 Applications are where the magic happens. If the application contains zero items, the evaluation stops immediately by throwing `{:tag :err-lookup}`. If the first item of an application is the identifier of a special form, application proceeds as described in the section on that particular special form. Otherwise, the contained values are evaluated in iteration order. If the evaluation of an inner value throws an error, the evaluation of the application stops by throwing that same error. If no inner evaluation errors, the type of the evaluation result of the first item is checked. If it is not a function, the evaluation stops by throwing `{:tag :err-type}`. Otherwise, the function is applied to the remaining results.
 
@@ -504,14 +498,14 @@ Evaluates to the literal value denoted by `x`, without evaluating `x`.
 (assert-not (= (sf-quote (int-add 1 1)) 2))
 ```
 
-#### `(sf-do exp*)`
+#### `(sf-do [exprs...])`
 
-Evaluates the expressions in sequence, evaluating to the value of the last expression. If there are zero expressions, evaluates to `nil`.
+Evaluates the expressions in the array in sequence, evaluating to the value of the last expression. If there are zero expressions, evaluates to `nil`.
 
 ```pavo
-(assert-eq (sf-do) nil)
-(assert-eq (sf-do 1) 1)
-(assert-eq (sf-do 1 2 3) 3)
+(assert-eq (sf-do []) nil)
+(assert-eq (sf-do [1]) 1)
+(assert-eq (sf-do [1 2 3]) 3)
 ```
 
 #### `(sf-if condition then else)`
@@ -532,7 +526,7 @@ Evaluates the `condition`. If it evaluated to `nil` or `false`, evaluates to the
 Evaluates `exp` and rebinds identifier `id` to the value. `id` must refer to a mutable binding in scope. The form itself evaluates to `nil`. If evaluating `exp` throws, the identifier is not rebound.
 
 ```pavo
-(assert-eq ((sf-lambda [(:mut a)] (sf-do (sf-set! a 42) a)) 17) 42)
+(assert-eq ((sf-lambda [(:mut a)] (sf-do [(sf-set! a 42) a])) 17) 42)
 (assert-eq ((sf-lambda [(:mut a)] (sf-set! a 42)) 17) nil)
 ```
 
@@ -542,12 +536,12 @@ Evaluates `x` and throws the result.
 
 ```pavo
 (assert-throw (sf-throw 0) 0)
-(assert-throw (sf-do
+(assert-throw (sf-do [
     0
     (sf-throw 1)
     (sf-throw 2)
     3
-) 1)
+]) 1)
 (assert-throw (sf-if
     (sf-throw 0)
     (sf-throw 1)
@@ -567,33 +561,25 @@ Evaluates the `try-exp`. If it throws, the thrown value is bound to the `id` and
 (assert-throw (sf-try (sf-throw 0) foo (sf-throw 1)) 1)
 ```
 
-#### `(sf-lambda id body)` `(sf-lambda (:mut id) body)` `(sf-lambda [<args>] body)`
+#### `(sf-lambda [args...] body)`
 
 Evaluates to a function. Associated with that function is the current environment, i.e. the same set of variable bindings that are in scope at the program point where the `sf-lambda` form occurs. When applying the function, the environment is modified according to the arguments (see below), and then the `body` expression is evaluated in that environment. The bindings introduced through application to arguments shadow any bindings of the same identifier that have been in lexical scope at the point of the function definition.
 
-In the `(sf-lambda id body)` and `(sf-lambda (:mut id) body)` versions, when applying the function to some argument values, the identifier `id` is bound to an array containing those values before evaluating the `body`. If the keyword `:mut` is supplied, the binding is mutable.
-
-```pavo
-(assert-eq (typeof (sf-lambda foo nil)) :function))
-(assert-eq ((sf-lambda foo foo) 0 1 2) [0 1 2])
-(assert-eq ((sf-lambda (:mut foo) (sf-do (sf-set! foo 42) foo)) 0 1 2) 42)
-```
-
-In the `(sf-lambda [<args>] body)` version, when applying the function to some arguments, if the number of arguments does not match the number of identifiers in the function definition, `{:tag :err-num-args}` is thrown. If the number of arguments matches, then each argument identifier is bound to the corresponding supplied value before evaluating the `body`. For identifiers that are prefixed with the `:mut` keyword, the binding is mutable. In case of duplicate identifiers, the rightmost one wins.
+When applying the function to some arguments, if the number of arguments does not match the number of args in the function definition, `{:tag :err-num-args}` is thrown. If the number of arguments matches, then each argument identifier is bound to the corresponding supplied value before evaluating the `body`. For identifiers that are prefixed with the `:mut` keyword, the binding is mutable. In case of duplicate identifiers, the rightmost one wins.
 
 ```pavo
 (assert-eq (typeof (sf-lambda [] nil)) :function)
 (assert-eq ((sf-lambda [] 42)) 42)
 (assert-throw ((sf-lambda [] 42) :an-argument) {:tag :err-num-args})
 (assert-eq ((sf-lambda [a b] (int-add a b)) 1 2) 3)
-(assert-eq ((sf-lambda [a (:mut b)] (sf-do (sf-set! b 3) (int-add a b))) 1 2) 4)
+(assert-eq ((sf-lambda [a (:mut b)] (sf-do [(sf-set! b 3) (int-add a b)])) 1 2) 4)
 (assert-eq ((sf-lambda [a a] a) 0 1) 1)
 ```
 
 Pavo guarantees tail-call optimization, (mutually) recursive function calls in tail position only take up a bounded amount of stack space. The tail positions are exactly the following:
 
 - the body of a function
-- the last expression of an `sf-do` form that is in tail position
+- the last expression in the array of an `sf-do` form that is in tail position
 - the `then` and `else` expressions of an `sf-if` form that is in tail position
 - the `caught-exp` of an `sf-try` form that is in tail position
 
@@ -607,7 +593,7 @@ The actual definition of the expansion process is inductive as usual: nil, bools
 
 If the first item of an application is the identifier `sf-quote`, the expansion of the application is the application itself.
 
-If the first item of an application is an identifier other than `macro` or `quote`, and if that identifier is a key in the macro-environment, the expansion of the application is obtained by applying the corresponding value in the macro environment to the items of the application (without the leading identifier). If the macro value is not a function, if the number of arguments is not correct, or if the function throws, the macro expansion errors.
+If the first item of an application is an identifier other than `macro` or `sf-quote`, and if that identifier is a key in the macro-environment, the expansion of the application is obtained by applying the corresponding value in the macro environment to the items of the application (without the leading identifier). If the macro value is not a function, if the number of arguments is not correct, or if the function throws, the macro expansion errors.
 
 If the first item of an application is the identifier `macro`, this defines a new macro. If the application does not have exactly four items, the macro expansion errors. The second item of the application must be either an identifier or a map whose entries may have arbitrary keys but the values must again be either identifiers or such a map. This item is called the *pattern*. The third item of the application can be any value. This value is evaluated in the definition-environment, the resulting value is called the *definition*. If it throws, the macro expansion errors. Otherwise, the expanded form of the application is the expanded form of the fourth item, using the same definition-environment, but a new macro-environment obtained as follows:
 
@@ -625,9 +611,9 @@ For all other applications, the expanded value is an application containing the 
 (assert-eq (expand 42 {}) 42)
 (assert-eq (expand $throw {}) $throw)
 (assert-eq (expand $(sf-quote (macro)) {}) $(sf-quote (macro)))
-(assert-eq (expand $(throw) {}) $(sf-throw nil))
+(assert-eq (expand $(throw nil) {}) $(sf-throw nil))
 (assert-eq (expand $(x y) {}) $(x y))
-(assert-eq (expand $(x (throw)) {}) $(x (sf-throw nil)))
+(assert-eq (expand $(x (throw nil)) {}) $(x (sf-throw nil)))
 (assert-eq (expand (macro
     foo
     (sf-lambda [] 42)
@@ -1381,13 +1367,13 @@ Advances the cursor by one element and returns the element over which it passed.
 Time: Worst-case O(log(n)), where n is the number of elements in the underlying bytes. Moving from the front to the back of the bytes is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (bytes-cursor @[0 1 2] 0) (do
+(let cursor (bytes-cursor @[0 1 2] 0) (do [
     (assert-eq (cursor-bytes-next! cursor) 0)
     (assert-eq (cursor-bytes-next! cursor) 1)
     (assert-eq (cursor-bytes-next! cursor) 2)
     (assert-throw (cursor-bytes-next! cursor) :cursor-end)
     (assert-throw (cursor-bytes-next! cursor) :cursor-end)
-))
+]))
 ```
 
 #### `(cursor-bytes-prev! cursor)`
@@ -1397,13 +1383,13 @@ Retreats the cursor by one element and returns the element over which it passed.
 Time: Worst-case O(log(n)), where n is the number of elements in the underlying bytes. Moving from the back to the front of the bytes is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (bytes-cursor @[0 1 2] 3) (do
+(let cursor (bytes-cursor @[0 1 2] 3) (do [
     (assert-eq (cursor-bytes-prev! cursor) 2)
     (assert-eq (cursor-bytes-prev! cursor) 1)
     (assert-eq (cursor-bytes-prev! cursor) 0)
     (assert-throw (cursor-bytes-prev! cursor) :cursor-end)
     (assert-throw (cursor-bytes-prev! cursor) :cursor-end)
-))
+]))
 ```
 
 ### Chars
@@ -1683,13 +1669,13 @@ Advances the cursor by one character and returns the character over which it pas
 Time: Worst-case O(log(n)), where n is the number of characters in the underlying string. Moving from the front to the back of the string is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (str-cursor "a⚗c" 0) (do
+(let cursor (str-cursor "a⚗c" 0) (do [
     (assert-eq (cursor-str-next! cursor) 'a')
     (assert-eq (cursor-str-next! cursor) '⚗')
     (assert-eq (cursor-str-next! cursor) 'c')
     (assert-throw (cursor-str-next! cursor) :cursor-end)
     (assert-throw (cursor-str-next! cursor) :cursor-end)
-))
+]))
 ```
 
 #### `(cursor-str-prev! cursor)`
@@ -1699,13 +1685,13 @@ Retreats the cursor by one character and returns the character over which it pas
 Time: Worst-case O(log(n)), where n is the number of characters in the underlying string. Moving from the back to the front of the string is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (str-cursor "a⚗c" 3) (do
+(let cursor (str-cursor "a⚗c" 3) (do [
     (assert-eq (cursor-str-prev! cursor) 'c')
     (assert-eq (cursor-str-prev! cursor) '⚗')
     (assert-eq (cursor-str-prev! cursor) 'a')
     (assert-throw (cursor-str-prev! cursor) :cursor-end)
     (assert-throw (cursor-str-prev! cursor) :cursor-end)
-))
+]))
 ```
 
 ### String Utf8 Cursor
@@ -1727,7 +1713,7 @@ Advances the cursor by one byte and returns the byte over which it passed. If th
 Time: Worst-case O(log(n)), where n is the number of bytes in the underlying string. Moving from the front to the back of the string is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (str-cursor-utf8 "a⚗c" 0) (do
+(let cursor (str-cursor-utf8 "a⚗c" 0) (do [
     (assert-eq (cursor-str-utf8-next! cursor) 97)
     (assert-eq (cursor-str-utf8-next! cursor) 226)
     (assert-eq (cursor-str-utf8-next! cursor) 154)
@@ -1735,7 +1721,7 @@ Time: Worst-case O(log(n)), where n is the number of bytes in the underlying str
     (assert-eq (cursor-str-utf8-next! cursor) 99)
     (assert-throw (cursor-str-utf8-next! cursor) :cursor-end)
     (assert-throw (cursor-str-utf8-next! cursor) :cursor-end)
-))
+]))
 ```
 
 #### `(cursor-str-utf8-prev! cursor)`
@@ -1745,7 +1731,7 @@ Retreats the cursor by one byte and returns the byte over which it passed. If th
 Time: Worst-case O(log(n)), where n is the number of bytes in the underlying string. Moving from the back to the front of the string is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (str-cursor-utf8 "a⚗c" 5) (do
+(let cursor (str-cursor-utf8 "a⚗c" 5) (do [
     (assert-eq (cursor-str-utf8-prev! cursor) 99)
     (assert-eq (cursor-str-utf8-prev! cursor) 151)
     (assert-eq (cursor-str-utf8-prev! cursor) 154)
@@ -1753,7 +1739,7 @@ Time: Worst-case O(log(n)), where n is the number of bytes in the underlying str
     (assert-eq (cursor-str-utf8-prev! cursor) 97)
     (assert-throw (cursor-str-utf8-prev! cursor) :cursor-end)
     (assert-throw (cursor-str-utf8-prev! cursor) :cursor-end)
-))
+]))
 ```
 
 ### Floats
@@ -2468,13 +2454,13 @@ Advances the cursor by one element and returns the element over which it passed.
 Time: Worst-case O(log(n)), where n is the number of elements in the underlying array. Moving from the front to the back of the array is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (arr-cursor [0 1 2] 0) (do
+(let cursor (arr-cursor [0 1 2] 0) (do [
     (assert-eq (cursor-arr-next! cursor) 0)
     (assert-eq (cursor-arr-next! cursor) 1)
     (assert-eq (cursor-arr-next! cursor) 2)
     (assert-throw (cursor-arr-next! cursor) :cursor-end)
     (assert-throw (cursor-arr-next! cursor) :cursor-end)
-))
+]))
 ```
 
 #### `(cursor-arr-prev! cursor)`
@@ -2484,13 +2470,13 @@ Retreats the cursor by one element and returns the element over which it passed.
 Time: Worst-case O(log(n)), where n is the number of elements in the underlying array. Moving from the back to the front of the array is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (arr-cursor [0 1 2] 3) (do
+(let cursor (arr-cursor [0 1 2] 3) (do [
     (assert-eq (cursor-arr-prev! cursor) 2)
     (assert-eq (cursor-arr-prev! cursor) 1)
     (assert-eq (cursor-arr-prev! cursor) 0)
     (assert-throw (cursor-arr-prev! cursor) :cursor-end)
     (assert-throw (cursor-arr-prev! cursor) :cursor-end)
-))
+]))
 ```
 
 ### Applications
@@ -2672,13 +2658,13 @@ Advances the cursor by one element and returns the element over which it passed.
 Time: Worst-case O(log(n)), where n is the number of elements in the underlying application. Moving from the front to the back of the application is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (app-cursor $(0 1 2) 0) (do
+(let cursor (app-cursor $(0 1 2) 0) (do [
     (assert-eq (cursor-app-next! cursor) 0)
     (assert-eq (cursor-app-next! cursor) 1)
     (assert-eq (cursor-app-next! cursor) 2)
     (assert-throw (cursor-app-next! cursor) :cursor-end)
     (assert-throw (cursor-app-next! cursor) :cursor-end)
-))
+]))
 ```
 
 #### `(cursor-app-prev! cursor)`
@@ -2688,13 +2674,13 @@ Retreats the cursor by one element and returns the element over which it passed.
 Time: Worst-case O(log(n)), where n is the number of elements in the underlying application. Moving from the back to the front of the application is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (app-cursor $(0 1 2) 3) (do
+(let cursor (app-cursor $(0 1 2) 3) (do [
     (assert-eq (cursor-app-prev! cursor) 2)
     (assert-eq (cursor-app-prev! cursor) 1)
     (assert-eq (cursor-app-prev! cursor) 0)
     (assert-throw (cursor-app-prev! cursor) :cursor-end)
     (assert-throw (cursor-app-prev! cursor) :cursor-end)
-))
+]))
 ```
 
 ### Sets
@@ -3002,13 +2988,13 @@ Advances the set cursor by one element and returns the element over which it pas
 Time: Worst-case O(log(n)), where n is the number of elements in the underlying set. Moving from the front to the back of the set is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (set-cursor-min @{0 1 2}) (do
+(let cursor (set-cursor-min @{0 1 2}) (do [
     (assert-eq (cursor-set-next! cursor) 0)
     (assert-eq (cursor-set-next! cursor) 1)
     (assert-eq (cursor-set-next! cursor) 2)
     (assert-throw (cursor-set-next! cursor) :cursor-end)
     (assert-throw (cursor-set-next! cursor) :cursor-end)
-))
+]))
 ```
 
 #### `(cursor-set-prev! cursor)`
@@ -3018,13 +3004,13 @@ Retreats the set cursor by one element and returns the element over which it pas
 Time: Worst-case O(log(n)), where n is the number of elements in the underlying set. Moving from the back to the front of the set is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (set-cursor-max @{0 1 2}) (do
+(let cursor (set-cursor-max @{0 1 2}) (do [
     (assert-eq (cursor-set-prev! cursor) 2)
     (assert-eq (cursor-set-prev! cursor) 1)
     (assert-eq (cursor-set-prev! cursor) 0)
     (assert-throw (cursor-set-prev! cursor) :cursor-end)
     (assert-throw (cursor-set-prev! cursor) :cursor-end)
-))
+]))
 ```
 
 ### Maps
@@ -3381,13 +3367,13 @@ Advances the map cursor by one element and returns an array containing the key a
 Time: Worst-case O(log(n)), where n is the number of entries in the underlying map. Moving from the front to the back of the map is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (map-cursor-min {0 :a 1 :b 2 :c}) (do
+(let cursor (map-cursor-min {0 :a 1 :b 2 :c}) (do [
     (assert-eq (cursor-map-next! cursor) [0 :a])
     (assert-eq (cursor-map-next! cursor) [1 :b])
     (assert-eq (cursor-map-next! cursor) [2 :c])
     (assert-throw (cursor-map-next! cursor) :cursor-end)
     (assert-throw (cursor-map-next! cursor) :cursor-end)
-))
+]))
 ```
 
 #### `(cursor-map-prev! cursor)`
@@ -3397,13 +3383,13 @@ Retreats the map cursor by one entry and returns an array containing the key and
 Time: Worst-case O(log(n)), where n is the number of entries in the underlying map. Moving from the back to the front of the map is guaranteed to take amortized O(n).
 
 ```pavo
-(let cursor (map-cursor-max {0 :a 1 :b 2 :c}) (do
+(let cursor (map-cursor-max {0 :a 1 :b 2 :c}) (do [
     (assert-eq (cursor-map-prev! cursor) [2 :c])
     (assert-eq (cursor-map-prev! cursor) [1 :b])
     (assert-eq (cursor-map-prev! cursor) [0 :a])
     (assert-throw (cursor-map-prev! cursor) :cursor-end)
     (assert-throw (cursor-map-prev! cursor) :cursor-end)
-))
+]))
 ```
 
 ### Symbols
@@ -3446,7 +3432,7 @@ Updates the cell `cl` to now contain the value `x`. Returns `nil`.
 
 ```pavo
 (assert-eq (cell-set (cell 42) 43) nil)
-(assert-eq ((sf-lambda [x] (sf-do (cell-set x 43) (cell-get x))) (cell 42)) 43)
+(assert-eq ((sf-lambda [x] (sf-do [(cell-set x 43) (cell-get x)])) (cell 42)) 43)
 ```
 
 ### Opaques
@@ -3462,11 +3448,11 @@ This function allows user code to introduce new opaque types. It returns a map c
 - `:unhide` is mapped to a function that maps an opaque value of the new type to the contained value (and throws a type error if the input is not an opaque value of the new type)
 
 ```pavo
-(let o (opaque) (sf-do
+(let o (opaque) (sf-do [
     (assert-eq ((map-get o :unhide) ((map-get o :hide) 42)) 42)
     (assert-eq (typeof ((map-get o :hide) 42)) (map-get o :type))
     (assert-throw ((map-get o :unhide) 42) {:tag :err-type})
-))
+]))
 (assert-eq (= (map-get (opaque) :type) (map-get (opaque) :type)) false)
 ```
 
@@ -3596,11 +3582,11 @@ Returns `:<` if the value `v` is less than the value `w`, `:=` if they are equal
 (assert-eq (cmp (sf-lambda [] nil) (sf-lambda [] nil)) :<)
 (assert-eq (cmp (cell 42) (cell 41)) :<)
 
-(let o (opaque) (let hide (map-get o :hide) (do
+(let o (opaque) (let hide (map-get o :hide) (do [
     (assert-eq (cmp (hide 42) (hide 41)) :<)
     (assert-eq (cmp cursor-arr-type (hide 42)) :<)
     (assert-eq (cmp cursor-app-type cursor-arr-type) :<)
-)))
+])))
 ```
 
 #### `(= v w)`
@@ -3673,7 +3659,7 @@ Time: O(n), where n is `(string-count <prefix>)`, where `<prefix>` is the longes
 
 #### `(write v)`
 
-Returns a string `s` such that `(read s)` equals the value `v`. The precise definition is given at the end of this document.
+Returns a string `s` such that `(read s)` equals the value `v`. The precise definition is given in appendix A.
 
 Throws `{:tag :err-not-writable}` if no such string exists. This is the case if `v` is or contains a function, symbol, cell or opaque.
 Throws `{:tag :err-collection-full}` if the resulting string would contain 2^63 or more elements.
@@ -3814,7 +3800,7 @@ The macro environment (the identifiers to expand and the corresponding macro val
 If the macro expansion succeeds, the expanded value is returned. If it errors, this function throws `{:tag :err-expand}`.
 
 ```pavo
-(assert-eq (expand $(throw) {}) $(sf-throw nil))
+(assert-eq (expand $(throw nil) {}) $(sf-throw nil))
 (assert-eq (expand $(throw) {:macro-remove @{$throw}}) $(throw))
 (assert-eq (expand $(foo 1 2) {:macro-add {$foo int-add}}) 3)
 (assert-eq (expand $(macro a (sf-lambda [] foo) (a)) {:def-mutable {$foo 42}}) 42)
@@ -3900,7 +3886,7 @@ The functions that compute the builtin macros.
 
 #### `(macro-set! v w)`
 
-The `set!` macro is a shorthand to safe typing the `sf-` prefix of the `sf-set!` special form. `(set! id v)` expands to `(sf-set! id v)`.
+The `set!` macro is a shorthand to safe typing the `sf-` prefix of the `sf-set!` special form. `(set! v w)` expands to `(sf-set! v w)`.
 
 ```pavo
 (assert-eq (macro-set! 42 43) $(sf-set! 42 43))
@@ -3914,37 +3900,47 @@ The `quote` macro is a shorthand to safe typing the `sf-` prefix of the `sf-quot
 (assert-eq (macro-quote 42) $(sf-quote 42))
 ```
 
-#### `(macro-throw)` `(macro-throw v)`
+#### `(macro-throw v)`
 
-Expands to `(sf-throw v)` or `(sf-throw nil)` if no value `v` was supplied.
+Returns `(sf-throw v)`.
 
 ```pavo
 (assert-eq (macro-throw 42) $(sf-throw 42))
-(assert-eq (macro-throw) $(sf-throw nil))
 ```
 
-#### `(macro-do exprs...)`
+#### `(macro-if u v w)`
 
-If none of the expressions is an application whose first item is the keyword `:let`, return `(sf-do exprs...)`. Otherwise, let `head...` be the expressions up to the first such application, let `<let>` be the application, and let `tail...` be all remaining expressions. If `<let>` does not have exactly three items, throw `{:tag :err-num-args}`. Otherwise, let `<pattern>` be the second item of `<let>` and let `<value>` be the third item of `<let>`. Return `(sf-do head... (let <pattern> <value> <rec>))`, where `<rec>` is the result of evaluating `(macro-do tail...)` (propagating any errors).
-
-```pavo
-(assert-eq (macro-do) $(sf-do))
-(assert-eq (macro-do 0) $(sf-do 0))
-(assert-eq (macro-do 0 1 2) $(sf-do 0 1 2))
-(assert-eq (macro-do 0 $(:let a 42) 2 $a) $(sf-do 0 (let a 42 (sf-do 2 a))))
-(assert-eq (do 0 (:let a 42) 2 a) 42)
-(assert-eq (macro-do 0 $(:let a 42)) $(sf-do 0 (let a 42 (sf-do))))
-(assert-throw (macro-do $(:let a)) {:tag :err-num-args})
-```
-
-#### `(macro-if cond then)` `(macro-if cond then else)` `(macro-if cond then rest...)`
-
-If applied to two arguments `cond` and `then`, returns `(sf-if cond then nil)`. If applied to three arguments `cond`, `then` and `else`, returns `(sf-if cond then else)`. If applied to more than three arguments `cond`, `then`, and `rest...`, returns `(sf-if cond then <rec>)`, where `<rec>` is the result of evaluating `(macro-if rest...)` (propagating any errors).
+Returns `(sf-if u v w)`.
 
 ```pavo
-(assert-eq (macro-if 0 1) $(sf-if 0 1 nil))
 (assert-eq (macro-if 0 1 2) $(sf-if 0 1 2))
-(assert-eq (macro-if 0 1 2 3) $(sf-if 0 1 (sf-if 2 3 nil)))
+```
+
+#### `(macro-do [exprs...])`
+
+If none of the expressions is an application whose first item is the keyword `:let`, return `(sf-do [exprs...])`. Otherwise, let `head...` be the expressions up to the first such application, let `<let>` be the application, and let `tail...` be all remaining expressions. If `<let>` does not have exactly three items, throw `{:tag :err-num-args}`. Otherwise, let `<pattern>` be the second item of `<let>` and let `<value>` be the third item of `<let>`. Return `(sf-do [head... (let <pattern> <value> <rec>)])`, where `<rec>` is the result of evaluating `(macro-do [tail...])` (propagating any errors).
+
+```pavo
+(assert-eq (macro-do []) $(sf-do []))
+(assert-eq (macro-do [0]) $(sf-do [0]))
+(assert-eq (macro-do [0 1 2]) $(sf-do [0 1 2]))
+(assert-eq (macro-do [0 $(:let a 42) 2 $a]) $(sf-do [0 (let a 42 (sf-do [2 a]))]))
+(assert-eq (do [0 (:let a 42) 2 a]) 42)
+(assert-eq (macro-do [0 $(:let a 42)]) $(sf-do [0 (let a 42 (sf-do []))]))
+(assert-throw (macro-do [$(:let a)]) {:tag :err-num-args})
+```
+
+#### `(macro-cond [exprs...])`
+
+If there are exactly zero expressions in the array, returns `nil`. If there is exactly one expression `else`, returns `else`. If there are exactly two expressions `condition` and `then`, returns `(sf-if condition then nil)`. If there are exactly three expressions `condition`, `then` and `else`, returns `(sf-if condition then else)`. If there are four or more expressions `condition`, `then` and `rest...`, returns `(sf-if cond then <rec>)`, where `<rec>` is the result of evaluating `(macro-cond [rest...])` (propagating any errors).
+
+```pavo
+(assert-eq (macro-cond []) nil)
+(assert-eq (macro-cond [0]) 0)
+(assert-eq (macro-cond [0 1]) $(sf-if 0 1 nil))
+(assert-eq (macro-cond [0 1 2]) $(sf-if 0 1 2))
+(assert-eq (macro-cond [0 1 2 3]) $(sf-if 0 1 (sf-if 2 3 nil)))
+(assert-eq (macro-cond [0 1 2 3 4]) $(sf-if 0 1 (sf-if 2 3 4)))
 ```
 
 #### `(macro-let pattern v body)`
@@ -3956,91 +3952,114 @@ Returns `((lambda [pattern] body) v)`, effectively evaluating `body` in a contex
 (assert-eq (macro-let 0 1 2) $((lambda [0] 2) 1))
 ```
 
-#### `(macro--> v)` `(macro--> v app)` `(macro--> v app rest...)`
+#### `(macro--> v [])` `(macro--> v [app])` `(macro--> v [app rest...])`
 
-If applied to one argment `v`, returns `v`. If applied to two arguments `v` and `app`, returns the result of evaluating `(app-insert app 1 v)`, throwing any error. If applied to more than two arguments `v`, `app` and `rest..`, returns the result of evaluating `(macro--> <spliced> rest...)` (propagating any error), where `<spliced>` is the result of evaluating `(app-insert app 1 v)`, throwing any error.
+If the array is empty, returns `v`. If the array contains one item `app`, returns the result of evaluating `(app-insert app 1 v)`, throwing any error. If the array contains more than one item, `app` and `rest...`, returns the result of evaluating `(macro--> <spliced> [rest...])` (propagating any error), where `<spliced>` is the result of evaluating `(app-insert app 1 v)`, throwing any error.
 
 In effect, this threads the value `v` through the applications, inserting it (or the result of the previous application) as the first argument of the next application.
 
 ```pavo
-(assert-eq (-> 42
+(assert-eq (-> 42 [
     (int-sub ,,, 2) # the commas are whitespace, used here to indicate the insertion point
     (int->float ,,,)
-) 40.0)
+]) 40.0)
 
-(assert-eq (macro--> 42) 42)
-(assert-eq (macro--> 42 $(int-sub 2)) $(int-sub 42 2))
-(assert-eq (macro--> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 42 2)))
-(assert-throw (macro--> 42 $int->float) {:tag :err-type})
-(assert-throw (macro--> 42 $()) {:tag :err-lookup})
+(assert-eq (macro--> 42 []) 42)
+(assert-eq (macro--> 42 [$(int-sub 2)]) $(int-sub 42 2))
+(assert-eq (macro--> 42 [$(int-sub 2) $(int->float)]) $(int->float (int-sub 42 2)))
+(assert-throw (macro--> 42 [$int->float]) {:tag :err-type})
+(assert-throw (macro--> 42 [$()]) {:tag :err-lookup})
 ```
 
-#### `(macro-->> v)` `(macro-->> v app)` `(macro-->> v app rest...)`
+#### `(macro-->> v [])` `(macro-->> v [app])` `(macro-->> v [app rest...])`
 
-If applied to one argment `v`, returns `v`. If applied to two arguments `v` and `app`, returns the result of evaluating `(app-insert app (app-count app) v)`, throwing any error. If `app` is the empty application, throws `{:tag :err-lookup}` instead. If applied to more than two arguments `v`, `app` and `rest..`, returns `(->> <spliced> rest...)` where `<spliced>` is the result of evaluating `(app-insert app (app-count app) v)`, throwing any error. If `app` is the empty application, throws `{:tag :err-lookup}` instead.
+If the array is empty, returns `v`. If the array contains one item `app`, returns the result of evaluating `(app-insert app (app-count app) v)`, throwing any error. If the array contains more than one item, `app` and `rest...`, returns the result of evaluating `(macro--> <spliced> [rest...])` (propagating any error), where `<spliced>` is the result of evaluating `(app-insert app (app-count app) v)`, throwing any error.
 
 In effect, this threads the value `v` through the applications, inserting it (or the result of the previous application) as the last argument of the next application.
 
 ```pavo
-(assert-eq (->> 42
+(assert-eq (->> 42 [
     (int-sub 2 ,,,) # the commas are whitespace, used here to indicate the insertion point
     (int->float ,,,)
-) -40.0)
+]) -40.0)
 
-(assert-eq (macro-->> 42) 42)
-(assert-eq (macro-->> 42 $(int-sub 2)) $(int-sub 2 42))
-(assert-eq (macro-->> 42 $(int-sub 2) $(int->float)) $(int->float (int-sub 2 42)))
-(assert-throw (macro-->> 42 $int->float) {:tag :err-type})
-(assert-throw (macro-->> 42 $()) {:tag :err-lookup})
+(assert-eq (macro-->> 42 []) 42)
+(assert-eq (macro-->> 42 [$(int-sub 2)]) $(int-sub 2 42))
+(assert-eq (macro-->> 42 [$(int-sub 2) $(int->float)]) $(int->float (int-sub 2 42)))
+(assert-eq (macro-->> 42 [$()]) $(42))
+(assert-throw (macro-->> 42 [$int->float]) {:tag :err-type})
 ```
 
-#### `(macro-as-> pattern v)` `(macro-as-> pattern v w)` `(macro-as-> pattern v w rest...)`
+#### `(macro-as-> pattern v [])` `(macro-as-> pattern v [w])` `(macro-as-> pattern v [w rest...])`
 
-If applied to two arguments `pattern` and `v`, returns `v`. If applied to three arguments `pattern`, `v` and `w`, returns `(let pattern v w)`. If applied to more than three arguments `pattern`, `v`, `w` and `rest..`, returns the result of evaluating `(macro-as-> pattern (let pattern v w) rest...)`, throwing any error.
+If the array is empty, returns `v`. If the array contains one item `w`, returns `(let pattern v w)`. If the array contains more than one item, `w` and `rest...`, returns the result of evaluating `(macro-as-> pattern (let pattern v w) rest...)`, throwing any error.
 
 In effect, this threads the value `v` through the applications, matching it against the pattern between each step to update the bindings with the result of the previous application.
 
 ```pavo
-(assert-eq (as-> foo 42
+(assert-eq (as-> foo 42 [
     (int-sub foo 2)
     (int-sub 3 foo)
-) -37)
+]) -37)
 
-(assert-eq (macro-as-> $foo 42) 42)
-(assert-eq (macro-as-> $foo 42 $(int-sub foo 2)) $(let foo 42 (int-sub foo 2)))
-(assert-eq (macro-as-> $foo 42 $(int-sub foo 2) $(int-sub 3 foo)) $(let foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
+(assert-eq (macro-as-> $foo 42 []) 42)
+(assert-eq (macro-as-> $foo 42 [$(int-sub foo 2)]) $(let foo 42 (int-sub foo 2)))
+(assert-eq (macro-as-> $foo 42 [$(int-sub foo 2) $(int-sub 3 foo)]) $(let foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
 ```
 
-#### `(macro-or)` `(macro-or v)` `(macro-or v rest...)`
+#### `(macro-or [])` `(macro-or [v])` `(macro-or [v rest...])`
 
-If applied to zero arguments, returns `false`. If applied to one argument `v`, returns `v`. If applied to two arguments, returns `(let <sym> v (sf-if <sym> <sym> <rec>))`, where `<sym>` is a freshly generated symbol, and `<rec>` is the result of evaluating `(macro-or rest...)`.
+If the array is empty, returns `false`. If the array contains one item `v`, returns `v`. If the array contains two arguments or more items `v` and `rest...`, returns `(let <sym> v (sf-if <sym> <sym> <rec>))`, where `<sym>` is a freshly generated symbol, and `<rec>` is the result of evaluating `(macro-or [rest...])`.
 
 ```pavo
-(assert-eq (macro-or) false)
-(assert-eq (macro-or 42) 42)
-(assert-eq (macro-or nil) nil)
-(assert-eq (or 0 1) 0)
-(assert-eq (or 0 false) 0)
-(assert-eq (or false 1) 1)
-(assert-eq (or false nil) nil)
-(assert-eq (or nil false 2) 2)
-(assert-eq (or nil false 2 3) 2)
+(assert-eq (macro-or []) false)
+(assert-eq (macro-or [42]) 42)
+(assert-eq (macro-or [nil]) nil)
+(assert-eq (or [0 1]) 0)
+(assert-eq (or [0 false]) 0)
+(assert-eq (or [false 1]) 1)
+(assert-eq (or [false nil]) nil)
+(assert-eq (or [nil false 2]) 2)
+(assert-eq (or [nil false 2 3]) 2)
 ```
 
-#### `(macro-and)` `(macro-and v)` `(macro-or and rest...)`
+#### `(macro-|| v w)`
 
-If applied to zero arguments, returns `true`. If applied to one argument `v`, returns `v`. If applied to two arguments, returns `(let <sym> v (sf-if <sym> <rec> <sym>))`, where `<sym>` is a freshly generated symbol, and `<rec>` is the result of evaluating `(macro-and rest...)`.
+Returns `(let <sym> v (sf-if <sym> <sym> w))`, where `<sym>` is a freshly generated symbol.
 
 ```pavo
-(assert-eq (macro-and) true)
-(assert-eq (macro-and 42) 42)
-(assert-eq (macro-and nil) nil)
-(assert-eq (and 0 1) 1)
-(assert-eq (and 0 false) false)
-(assert-eq (and false 1) false)
-(assert-eq (and false nil) false)
-(assert-eq (and nil false 2) nil)
-(assert-eq (and nil false 2 3) nil)
+(assert-eq (|| 0 1) 0)
+(assert-eq (|| 0 false) 0)
+(assert-eq (|| false 1) 1)
+(assert-eq (|| false nil) nil)
+```
+
+#### `(macro-and [])` `(macro-and [v])` `(macro-and [v rest...])`
+
+If the array is empty, returns `true`. If the array contains one item `v`, returns `v`. If the array contains two arguments or more items `v` and `rest...`, returns `(let <sym> v (sf-if <sym> <rec> <sym>))`, where `<sym>` is a freshly generated symbol, and `<rec>` is the result of evaluating `(macro-and [rest...])`.
+
+```pavo
+(assert-eq (macro-and []) true)
+(assert-eq (macro-and [42]) 42)
+(assert-eq (macro-and [nil]) nil)
+(assert-eq (and [0 1]) 1)
+(assert-eq (and [0 false]) false)
+(assert-eq (and [false 1]) false)
+(assert-eq (and [false nil]) false)
+(assert-eq (and [nil false 2]) nil)
+(assert-eq (and [nil false 2 3]) nil)
+(assert-eq (and [3 2 false nil]) false)
+```
+
+#### `(macro-&& v w)`
+
+Returns `(let <sym> v (sf-if <sym> w <sym>))`, where `<sym>` is a freshly generated symbol.
+
+```pavo
+(assert-eq (&& 0 1) 1)
+(assert-eq (&& 0 false) false)
+(assert-eq (&& false 1) false)
+(assert-eq (&& false nil) false)
 ```
 
 #### `(macro-quasiquote v)`
@@ -4051,7 +4070,7 @@ Returns an expression that evaluates to the value `v` (*not* to the result of ev
 - for each occurence of `(:unquote-splice w)` within an application within `v`, `w` is evaluated and the result is spliced into the containing application.
 - occurences of `(:fresh-name some-name)` (names are identifiers or symbols) are replaced with a freshly generated symbol, all such forms with the same name receive the same symbol.
 
-For a precise definition of this function, see the corresponding appendix.
+For a precise definition of this function, see the appendix B.
 
 Reminder: \`v is a shorthand for `(quasiquote v)`, `~v` for `(:unquote v)`, `@~v` for `(:unquote-splice v)` and `(@name)` for `(:fresh-name name)` if `name` is a name.
 
@@ -4071,10 +4090,10 @@ Reminder: \`v is a shorthand for `(quasiquote v)`, `~v` for `(:unquote v)`, `@~v
 (assert-eq `(0 @~$(1) 2) $(0 1 2))
 (assert-eq `(0 @~$(1 2) 3) $(0 1 2 3))
 
-(let expanded (macro-quasiquote $[@foo @bar @foo]) (do
+(let expanded (macro-quasiquote $[@foo @bar @foo]) (do [
     (assert-eq (= (arr-get expanded 0) (arr-get expanded 1)) false)
     (assert-eq (arr-get expanded 0) (arr-get expanded 2))
-))
+]))
 ```
 
 TODO
@@ -4083,12 +4102,11 @@ TODO
 - `letfn`
 - `lambda`
 - `try`
-- `and`, `or`
 - `while`
 
 - `case`, `loop` ?
 
-## Appendix: Precise Definition of `(write v)`
+## Appendix A: Precise Definition of `(write v)`
 
 This section defines the return value of `(write v)` for any expression `v`, defined through structural induction (examples/tests are below).
 
@@ -4192,38 +4210,21 @@ Collections serialize their components and separate them by a single space (ther
 (assert-eq (write {2 nil , 1 nil  3 nil}) "{1 nil 2 nil 3 nil}")
 ```
 
-## Appendix: Precise Definition of `(quasiquote v)`
+## Appendix B: Precise Definition of `(quasiquote v)`
 
 TODO, refer to the reference implementation for now.
 
 ---
 
-TODO set-split and map-split ??
+TODO more utf8 handling: str->bytes, bytes=>str, bytes=>str?
+
+TODO set-split and map-split, also replace slice with split everywhere
 
 TODO `require` (dynamic linking, *not* loading)
 
 ---
 
-TODO functions that compute the builtin macros
-
-Macros:
-
-- `set!`
-- `quote`
-- `throw`
-- `if`
-- `lambda`
-- `fn`
-- `letfn`
-- `let`
-- `try`
-- `do`
-- `quasiquote`
-- `->`, `->>`
-- `and`, `or`
-- `while`
-
-- `case`, `loop` ?
+TODO
 
 letfn:
 
@@ -4244,4 +4245,30 @@ Defines some functions via `<fns>`, then evaluates to `exp` in an environment in
             (even? (- n 1))
         ))
 } [(even? 10000) (odd? 10000)]) [true false])
+```
+
+---
+
+Fixpoint combinator stuff:
+
+```pavo
+# Some explicitly recursive function (infinite loop)
+(fn foo [] (foo))
+
+# Ready for the Y combinator:
+(lambda [r] (lambda [] (r)))
+
+# Y combinator (applicative order since pavo is strict)
+(lambda [g]
+    ((lambda [x] (x x)) (lambda [x]
+        (g (lambda [y] ((x x) y))))))
+
+# omega:
+
+((
+  (lambda [g]
+      ((lambda [x] (x x)) (lambda [x]
+          (g (lambda [y] ((x x) y))))))
+      (fn yfoo [r] (r))
+))
 ```

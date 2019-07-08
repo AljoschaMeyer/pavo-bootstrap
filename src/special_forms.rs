@@ -12,13 +12,7 @@ pub enum SpecialForm<'a> {
     If(&'a Value, &'a Value, &'a Value),
     Throw(&'a Value),
     Try(&'a Value, bool, &'a Id, &'a Value),
-    Lambda(Args<'a>, &'a Value),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
-pub enum Args<'a> {
-    All(bool, &'a Id),
-    Destructured(Vec<(bool, &'a Id)>),
+    Lambda(Vec<(bool, &'a Id)>, &'a Value),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd)]
@@ -37,6 +31,8 @@ pub enum SpecialFormSyntaxError {
     Arity(FormType, usize),
     Id(FormType, Value),
     SetBangId(Value),
+    DoNotArray(Value),
+    ArgsNotArray(Value),
     Binder(FormType, Value),
 }
 
@@ -56,13 +52,22 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
         }
 
         Some("sf-do") => {
-            let mut do_stmts = Vec::with_capacity(v.0.len() - 1);
-
-            for stmt in v.0.iter().skip(1) {
-                do_stmts.push(stmt);
+            if v.0.len() != 2 {
+                return Err(SpecialFormSyntaxError::Arity(FormType::Do, v.0.len()));
             }
 
-            return Ok(Some(SpecialForm::Do(do_stmts)));
+            match v.0[1].as_arr() {
+                None => return Err(SpecialFormSyntaxError::DoNotArray(v.0[1].clone())),
+                Some(arr) => {
+                    let mut do_stmts = Vec::with_capacity(v.0.len() - 1);
+
+                    for stmt in arr.0.iter() {
+                        do_stmts.push(stmt);
+                    }
+
+                    return Ok(Some(SpecialForm::Do(do_stmts)));
+                }
+            }
         }
 
         Some("sf-set!") => {
@@ -112,6 +117,7 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
             }
 
             match v.0[1].as_arr() {
+                None => return Err(SpecialFormSyntaxError::ArgsNotArray(v.0[1].clone())),
                 Some(args_arr) => {
                     let mut args = vec![];
 
@@ -119,12 +125,7 @@ pub fn special<'a>(v: &'a Vector<Value>) -> Result<Option<SpecialForm<'a>>, Spec
                         args.push(mut_id(&arg, FormType::Lambda)?);
                     }
 
-                    return Ok(Some(SpecialForm::Lambda(Args::Destructured(args), &v.0[2])));
-                }
-
-                None => {
-                    let (mutable, id) = mut_id(&v.0[1], FormType::Lambda)?;
-                    return Ok(Some(SpecialForm::Lambda(Args::All(mutable, id), &v.0[2])));
+                    return Ok(Some(SpecialForm::Lambda(args, &v.0[2])));
                 }
             }
         }

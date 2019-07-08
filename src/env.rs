@@ -270,6 +270,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "macro-quote", Builtin::MacroQuote);
     env_add(&mut m, "macro-throw", Builtin::MacroThrow);
     env_add(&mut m, "macro-do", Builtin::MacroDo);
+    env_add(&mut m, "macro-cond", Builtin::MacroCond);
     env_add(&mut m, "macro-if", Builtin::MacroIf);
     env_add(&mut m, "macro-let", Builtin::MacroLet);
     env_add(&mut m, "macro-lambda", Builtin::MacroLambda);
@@ -279,6 +280,8 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "macro-as->", Builtin::MacroThreadAs);
     env_add(&mut m, "macro-or", Builtin::MacroOr);
     env_add(&mut m, "macro-and", Builtin::MacroAnd);
+    env_add(&mut m, "macro-or2", Builtin::MacroOr2);
+    env_add(&mut m, "macro-and2", Builtin::MacroAnd2);
     env_add(&mut m, "macro-quasiquote", Builtin::MacroQuasiquote);
     // TODO remaining macro functions
 

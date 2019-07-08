@@ -2628,8 +2628,8 @@ pub fn macro_quote(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
     Ok(Value::app_from_vec(vec![Value::id_str("sf-quote"), args.0[0].clone()]))
 }
 
-fn macro_do_(args: Vector<Value>, _cx: &mut Context) -> Result<Vector<Value>, Value> {
-    let mut tmp = Vector(ImVector::unit(Value::id_str("sf-do")));
+fn macro_do_(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    let mut tmp = Vector(ImVector::new());
 
     for (i, form) in args.0.iter().enumerate() {
         match form.as_app() {
@@ -2647,9 +2647,12 @@ fn macro_do_(args: Vector<Value>, _cx: &mut Context) -> Result<Vector<Value>, Va
                                         Value::id_str("let"),
                                         app.0[1].clone(),
                                         app.0[2].clone(),
-                                        Value::app(let_body),
+                                        let_body,
                                     ]));
-                                return Ok(tmp);
+                                    return Ok(Value::app_from_vec(vec![
+                                            Value::id_str("sf-do"),
+                                            Value::arr(tmp)
+                                        ]));
                             }
                         } else {
                             tmp.0.push_back(form.clone());
@@ -2663,56 +2666,73 @@ fn macro_do_(args: Vector<Value>, _cx: &mut Context) -> Result<Vector<Value>, Va
         }
     }
 
-    return Ok(tmp);
+    return Ok(Value::app_from_vec(vec![
+            Value::id_str("sf-do"),
+            Value::arr(tmp)
+        ]));
 }
 
 pub fn macro_do(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    return Ok(Value::app(macro_do_(args, _cx)?));
+    num_args(&args, 1)?;
+    let arr = arr!(args.0[0]);
+
+    return Ok(macro_do_(arr, _cx)?);
 }
 
 pub fn macro_set_bang(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+
     let mut tmp = args.clone();
     tmp.0.push_front(Value::id_str("sf-set!"));
-    Ok(Value::app(tmp))
+    return Ok(Value::app(tmp));
 }
 
 pub fn macro_throw(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    if args.0.len() == 0 {
-        Ok(Value::app_from_vec(vec![Value::id_str("sf-throw"), Value::nil()]))
-    } else {
-        num_args(&args, 1)?;
-        Ok(Value::app_from_vec(vec![Value::id_str("sf-throw"), args.0[0].clone()]))
-    }
-}
+    num_args(&args, 1)?;
 
-fn macro_if_(cond: &Value, then_: &Value, rest: &Vector<Value>) -> Result<Value, Value> {
-    match rest.0.len() {
-        0 => return Ok(Value::app_from_vec(vec![
-                Value::id_str("sf-if"),
-                cond.clone(),
-                then_.clone(),
-                Value::nil(),
-            ])),
-        1 => return Ok(Value::app_from_vec(vec![
-                Value::id_str("sf-if"),
-                cond.clone(),
-                then_.clone(),
-                rest.0[0].clone(),
-            ])),
-        _ => return Ok(Value::app_from_vec(vec![
-                Value::id_str("sf-if"),
-                cond.clone(),
-                then_.clone(),
-                macro_if_(&rest.0[0], &rest.0[1], &Vector(rest.0.skip(2)))?,
-            ])),
-    }
+    let mut tmp = args.clone();
+    tmp.0.push_front(Value::id_str("sf-throw"));
+    return Ok(Value::app(tmp));
 }
 
 pub fn macro_if(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    match args.0.len() {
-        0 | 1 => return Err(num_args_error()),
-        _ => return macro_if_(&args.0[0], &args.0[1], &Vector(args.0.skip(2))),
+    num_args(&args, 3)?;
+
+    let mut tmp = args.clone();
+    tmp.0.push_front(Value::id_str("sf-if"));
+    return Ok(Value::app(tmp));
+}
+
+fn macro_cond_(arr: &Vector<Value>) -> Result<Value, Value> {
+    match arr.0.len() {
+        0 => return Ok(Value::nil()),
+        1 => return Ok(arr.0[0].clone()),
+        2 => return Ok(Value::app_from_vec(vec![
+                Value::id_str("sf-if"),
+                arr.0[0].clone(),
+                arr.0[1].clone(),
+                Value::nil(),
+            ])),
+        3 => return Ok(Value::app_from_vec(vec![
+                Value::id_str("sf-if"),
+                arr.0[0].clone(),
+                arr.0[1].clone(),
+                arr.0[2].clone(),
+            ])),
+        _ => return Ok(Value::app_from_vec(vec![
+                Value::id_str("sf-if"),
+                arr.0[0].clone(),
+                arr.0[1].clone(),
+                macro_cond_(&Vector(arr.0.skip(2)))?,
+            ])),
     }
+}
+
+pub fn macro_cond(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let arr = arr!(args.0[0]);
+
+    return macro_cond_(&arr);
 }
 
 pub fn macro_let(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
@@ -2728,128 +2748,172 @@ pub fn macro_let(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value>
         ]))
 }
 
-fn macro_thread_first_(v: Value, fst: &Value, rest: &Vector<Value>) -> Result<Value, Value> {
-    let mut app = app!(fst);
-    if app.0.len() == 0 {
-        return Err(index_error());
-    }
-    app.0.insert(1, v);
+fn macro_thread_first_(v: Value, arr: &Vector<Value>) -> Result<Value, Value> {
+    match arr.0.len() {
+        0 => return Ok(v),
+        _ => {
+            let mut app = app!(arr.0[0]);
+            if app.0.len() == 0 {
+                return Err(index_error());
+            }
+            app.0.insert(1, v);
 
-    if rest.0.len() == 0 {
-        return Ok(Value::app(app))
-    } else {
-        return macro_thread_first_(Value::app(app), &rest.0[0], &Vector(rest.0.skip(1)));
+            if arr.0.len() == 1 {
+                return Ok(Value::app(app));
+            } else {
+                return macro_thread_first_(Value::app(app), &Vector(arr.0.skip(1)));
+            }
+        }
     }
 }
 
 pub fn macro_thread_first(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    match args.0.len() {
-        0 => return Err(num_args_error()),
-        1 => return Ok(args.0[0].clone()),
-        _ => return macro_thread_first_(args.0[0].clone(), &args.0[1], &Vector(args.0.skip(2))),
-    }
+    num_args(&args, 2)?;
+    let arr = arr!(args.0[1]);
+
+    return macro_thread_first_(args.0[0].clone(), &arr);
 }
 
-fn macro_thread_last_(v: Value, fst: &Value, rest: &Vector<Value>) -> Result<Value, Value> {
-    let mut app = app!(fst);
-    if app.0.len() == 0 {
-        return Err(index_error());
-    }
-    app.0.insert(app.0.len(), v);
+fn macro_thread_last_(v: Value, arr: &Vector<Value>) -> Result<Value, Value> {
+    match arr.0.len() {
+        0 => return Ok(v),
+        _ => {
+            let mut app = app!(arr.0[0]);
+            app.0.insert(app.0.len(), v);
 
-    if rest.0.len() == 0 {
-        return Ok(Value::app(app))
-    } else {
-        return macro_thread_last_(Value::app(app), &rest.0[0], &Vector(rest.0.skip(1)));
+            if arr.0.len() == 1 {
+                return Ok(Value::app(app));
+            } else {
+                return macro_thread_last_(Value::app(app), &Vector(arr.0.skip(1)));
+            }
+        }
     }
 }
 
 pub fn macro_thread_last(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    match args.0.len() {
-        0 => return Err(num_args_error()),
-        1 => return Ok(args.0[0].clone()),
-        _ => return macro_thread_last_(args.0[0].clone(), &args.0[1], &Vector(args.0.skip(2))),
-    }
+    num_args(&args, 2)?;
+    let arr = arr!(args.0[1]);
+
+    return macro_thread_last_(args.0[0].clone(), &arr);
 }
 
-fn macro_thread_as_(pattern: Value, v: Value, w: Value, rest: &Vector<Value>) -> Result<Value, Value> {
-    let the_let = Value::app_from_vec(vec![
-            Value::id_str("let"),
-            pattern.clone(),
-            v,
-            w,
-        ]);
-
-    if rest.0.len() == 0 {
-        return Ok(the_let)
-    } else {
-        return macro_thread_as_(pattern, the_let, rest.0[0].clone(), &Vector(rest.0.skip(1)));
-    }
-}
-
-pub fn macro_thread_as(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    match args.0.len() {
-        0 | 1=> return Err(num_args_error()),
-        2 => return Ok(args.0[1].clone()),
+fn macro_thread_as_(pattern: Value, v: Value, arr: &Vector<Value>) -> Result<Value, Value> {
+    match arr.0.len() {
+        0 => return Ok(v),
+        1 => return Ok(Value::app_from_vec(vec![
+                Value::id_str("let"),
+                pattern,
+                v,
+                arr.0[0].clone(),
+            ])),
         _ => return macro_thread_as_(
-                args.0[0].clone(),
-                args.0[1].clone(),
-                args.0[2].clone(),
-                &Vector(args.0.skip(3)),
+                pattern.clone(),
+                Value::app_from_vec(vec![
+                        Value::id_str("let"),
+                        pattern,
+                        v,
+                        arr.0[0].clone(),
+                    ]),
+                &Vector(arr.0.skip(1))
             ),
     }
 }
 
-fn macro_or_(v: Value, rest: &Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    if rest.0.len() == 0 {
-        return Ok(v)
-    } else {
-        let id = Value::id(Id::Symbol(cx.next_symbol_id()));
-        return Ok(Value::app_from_vec(vec![
-                Value::id_str("let"),
-                id.clone(),
-                v,
-                Value::app_from_vec(vec![
-                        Value::id_str("sf-if"),
-                        id.clone(),
-                        id.clone(),
-                        macro_or_(rest.0[0].clone(), &Vector(rest.0.skip(1)), cx)?,
-                    ]),
-            ]));
+pub fn macro_thread_as(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let arr = arr!(args.0[2]);
+
+    return macro_thread_as_(args.0[0].clone(), args.0[1].clone(), &arr);
+}
+
+fn macro_or_(arr: &Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    match arr.0.len() {
+        0 => return Ok(Value::bool_(false)),
+        1 => return Ok(arr.0[0].clone()),
+        _ => {
+            let id = Value::id(Id::Symbol(cx.next_symbol_id()));
+            return Ok(Value::app_from_vec(vec![
+                    Value::id_str("let"),
+                    id.clone(),
+                    arr.0[0].clone(),
+                    Value::app_from_vec(vec![
+                            Value::id_str("sf-if"),
+                            id.clone(),
+                            id.clone(),
+                            macro_or_(&Vector(arr.0.skip(1)), cx)?,
+                        ]),
+                ]));
+        }
     }
 }
 
 pub fn macro_or(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    match args.0.len() {
-        0 => return Ok(Value::bool_(false)),
-        _ => return macro_or_(args.0[0].clone(), &Vector(args.0.skip(1)), cx),
-    }
+    num_args(&args, 1)?;
+    let arr = arr!(args.0[0]);
+
+    return macro_or_(&arr, cx);
 }
 
-fn macro_and_(v: Value, rest: &Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    if rest.0.len() == 0 {
-        return Ok(v)
-    } else {
-        let id = Value::id(Id::Symbol(cx.next_symbol_id()));
-        return Ok(Value::app_from_vec(vec![
-                Value::id_str("let"),
-                id.clone(),
-                v,
-                Value::app_from_vec(vec![
-                        Value::id_str("sf-if"),
-                        id.clone(),
-                        macro_and_(rest.0[0].clone(), &Vector(rest.0.skip(1)), cx)?,
-                        id.clone(),
-                    ]),
-            ]));
+pub fn macro_or2(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let id = Value::id(Id::Symbol(cx.next_symbol_id()));
+
+    return Ok(Value::app_from_vec(vec![
+            Value::id_str("let"),
+            id.clone(),
+            args.0[0].clone(),
+            Value::app_from_vec(vec![
+                    Value::id_str("sf-if"),
+                    id.clone(),
+                    id.clone(),
+                    args.0[1].clone(),
+                ]),
+        ]));
+}
+
+fn macro_and_(arr: &Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    match arr.0.len() {
+        0 => return Ok(Value::bool_(true)),
+        1 => return Ok(arr.0[0].clone()),
+        _ => {
+            let id = Value::id(Id::Symbol(cx.next_symbol_id()));
+            return Ok(Value::app_from_vec(vec![
+                    Value::id_str("let"),
+                    id.clone(),
+                    arr.0[0].clone(),
+                    Value::app_from_vec(vec![
+                            Value::id_str("sf-if"),
+                            id.clone(),
+                            macro_and_(&Vector(arr.0.skip(1)), cx)?,
+                            id.clone(),
+                        ]),
+                ]));
+        }
     }
 }
 
 pub fn macro_and(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    match args.0.len() {
-        0 => return Ok(Value::bool_(true)),
-        _ => return macro_and_(args.0[0].clone(), &Vector(args.0.skip(1)), cx),
-    }
+    num_args(&args, 1)?;
+    let arr = arr!(args.0[0]);
+
+    return macro_and_(&arr, cx);
+}
+
+pub fn macro_and2(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let id = Value::id(Id::Symbol(cx.next_symbol_id()));
+
+    return Ok(Value::app_from_vec(vec![
+            Value::id_str("let"),
+            id.clone(),
+            args.0[0].clone(),
+            Value::app_from_vec(vec![
+                    Value::id_str("sf-if"),
+                    id.clone(),
+                    args.0[1].clone(),
+                    id.clone(),
+                ]),
+        ]));
 }
 
 fn quasiquote(v: &Value, fresh_names: &mut HashMap<Id, u64>, cx: &mut Context) -> Result<Value, Value> {
@@ -2920,7 +2984,7 @@ fn quasiquote(v: &Value, fresh_names: &mut HashMap<Id, u64>, cx: &mut Context) -
             }
 
             // we are in an application, our first entry is neither `:unquote` nor `:fresh-name`
-            let mut ret = ImVector::unit(Value::id_str("->"));
+            let mut ret = ImVector::new();
 
             let mut current = ImVector::new();
 
@@ -2933,24 +2997,17 @@ fn quasiquote(v: &Value, fresh_names: &mut HashMap<Id, u64>, cx: &mut Context) -
                             }
                             // got an unquote-splice form
 
-                            if ret.len() == 1 {
+                            if current.len() != 0 {
                                 ret.push_back(Value::app_from_vec(vec![
-                                        Value::builtin(value::Builtin::ArrToApp),
-                                        Value::arr(Vector(current)),
+                                        Value::builtin(value::Builtin::AppConcat),
+                                        Value::app_from_vec(vec![
+                                                Value::builtin(value::Builtin::ArrToApp),
+                                                Value::arr(Vector(current)),
+                                            ])
                                     ]));
                                 current = ImVector::new();
-                            } else {
-                                if current.len() != 0 {
-                                    ret.push_back(Value::app_from_vec(vec![
-                                            Value::builtin(value::Builtin::AppConcat),
-                                            Value::app_from_vec(vec![
-                                                    Value::builtin(value::Builtin::ArrToApp),
-                                                    Value::arr(Vector(current)),
-                                                ])
-                                        ]));
-                                    current = ImVector::new();
-                                }
                             }
+
                             ret.push_back(Value::app_from_vec(vec![
                                     Value::builtin(value::Builtin::AppConcat),
                                     inner_app.0[1].clone(),
@@ -2965,22 +3022,21 @@ fn quasiquote(v: &Value, fresh_names: &mut HashMap<Id, u64>, cx: &mut Context) -
                 current.push_back(quasiquote(w, fresh_names, cx)?);
             }
 
-            if ret.len() == 1 {
-                ret.push_back(Value::app_from_vec(vec![
-                        Value::builtin(value::Builtin::ArrToApp),
-                        Value::arr(Vector(current)),
-                    ]));
-            } else {
-                ret.push_back(Value::app_from_vec(vec![
-                        Value::builtin(value::Builtin::AppConcat),
-                        Value::app_from_vec(vec![
-                                Value::builtin(value::Builtin::ArrToApp),
-                                Value::arr(Vector(current)),
-                            ])
-                    ]));
-            }
+            ret.push_back(Value::app_from_vec(vec![
+                    Value::builtin(value::Builtin::AppConcat),
+                    Value::app_from_vec(vec![
+                            Value::builtin(value::Builtin::ArrToApp),
+                            Value::arr(Vector(current)),
+                        ])
+                ]));
 
-            return Ok(Value::app(Vector(ret)));
+            return macro_thread_first_(
+                Value::app_from_vec(vec![
+                    Value::id_str("sf-quote"),
+                    Value::app_from_vec(vec![]),
+                ]),
+                &Vector(ret),
+            );
         }
     }
 }

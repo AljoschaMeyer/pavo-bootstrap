@@ -7,6 +7,7 @@ pub fn default() -> ImOrdMap<Id, Value> {
 
     env_add(&mut m, "quote", Builtin::MacroQuote);
     env_add(&mut m, "do", Builtin::MacroDo);
+    env_add(&mut m, "cond", Builtin::MacroCond);
     env_add(&mut m, "set!", Builtin::MacroSetBang);
     env_add(&mut m, "throw", Builtin::MacroThrow);
     env_add(&mut m, "if", Builtin::MacroIf);
@@ -18,6 +19,8 @@ pub fn default() -> ImOrdMap<Id, Value> {
     env_add(&mut m, "as->", Builtin::MacroThreadAs);
     env_add(&mut m, "or", Builtin::MacroOr);
     env_add(&mut m, "and", Builtin::MacroAnd);
+    env_add(&mut m, "||", Builtin::MacroOr2);
+    env_add(&mut m, "&&", Builtin::MacroAnd2);
     env_add(&mut m, "quasiquote", Builtin::MacroQuasiquote);
 
     return m;

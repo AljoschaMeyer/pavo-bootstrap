@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use im_rc::OrdMap;
 
-use crate::special_forms::{SpecialForm, Args, SpecialFormSyntaxError, special};
+use crate::special_forms::{SpecialForm, SpecialFormSyntaxError, special};
 use crate::value::{Value, Id};
 
 /// All the things the syntax checker disallows.
@@ -105,18 +105,11 @@ pub fn check(
                             check(catch, &bindings.update(bound.clone(), mutable))
                         }
                         Some(SpecialForm::Lambda(args, body)) => {
-                            match args {
-                                Args::All(mutable, bound) => {
-                                    check(body, &bindings.update((*bound).clone(), mutable))
-                                }
-                                Args::Destructured(the_args) => {
-                                    let mut fn_bindings = bindings.clone();
-                                    for (mutable, bound) in the_args {
-                                        fn_bindings = fn_bindings.update((*bound).clone(), mutable);
-                                    }
-                                    check(body, &fn_bindings)
-                                }
+                            let mut fn_bindings = bindings.clone();
+                            for (mutable, bound) in args {
+                                fn_bindings = fn_bindings.update((*bound).clone(), mutable);
                             }
+                            check(body, &fn_bindings)
                         }
                         None => {
                             match bindings.get(id) {
