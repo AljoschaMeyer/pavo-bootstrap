@@ -87,9 +87,9 @@ pub fn check(
                             Ok(())
                         }
                         Some(SpecialForm::Quote(_)) => Ok(()),
-                        Some(SpecialForm::SetBang(id, _)) => {
+                        Some(SpecialForm::SetBang(id, body)) => {
                             match bindings.get(id) {
-                                Some(true) => Ok(()),
+                                Some(true) => check(body, bindings),
                                 Some(false) => Err(StaticError::Immutable(id.clone())),
                                 None => Err(StaticError::Free(id.clone())),
                             }

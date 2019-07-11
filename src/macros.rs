@@ -22,6 +22,10 @@ pub fn default() -> ImOrdMap<Id, Value> {
     env_add(&mut m, "||", Builtin::MacroOr2);
     env_add(&mut m, "&&", Builtin::MacroAnd2);
     env_add(&mut m, "quasiquote", Builtin::MacroQuasiquote);
+    env_add(&mut m, "while", Builtin::MacroWhile);
+    env_add(&mut m, "match", Builtin::MacroMatch);
+    env_add(&mut m, "case", Builtin::MacroCase);
+    env_add(&mut m, "loop", Builtin::MacroLoop);
 
     return m;
 }

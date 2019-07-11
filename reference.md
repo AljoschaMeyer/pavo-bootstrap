@@ -9,6 +9,8 @@ Pavo is a [homoiconic](https://en.wikipedia.org/wiki/Homoiconicity), [dynamicall
 3. A number of *static checks* guarantees that the obtained value is a valid pavo program.
 4. The program value is *evaluated* into the final result.
 
+**Status of this Document**: Apart from some macros, everything should be precisely specified. It's not particularly well-written, but it should be sufficiently precise (except for those macros...).
+
 ## Values
 
 Values are the entities that the pavo programming language manipulates. Programming is about telling the machine how to derive new values from old ones. While hardware typically only knows about zeros and ones, pavo presents a more high-level interface to the programmer. The set of pavo values consists of the following things:
@@ -61,25 +63,25 @@ The expressions are:
 
 ### Identifier
 
-Identifiers, a sequence of at least one and at most 255 of the following characters: `!*+-_?%<>=/\&|` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error. Additionally, that sequence may not match the syntax of any other expression (such as `nil`, `true`, `false`, valid or overflowing integers, valid or overflowing floats).
+Identifiers, a sequence of at least one and at most 255 of the following characters: `!*+-_?.%<>=/\&|` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error. Additionally, that sequence may not match the syntax of any other expression (such as `nil`, `true`, `false`, valid or overflowing integers, valid or overflowing floats).
 
 ```pavo
 !
 =P
 -_-
-!*+-_?%<>=/\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+!*+-_?.%<>=/\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
 abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg
 # too long: abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh
 ```
 
 ### Keyword
 
-A keyword consists of a colon (`:`) followed by at least one and at most 255 of the following characters: `!*+-_?%<>=/\&|` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error.
+A keyword consists of a colon (`:`) followed by at least one and at most 255 of the following characters: `!*+-_?.%<>=/\&|` or ascii alphanumerics. A sequence of more than 255 such characters is a parse error.
 
 ```pavo
 :!
 :nil # while not an identifier, this is ok for a keyword
-:!*+-_?%<>=/\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+:!*+-_?.%<>=/\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
 :abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg
 # too long: abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh
 ```
@@ -1281,6 +1283,22 @@ Time: O(log n), where n is `(bytes-count b)`.
 (assert-throw (bytes-update @[0] 0 256) {:tag :err-not-byte})
 ```
 
+#### `(bytes-split b index)`
+
+Splits the bytes `b` at the index int `index`, returning an array containing two bytes: The first from 0 (inclusive) to `index` (exclusive), the second from `index` (inclusive) to the end.
+
+Throws `{:tag :err-lookup}` if the index is out of bounds.
+
+Time: O(log n), where n is `(bytes-count b)`.
+
+```pavo
+(assert-eq (bytes-split @[0 1 2] 0) [@[] @[0 1 2]])
+(assert-eq (bytes-split @[0 1 2] 1) [@[0] @[1 2]])
+(assert-eq (bytes-split @[0 1 2] 2) [@[0 1] @[2]])
+(assert-eq (bytes-split @[0 1 2] 3) [@[0 1 2] @[]])
+(assert-throw (bytes-split @[0 1 2] 4) {:tag :err-lookup})
+```
+
 #### `(bytes-slice b start end)`
 
 Returns a subsequence of the bytes `b`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
@@ -1436,6 +1454,44 @@ Returns the unicode scalar value of the char `c` as an int.
 
 Strings are conceptually sequences of chars. Unless otherwise noted, operations in general (and indexing in particular) are defined in terms of chars. There are however a few functions that deal with raw bytes of the utf-8 encoding of a string, and the maximum size of strings is defined in term of its utf8 encoding (at most `2^63 - 1` bytes).
 
+#### `(str->bytes s)`
+
+Returns the utf-8 encoding of the string `s` as a bytes.
+
+Time: O(n), where n is `(str-count-utf8 s)`.
+
+```pavo
+(assert-eq (str->bytes "") @[])
+(assert-eq (str->bytes "abc") @[97 98 99])
+(assert-eq (str->bytes "⚗") @[226 154 151])
+```
+
+#### `(bytes=>str b)`
+
+If the bytes `b` are valid utf-8, returns the string they encode. Otherwise, throws `{:tag :err-utf8}`.
+
+Time: O(n), where n is `(bytes-count b)`.
+
+```pavo
+(assert-eq (bytes=>str @[]) "")
+(assert-eq (bytes=>str @[97 98 99]) "abc")
+(assert-eq (bytes=>str @[226 154 151]) "⚗")
+(assert-throw (bytes=>str @[255]) {:tag :err-utf8})
+```
+
+#### `(bytes=>str? b)`
+
+Returns `true` if the bytes `b` are valid utf-8, `false` otherwise.
+
+Time: O(n), where n is `(bytes-count b)`.
+
+```pavo
+(assert-eq (bytes=>str? @[]) true)
+(assert-eq (bytes=>str? @[97 98 99]) true)
+(assert-eq (bytes=>str? @[226 154 151]) true)
+(assert-eq (bytes=>str? @[255]) false)
+```
+
 #### `(str-count s)`
 
 Returns the number of chars in the string `s`.
@@ -1485,11 +1541,11 @@ Throws `{:tag :err-lookup}` if the index is out of bounds.
 Time: O(log n), where n is `(str-count-utf8 s)`.
 
 ```pavo
-(assert-eq (str-get-utf8 "a" 0) 'a')
+(assert-eq (str-get-utf8 "a" 0) 97)
 (assert-eq (str-get-utf8 "⚗" 0) 226)
 (assert-eq (str-get-utf8 "⚗" 1) 154)
 (assert-eq (str-get-utf8 "⚗" 2) 151)
-(assert-throw (str-get-utf8 "" 0) {:tag :err-lookup})
+(assert-throw (str-get-utf8 "" 0) { :tag :err-lookup})
 ```
 
 #### `(str-index-char->utf8 str index)`
@@ -1562,6 +1618,22 @@ Time: O(log n), where n is `(str-count s)`.
 (assert-eq (str-update "ab" 0 'z') "zb")
 (assert-eq (str-update "ab" 1 'z') "az")
 (assert-throw (str-update "ab" 2 'z') {:tag :err-lookup})
+```
+
+#### `(str-split s index)`
+
+Splits the string `s` at the index int `index`, returning an array containing two strings: The first from 0 (inclusive) to `index` (exclusive), the second from `index` (inclusive) to the end.
+
+Throws `{:tag :err-lookup}` if the index is out of bounds.
+
+Time: O(log n), where n is `(str-count s)`.
+
+```pavo
+(assert-eq (str-split "a⚗c" 0) ["" "a⚗c"])
+(assert-eq (str-split "a⚗c" 1) ["a" "⚗c"])
+(assert-eq (str-split "a⚗c" 2) ["a⚗" "c"])
+(assert-eq (str-split "a⚗c" 3) ["a⚗c" ""])
+(assert-throw (str-split "a⚗c" 4) {:tag :err-lookup})
 ```
 
 #### `(str-slice s start end)`
@@ -1958,7 +2030,7 @@ Returns the base 10 logarithm of the float `x`.
 
 #### `(float-hypot x y)`
 
-Calculates the length of the hypotenuse of a right-angle triangle given legs of the float lengths `x` and `y`.
+Calculates the length of the hypotenuse of a right-angle triangular given legs of the float lengths `x` and `y`.
 
 ```pavo
 (assert-eq (float-hypot 1.2 3.4) 3.605551275463989)
@@ -2368,6 +2440,22 @@ Time: O(log n), where n is `(arr-count arr)`.
 (assert-throw (arr-update [0 1] 2 42) {:tag :err-lookup})
 ```
 
+#### `(arr-split arr index)`
+
+Splits the array `arr` at the index int `index`, returning an array containing two arrays: The first from 0 (inclusive) to `index` (exclusive), the second from `index` (inclusive) to the end.
+
+Throws `{:tag :err-lookup}` if the index is out of bounds.
+
+Time: O(log n), where n is `(arr-count arr)`.
+
+```pavo
+(assert-eq (arr-split [0 1 2] 0) [[] [0 1 2]])
+(assert-eq (arr-split [0 1 2] 1) [[0] [1 2]])
+(assert-eq (arr-split [0 1 2] 2) [[0 1] [2]])
+(assert-eq (arr-split [0 1 2] 3) [[0 1 2] []])
+(assert-throw (arr-split [0 1 2] 4) {:tag :err-lookup})
+```
+
 #### `(arr-slice arr start end)`
 
 Returns an array containing a subsequence of the elements of the array `arr`, starting at the index int `start` (inclusive) and up to the index int `end` (exclusive).
@@ -2570,6 +2658,22 @@ Time: O(log n), where n is `(app-count app)`.
 (assert-eq (app-update $(0 1) 0 42) $(42 1))
 (assert-eq (app-update $(0 1) 1 42) $(0 42))
 (assert-throw (app-update $(0 1) 2 42) {:tag :err-lookup})
+```
+
+#### `(app-split app index)`
+
+Splits the application `app` at the index int `index`, returning an array containing two applications: The first from 0 (inclusive) to `index` (exclusive), the second from `index` (inclusive) to the end.
+
+Throws `{:tag :err-lookup}` if the index is out of bounds.
+
+Time: O(log n), where n is `(app-count app)`.
+
+```pavo
+(assert-eq (app-split $(0 1 2) 0) [$() $(0 1 2)])
+(assert-eq (app-split $(0 1 2) 1) [$(0) $(1 2)])
+(assert-eq (app-split $(0 1 2) 2) [$(0 1) $(2)])
+(assert-eq (app-split $(0 1 2) 3) [$(0 1 2) $()])
+(assert-throw (app-split $(0 1 2) 4) {:tag :err-lookup})
 ```
 
 #### `(app-slice app start end)`
@@ -2871,21 +2975,39 @@ Returns the set that contains all the elements in exactly one of the sets `lhs` 
 
 Time: O((n + m) log (n + m)), where n is `(set-count lhs)` and m is `(set-count rhs)`.
 
-<!-- #### `(set-split set v)`
+#### `(set-split set v)`
 
-Returns an array containing two sets, the first of which contains the set of all elements in the set `set` that are strictly less than the value `v`, and the second of which contains the set of all elements in `set` that are greater or equal to `v`.
+Returns an array containing two sets, the first of which contains the set of all elements in the set `set` that are strictly less than the value `v`, and the second of which contains the remaining elements.
 
-Time: O(log n), where n is `(set-count set)`. TODO is this feasable for persistent trees?
+Time: O(log n), where n is `(set-count set)`.
 
 ```pavo
-(assert-eq (set-split {1 3 5} 0) [{} {1 3 5}])
-(assert-eq (set-split {1 3 5} 1) [{} {1 3 5}])
-(assert-eq (set-split {1 3 5} 2) [{1} {3 5}])
-(assert-eq (set-split {1 3 5} 3) [{1} {3 5}])
-(assert-eq (set-split {1 3 5} 4) [{1 3} {5}])
-(assert-eq (set-split {1 3 5} 5) [{1 3} {5}])
-(assert-eq (set-split {1 3 5} 6) [{1 3 5} {}])
-``` -->
+(assert-eq (set-split @{1 3 5} 0) [@{} @{1 3 5}])
+(assert-eq (set-split @{1 3 5} 1) [@{} @{1 3 5}])
+(assert-eq (set-split @{1 3 5} 2) [@{1} @{3 5}])
+(assert-eq (set-split @{1 3 5} 3) [@{1} @{3 5}])
+(assert-eq (set-split @{1 3 5} 4) [@{1 3} @{5}])
+(assert-eq (set-split @{1 3 5} 5) [@{1 3} @{5}])
+(assert-eq (set-split @{1 3 5} 6) [@{1 3 5} @{}])
+```
+
+#### `(set-slice set start end)`
+
+Returns a set containing all elements from the set `set` that are greater or equal to `start` and strictly less than `end`.
+
+Time: O(log n), where n is `(set-count set)`
+
+```pavo
+(assert-eq (set-slice @{1 3} 0 0) @{})
+(assert-eq (set-slice @{1 3} 0 1) @{})
+(assert-eq (set-slice @{1 3} 0 2) @{1})
+(assert-eq (set-slice @{1 3} 1 2) @{1})
+(assert-eq (set-slice @{1 3} 0 3) @{1})
+(assert-eq (set-slice @{1 3} 0 4) @{1 3})
+(assert-eq (set-slice @{1 3} 2 4) @{3})
+(assert-eq (set-slice @{1 3} 4 0) @{})
+(assert-eq (set-slice @{1 3} 99 98) @{})
+```
 
 #### `(set-cursor-min set)`
 
@@ -3265,6 +3387,40 @@ Returns the map that contains all the entries in the maps `lhs` and `rhs` whose 
 ```
 
 Time: O((n + m) log (n + m)), where n is `(map-count lhs)` and m is `(map-count rhs)`.
+
+#### `(map-split map v)`
+
+Returns an array containing two maps, the first of which contains the map of all entries in the map `map` whose key is strictly less than the value `v`, and the second of which contains the remaining entries.
+
+Time: O(log n), where n is `(map-count map)`.
+
+```pavo
+(assert-eq (map-split {1 :a 3 :b 5 :c} 0) [{} {1 :a 3 :b 5 :c}])
+(assert-eq (map-split {1 :a 3 :b 5 :c} 1) [{} {1 :a 3 :b 5 :c}])
+(assert-eq (map-split {1 :a 3 :b 5 :c} 2) [{1 :a} {3 :b 5 :c}])
+(assert-eq (map-split {1 :a 3 :b 5 :c} 3) [{1 :a} {3 :b 5 :c}])
+(assert-eq (map-split {1 :a 3 :b 5 :c} 4) [{1 :a 3 :b} {5 :c}])
+(assert-eq (map-split {1 :a 3 :b 5 :c} 5) [{1 :a 3 :b} {5 :c}])
+(assert-eq (map-split {1 :a 3 :b 5 :c} 6) [{1 :a 3 :b 5 :c} {}])
+```
+
+#### `(map-slice map start end)`
+
+Returns a map containing all entries from the map `map` whose key is greater or equal to `start` and strictly less than `end`.
+
+Time: O(log n), where n is `(map-count map)`
+
+```pavo
+(assert-eq (map-slice {1 :a 3 :b} 0 0) {})
+(assert-eq (map-slice {1 :a 3 :b} 0 1) {})
+(assert-eq (map-slice {1 :a 3 :b} 0 2) {1 :a})
+(assert-eq (map-slice {1 :a 3 :b} 1 2) {1 :a})
+(assert-eq (map-slice {1 :a 3 :b} 0 3) {1 :a})
+(assert-eq (map-slice {1 :a 3 :b} 0 4) {1 :a 3 :b})
+(assert-eq (map-slice {1 :a 3 :b} 2 4) {3 :b})
+(assert-eq (map-slice {1 :a 3 :b} 4 0) {})
+(assert-eq (map-slice {1 :a 3 :b} 99 98) {})
+```
 
 #### `(map-cursor-min map)`
 
@@ -4096,13 +4252,190 @@ Reminder: \`v is a shorthand for `(quasiquote v)`, `~v` for `(:unquote v)`, `@~v
 ]))
 ```
 
+#### `(macro-match v p yay nay)`
+
+The most basic pattern-based macro. Evaluates `yay` if `v` matches the pattern `p`, using the bindings introduced by the pattern. Otherwise, evaluates to `nay`.
+
+Whether a value `v` matches a pattern `p` is determined as follows:
+
+- if `p` is `nil`, a bool, an int, a float, a char, a string, a bytes or a keyword, `v` matches it if `(= v p)`
+- if `p` is a name (identifier or symbol), the pattern matches and the name is immutably bound to `v`
+- if `p` is an array, `v` matches it if:
+  - `v` is an array
+  - of the same length
+  - the items of the value `v` match the subpatterns (items) of the pattern `p` (checking and introducing bindings is done in the order of the items in the arrays)
+- if `p` is a map, the `v` matches it if:
+  - `v` is a map
+  - for each entry (`[k, vp]`) in `p`:
+    - `v` contains an entry with key `k`
+    - the value of this entry matches the pattern `vp`
+- if `p` is an application `(:app rest...)`, `v` matches it if:
+  - `v` is an application
+  - of the same length there are values in `rest...`
+  - the items of the value `v` match the subpatterns (items) of `rest...` (checking and introducing bindings is done in the order of the items in the arrays)
+- if `p` is an application `(:mut some-name)`, the pattern matches and the name is mutably bound to `v`
+- if `p` is an application `(:guard p_ exp)`, the value is matched against the pattern `p_` and if it matches `p_`, `exp` is evaluated (with the bindings introduced in `p_` in scope). If `exp` evaluates to `nil` or `false`, the value did not match `p`, otherwise it did.
+- if `p` is an application `(:named some-name p_)`, the value is immutably bound to the name and then `v` is matched against `p_` (with the binding in scope)
+- if `p` is an application `(:named (:mut some-name) p_)`, the value is mutably bound to the name and then `v` is matched against `p_` (with the binding in scope)
+- if `p` is an application `(:map-exact some-map)`, works like a regular map pattern except that after checking whether `v` is a map, the number of entries of `v` is compared to the number of entries of the `some-map` pattern
+- if `p` is an application `(:= w)`, `v` matches if `(= v w)` is `true`
+- if `p` is an application `(:typeof w)`, `v` matches if `(= (typeof v) w)` is `true`
+
+If `p` is neither of the above, throws `{:tag :err-pattern}`.
+
+```pavo
+(assert-eq (match 42 42 true false) true)
+(assert-eq (match 42 43 true false) false)
+(assert-eq (match [] 42 true false) false)
+
+(assert-eq (match 42 n n false) 42)
+
+(assert-eq (match [1] [2] true false) false)
+(assert-eq (match [1] [1] true false) true)
+(assert-eq (match [1 2] [1 2] true false) true)
+(assert-eq (match [1] [a] a false) 1)
+(assert-eq (match [1 2] [a b] (int-add a b) false) 3)
+(assert-eq (match [1 2] [a 3] (int-add a 3) false) false)
+(assert-eq (match [1 2] [3 b] (int-add 3 b) false) false)
+(assert-eq (match [1] [a b] (int-add a b) false) false)
+(assert-eq (match [1 2 3] [a b] (int-add a b) false) false)
+(assert-eq (match 42 [a b] (int-add a b) false) false)
+
+(assert-eq (match {0 42 1 43 2 44} {0 x 1 y} (int-add x y) false) 85)
+(assert-eq (match {0 42 2 44} {0 x 1 y} (int-add x y) false) false)
+
+(assert-eq (match $(1) (:app 2) true false) false)
+(assert-eq (match $(1) (:app 1) true false) true)
+(assert-eq (match $(1 2) (:app 1 2) true false) true)
+(assert-eq (match $(1) (:app a) a false) 1)
+(assert-eq (match $(1 2) (:app a b) (int-add a b) false) 3)
+(assert-eq (match $(1 2) (:app a 3) (int-add a 3) false) false)
+(assert-eq (match $(1 2) (:app 3 b) (int-add 3 b) false) false)
+(assert-eq (match $(1) (:app a b) (int-add a b) false) false)
+(assert-eq (match $(1 2 3) (:app a b) (int-add a b) false) false)
+(assert-eq (match 42 (:app a b) (int-add a b) false) false)
+
+(assert-eq (match 42 (:mut n) n false) 42)
+(assert-eq (match 42 (:mut n) (do [(set! n (int-add n 1)) n]) false) 43)
+
+(assert-eq (match 42 (:guard n (>= n 17)) n false) 42)
+(assert-eq (match 16 (:guard n (>= n 17)) n false) false)
+(assert-eq (match [42 3] [(:guard n (>= n 17)) (:guard n (< n 17))] n false) 3)
+(assert-eq (match [42 43] [(:guard n (>= n 17)) (:guard m (< n m))] [m n] false) [43 42])
+
+(assert-eq (match [42] (:named outer [inner]) outer false) [42])
+(assert-eq (match [42] (:named outer [inner]) inner false) 42)
+(assert-eq (match [42] (:named x [x]) x false) 42)
+(assert-eq (match [42] (:named (:mut outer) [inner]) (do [(set! outer (arr-update outer 0 17)) outer]) false) [17])
+
+(assert-eq (match {0 42 1 43} (:map-exact {0 x 1 y}) (int-add x y) false) 85)
+(assert-eq (match {0 42 1 43 2 44} (:map-exact {0 x 1 y}) (int-add x y) false) false)
+(assert-eq (match {0 42} (:map-exact {0 x 1 y}) (int-add x y) false) false)
+
+(assert-eq (match 42 (:= 42) true false) true)
+(assert-eq (match 42 (:= 43) true false) false)
+
+(assert-eq (match 42 (:typeof :int) true false) true)
+(assert-eq (match 42 (:typeof :float) true false) false)
+
+(assert-throw (macro-match 42 @{} true false) {:tag :err-pattern})
+(assert-throw (macro-match [42] [@{}] true false) {:tag :err-pattern})
+(assert-throw (macro-match 42 $() true false) {:tag :err-pattern})
+(assert-throw (macro-match 42 $(:llll) true false) {:tag :err-pattern})
+(assert-throw (macro-match 42 $(:mut) true false) {:tag :err-pattern})
+(assert-throw (macro-match 42 $(:mut a b) true false) {:tag :err-pattern})
+(assert-throw (macro-match 42 $(:guard a) true false) {:tag :err-pattern})
+(assert-throw (macro-match 42 $(:guard a b c) true false) {:tag :err-pattern})
+(assert-throw (macro-match 42 $(:named a) true false) {:tag :err-pattern})
+(assert-throw (macro-match 42 $(:named a b c) true false) {:tag :err-pattern})
+(assert-throw (macro-match 42 $(:named [a] b) true false) {:tag :err-pattern})
+(assert-throw (macro-match [42] $(:map-exact [a]) true false) {:tag :err-pattern})
+```
+
+#### `(macro-case v [p-1, yay-1, p-2, yay-2, ...])` `(macro-case v [p-1, yay-1, p-2, yay-2, ... else])`
+
+Evaluates to the `yay-n` for the first `p-n` that matches `v` (bringing the bindings of `p-n` into scope). If no pattern matches evaluates to `else` if supplied, or `nil` otherwise.
+
+```pavo
+(assert-eq (case 0 [0 42 1 43 :else]) 42)
+(assert-eq (case 1 [0 42 1 43 :else]) 43)
+(assert-eq (case 2 [0 42 1 43 :else]) :else)
+(assert-eq (case 2 [0 42 1 43]) nil)
+```
+
+#### `(macro-loop v [p-1, yay-1, p-2, yay-2, ...])`
+
+Evaluate `v`. If it does not match any of the patterns, evaluates to `nil`. Otherwise, evaluate the corresponding `yay-n`, then repeat.
+
+```pavo
+(assert-eq (loop 0 [1 2]) nil)
+
+(assert-eq
+    (do [
+        (:let (:mut sum) 0)
+        (:let (:mut n) 0)
+        (loop n [
+            (:guard x (<= x 10000)) (do [
+                    (set! sum (int-add sum x))
+                    (set! n (int-add n 1))
+                ])
+            :foo :bar
+        ])
+        sum
+    ])
+    50005000 # 50005000 == 1 + 2 + ... + 10000
+)
+```
+
+TODO pattern macros: lambda
+
+#### `(macro-fn name [args...] body)`
+
+Defines a function that takes the arguments `args...` and has the body `body`. When evaluating the body, the name `name` is immutably bound to the function itself. It's magic - well actually it's a fixpoint combinator, see appendix C for the precise definition.
+
+```pavo
+(assert-eq
+    (
+        # https://en.wikipedia.org/wiki/Triangular_number
+        (fn triangular [acc n] (if
+            (= x 0) acc
+            (triangular (+ acc n) (- n 1))
+        ))
+        10000
+    )
+    50005000 # 50005000 == 1 + 2 + ... + 10000
+)
+```
+
+#### `(macro-while cond body)`
+
+A [while loop](https://en.wikipedia.org/wiki/While_loop): While `cond` evaluates to neither `nil` nor `false`, evaluates the `body` and then checks the condition again. When `cond` evalutes to `nil` or `false`, evalutes to `nil`.
+
+Implemented as `((fn <sym> [] (sf-if cond (sf-do [body (<sym>)]) nil)))`, where `<sym>` is a new symbol.
+
+```pavo
+(assert-eq
+    (do [
+        (:let (:mut sum) 0)
+        (:let (:mut n) 0)
+        (while (<= n 10000) (do [
+            (set! sum (int-add sum n))
+            (set! n (int-add n 1))
+        ]))
+        sum
+    ])
+    50005000 # 50005000 == 1 + 2 + ... + 10000
+)
+
+# An infinite loop: (while true nil)
+```
+
+
 TODO
 
-- `fn`
 - `letfn`
 - `lambda`
 - `try`
-- `while`
 
 - `case`, `loop` ?
 
@@ -4214,13 +4547,192 @@ Collections serialize their components and separate them by a single space (ther
 
 TODO, refer to the reference implementation for now.
 
+## Appendix C: Named Recursion
+
+The builtin macros that provide named function that can recur by referring to their own names are implemented through [fixpoint combinators](https://en.wikipedia.org/wiki/Fixed-point_combinator#Fixed_point_combinators_in_lambda_calculus). This explanation assumes familiarity with how the strict Y combinator works. There are *many* resources on the web that explain it.
+
+We write `Y-k` for the strict Y combinator that works for functions of arity k (the "regular" Y combinator is `Y-1`):
+
+```pavo
+(sf-lambda [g] (
+    (sf-lambda [f] (f f)) # the M combinator
+    (sf-lambda [x] (
+        g
+        (sf-lambda [arg-1 arg-2 ,,, arg-k] ((x x) arg-1 arg-2 ,,, arg-k))
+    ))
+))
+```
+
+Take for example a [tail-recursive](https://en.wikipedia.org/wiki/Tail_call) function to compute [triangular numbers](https://en.wikipedia.org/wiki/Triangular_number):
+
+```pavo
+(assert-eq
+    (
+        (fn triangular [acc n] (if
+            (= n 0) acc
+            (triangular (int-add acc n) (int-sub n 1))
+        ))
+        0 10000
+    )
+    50005000 # 50005000 == 1 + 2 + ... + 10000
+)
+```
+
+It takes two arguments, so the corresponding fixpoint combinator is `Y-2`:
+
+```pavo
+(sf-lambda [g] (
+    (sf-lambda [f] (f f))
+    (sf-lambda [x] (
+        g
+        (sf-lambda [arg-1 arg-2] ((x x) arg-1 arg-2))
+    ))
+))
+```
+
+To define `triangular` without named recursion, we wrap it in a lambda that takes the recursion point as its single argument:
+
+```pavo
+(sf-lambda [triangular] (lambda [acc n] (if
+    (= n 0) acc
+    (triangular (int-add acc n) (int-sub n 1))
+)))
+```
+
+The original `triangular` function is obtained by passing this form to `Y-2`:
+
+```pavo
+(
+    (sf-lambda [g] (
+        (sf-lambda [f] (f f))
+        (sf-lambda [x] (
+            g
+            (sf-lambda [arg-1 arg-2] ((x x) arg-1 arg-2))
+        ))
+    ))
+    (sf-lambda [triangular] (lambda [acc n] (if
+        (= n 0) acc
+        (triangular (int-add acc n) (int-sub n 1))
+    )))
+) # evaluates to a function that is equivalent to the recursive definition
+```
+
+The `(fn name [args...] body)` macro performs exactly this expansion: Count the number of args to find the appropriate fixpoint combinator, wrap the args and body in a lambda, enclose that lambda in a lambda that provides the recursion point, finally put the combinator and the function in an application. All names in the combinator are freshly generated symbols, the name for the recursion point is the `name` of the fn form.
+
+The macro for defining mutually recursive functions is `letfn`, to make the example more interesting, we add an additional, unused argument to the definition of `odd?`:
+
+```pavo
+(assert-eq
+    (letfn [
+        (even? [n] (if (= n 0) true (odd? (int-sub n 1) nil)))
+        (odd? [n _] (if (= n 0) false (even? (int-sub n 1))))
+        ]
+        (even? 10000)
+    )
+    true
+)
+```
+
+The functions are wrapped in a lambda that supplies the recursion points:
+
+```pavo
+(sf-lambda [even? odd?] (lambda [n] (if (= n 0) true (odd? (int-sub n 1) nil)))))
+(sf-lambda [even? odd?] (lambda [n _] (if (= n 0) false (even? (int-sub n 1))))
+```
+
+We now need a 2-adic Y combinator (since there are two functions) that is tailored to their specific function arities. We write `Y<1-2>` for this combinator, and `Y<arity1-arity2-...-arityk>` in general. Note that by design, these are not [poly-variadic](http://okmij.org/ftp/Computation/fixed-point-combinators.html#Poly-variadic) combinators. A poly-variadic combinator can handle an arbitrary number of functions, we deliberately use the appropriate special case. Since the `letfn` macro always knows the number of functions and their arities in advance, there's no need to use a generic map operation.
+
+TODO
+
+```pavo
+(
+    (sf-lambda [g] (
+        (sf-lambda [f] (f f))
+        (sf-lambda [x] (
+            g
+            (sf-lambda [arg-1 arg-2] ((x x) arg-1 arg-2))
+        ))
+    ))
+    (sf-lambda [even? odd?] (lambda [n] (if (= n 0) true (odd? (int-sub n 1) nil)))))
+    (sf-lambda [even? odd?] (lambda [n _] (if (= n 0) false (even? (int-sub n 1))))
+) # evaluates to [even? odd?]
+```
+
+```pavo
+(
+    (sf-lambda [open-even? open-odd?] [
+        (
+            (sf-lambda [oe? oo?] (oe? oe? oo?))
+            (sf-lambda [oe? oo?] (
+                open-even?
+                (sf-lambda [n] ((oe? oe? oo?) n))
+                second-arg?
+            ))
+            (sf-lambda [oe? oo?] (
+                open-odd?
+                (sf-lambda [n _] ((oo? oe? oo?) n _))
+                second-arg?
+            ))
+        )
+        (
+            (sf-lambda [oe? oo?] (oo? oe? oo?))
+            (sf-lambda [oe? oo?] (
+                open-even?
+                (sf-lambda [n] ((oe? oe? oo?) n))
+                second-arg?
+            ))
+            (sf-lambda [oe? oo?] (
+                open-odd?
+                (sf-lambda [n _] ((oo? oe? oo?) n _))
+                second-arg?
+            ))
+        )
+    ])
+    (sf-lambda [even? odd?] (lambda [n] (if (= n 0) true (odd? (int-sub n 1) nil)))))
+    (sf-lambda [even? odd?] (lambda [n _] (if (= n 0) false (even? (int-sub n 1))))
+) # evaluates to [even? odd?]
+```
+
+```pavo
+(
+    (sf-lambda [open-triangular] [
+        (
+            (sf-lambda [f] (f f))
+            (sf-lambda [x] (
+                open-triangular
+                (sf-lambda [arg-1 arg-2] ((x x) arg-1 arg-2))
+            ))
+        )
+    ])
+    (sf-lambda [triangular] (lambda [acc n] (if
+        (= n 0) acc
+        (triangular (int-add acc n) (int-sub n 1))
+    )))
+) # evaluates to a function that is equivalent to the recursive definition
+```
+
+```pavo
+(
+    (sf-lambda [e o] (
+        (sf-lambda [f] (f f)) # M combinator
+        (sf-lambda [x] (
+            e
+            (sf-lambda [e_n] ((x x) e_n))
+            (sf-lambda [o_n o_foo] ((x x) o_n o_foo))
+        ))
+    ))
+    (sf-lambda [even? odd?] (lambda [n] (if (= n 0) true (odd? (int-sub n 1) nil)))))
+    (sf-lambda [even? odd?] (lambda [n foo] (if (= n 0) false (even? (int-sub n 1))))
+) # evaluates to even?
+```
+
 ---
 
-TODO more utf8 handling: str->bytes, bytes=>str, bytes=>str?
-
-TODO set-split and map-split, also replace slice with split everywhere
+TODO introduce special form sf-letfn
 
 TODO `require` (dynamic linking, *not* loading)
+
+TODO while and loop should evaluate to last loop body (or nil if none)
 
 ---
 
@@ -4245,30 +4757,4 @@ Defines some functions via `<fns>`, then evaluates to `exp` in an environment in
             (even? (- n 1))
         ))
 } [(even? 10000) (odd? 10000)]) [true false])
-```
-
----
-
-Fixpoint combinator stuff:
-
-```pavo
-# Some explicitly recursive function (infinite loop)
-(fn foo [] (foo))
-
-# Ready for the Y combinator:
-(lambda [r] (lambda [] (r)))
-
-# Y combinator (applicative order since pavo is strict)
-(lambda [g]
-    ((lambda [x] (x x)) (lambda [x]
-        (g (lambda [y] ((x x) y))))))
-
-# omega:
-
-((
-  (lambda [g]
-      ((lambda [x] (x x)) (lambda [x]
-          (g (lambda [y] ((x x) y))))))
-      (fn yfoo [r] (r))
-))
 ```

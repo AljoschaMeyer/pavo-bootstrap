@@ -44,6 +44,8 @@ impl Stack {
             }
         }
 
+        println!("{:?}", id);
+
         unreachable!("Always at least one environment, id can not be unused (caught by static checks)");
     }
 

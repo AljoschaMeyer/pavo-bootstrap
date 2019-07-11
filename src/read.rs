@@ -53,8 +53,8 @@ named!(at_tilde(CompleteStr) -> (), do_parse!(tag!("@~") >> (())));
 
 pub fn is_id_char(c: char) -> bool {
     return c.is_ascii_alphanumeric() || c == '!' || c == '*' || c == '+'
-        || c == '-' || c == '_' || c == '?' || c == '%' || c == '<'
-        || c == '>' || c == '=' || c == '/' || c == '\\'
+        || c == '-' || c == '_' || c == '?' || c == '.' || c == '%'
+        || c == '<' || c == '>' || c == '=' || c == '/' || c == '\\'
         || c == '|' || c == '&';
 }
 

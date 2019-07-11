@@ -171,14 +171,14 @@ mod tests {
         assert_ok("false", Value::bool_(false));
 
         assert_ok("(sf-quote =P)", Value::id_str("=P"));
-        assert_ok("(sf-quote !*+-_?%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ)", Value::id_str("!*+-_?%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
+        assert_ok("(sf-quote !*+-_?.%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ)", Value::id_str("!*+-_?.%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
         assert_ok("(sf-quote abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg)", Value::id_str("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg"));
         assert_any_parse_error("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh");
         assert_any_parse_error("[abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh]");
 
         assert_ok(":!", Value::kw_str("!"));
         assert_ok(":nil", Value::kw_str("nil"));
-        assert_ok(":!*+-_?%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", Value::kw_str("!*+-_?%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
+        assert_ok(":!*+-_?.%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", Value::kw_str("!*+-_?.%<>=/\\&|abcdefghijklmnopqrsstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"));
         assert_ok(":abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg", Value::kw_str("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefg"));
         assert_any_parse_error(":");
         assert_any_parse_error(":abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh");
@@ -848,6 +848,14 @@ mod tests {
         ");
 
         test_example("
+        (assert-eq (bytes-split @[0 1 2] 0) [@[] @[0 1 2]])
+        (assert-eq (bytes-split @[0 1 2] 1) [@[0] @[1 2]])
+        (assert-eq (bytes-split @[0 1 2] 2) [@[0 1] @[2]])
+        (assert-eq (bytes-split @[0 1 2] 3) [@[0 1 2] @[]])
+        (assert-throw (bytes-split @[0 1 2] 4) {:tag :err-lookup})
+        ");
+
+        test_example("
         (assert-eq (bytes-slice @[42 43] 1 1) @[])
         (assert-eq (bytes-slice @[42 43] 0 1) @[42])
         (assert-eq (bytes-slice @[42 43] 1 2) @[43])
@@ -925,6 +933,26 @@ mod tests {
     #[test]
     fn test_toplevel_string() {
         test_example(r#"
+        (assert-eq (str->bytes "") @[])
+        (assert-eq (str->bytes "abc") @[97 98 99])
+        (assert-eq (str->bytes "⚗") @[226 154 151])
+        "#);
+
+        test_example(r#"
+        (assert-eq (bytes=>str @[]) "")
+        (assert-eq (bytes=>str @[97 98 99]) "abc")
+        (assert-eq (bytes=>str @[226 154 151]) "⚗")
+        (assert-throw (bytes=>str @[255]) {:tag :err-utf8})
+        "#);
+
+        test_example(r#"
+        (assert-eq (bytes=>str? @[]) true)
+        (assert-eq (bytes=>str? @[97 98 99]) true)
+        (assert-eq (bytes=>str? @[226 154 151]) true)
+        (assert-eq (bytes=>str? @[255]) false)
+        "#);
+
+        test_example(r#"
         (assert-eq (str-count "") 0)
         (assert-eq (str-count "a") 1)
         (assert-eq (str-count "⚗") 1)
@@ -985,6 +1013,14 @@ mod tests {
         (assert-eq (str-update "ab" 0 'z') "zb")
         (assert-eq (str-update "ab" 1 'z') "az")
         (assert-throw (str-update "ab" 2 'z') { :tag :err-lookup})
+        "#);
+
+        test_example(r#"
+        (assert-eq (str-split "a⚗c" 0) ["" "a⚗c"])
+        (assert-eq (str-split "a⚗c" 1) ["a" "⚗c"])
+        (assert-eq (str-split "a⚗c" 2) ["a⚗" "c"])
+        (assert-eq (str-split "a⚗c" 3) ["a⚗c" ""])
+        (assert-throw (str-split "a⚗c" 4) {:tag :err-lookup})
         "#);
 
         test_example(r#"
@@ -1397,6 +1433,14 @@ mod tests {
         ");
 
         test_example("
+        (assert-eq (arr-split [0 1 2] 0) [[] [0 1 2]])
+        (assert-eq (arr-split [0 1 2] 1) [[0] [1 2]])
+        (assert-eq (arr-split [0 1 2] 2) [[0 1] [2]])
+        (assert-eq (arr-split [0 1 2] 3) [[0 1 2] []])
+        (assert-throw (arr-split [0 1 2] 4) {:tag :err-lookup})
+        ");
+
+        test_example("
         (assert-eq (arr-slice [true false] 1 1) [])
         (assert-eq (arr-slice [true false] 0 1) [true])
         (assert-eq (arr-slice [true false] 1 2) [false])
@@ -1489,6 +1533,14 @@ mod tests {
         (assert-eq (app-update $(0 1) 0 42) $(42 1))
         (assert-eq (app-update $(0 1) 1 42) $(0 42))
         (assert-throw (app-update $(0 1) 2 42) {:tag :err-lookup})
+        ");
+
+        test_example("
+        (assert-eq (app-split $(0 1 2) 0) [$() $(0 1 2)])
+        (assert-eq (app-split $(0 1 2) 1) [$(0) $(1 2)])
+        (assert-eq (app-split $(0 1 2) 2) [$(0 1) $(2)])
+        (assert-eq (app-split $(0 1 2) 3) [$(0 1 2) $()])
+        (assert-throw (app-split $(0 1 2) 4) {:tag :err-lookup})
         ");
 
         test_example("
@@ -1650,15 +1702,27 @@ mod tests {
         (assert-eq (set-symmetric-difference @{} @{}) @{})
         ");
 
-        // test_example("
-        // (assert-eq (set-split @{1 3 5} 0) [@{} @{1 3 5}])
-        // (assert-eq (set-split @{1 3 5} 1) [@{} @{1 3 5}])
-        // (assert-eq (set-split @{1 3 5} 2) [@{1} @{3 5}])
-        // (assert-eq (set-split @{1 3 5} 3) [@{1} @{3 5}])
-        // (assert-eq (set-split @{1 3 5} 4) [@{1 3} @{5}])
-        // (assert-eq (set-split @{1 3 5} 5) [@{1 3} @{5}])
-        // (assert-eq (set-split @{1 3 5} 6) [@{1 3 5} @{}])
-        // ");
+        test_example("
+        (assert-eq (set-split @{1 3 5} 0) [@{} @{1 3 5}])
+        (assert-eq (set-split @{1 3 5} 1) [@{} @{1 3 5}])
+        (assert-eq (set-split @{1 3 5} 2) [@{1} @{3 5}])
+        (assert-eq (set-split @{1 3 5} 3) [@{1} @{3 5}])
+        (assert-eq (set-split @{1 3 5} 4) [@{1 3} @{5}])
+        (assert-eq (set-split @{1 3 5} 5) [@{1 3} @{5}])
+        (assert-eq (set-split @{1 3 5} 6) [@{1 3 5} @{}])
+        ");
+
+        test_example("
+        (assert-eq (set-slice @{1 3} 0 0) @{})
+        (assert-eq (set-slice @{1 3} 0 1) @{})
+        (assert-eq (set-slice @{1 3} 0 2) @{1})
+        (assert-eq (set-slice @{1 3} 1 2) @{1})
+        (assert-eq (set-slice @{1 3} 0 3) @{1})
+        (assert-eq (set-slice @{1 3} 0 4) @{1 3})
+        (assert-eq (set-slice @{1 3} 2 4) @{3})
+        (assert-eq (set-slice @{1 3} 4 0) @{})
+        (assert-eq (set-slice @{1 3} 99 98) @{})
+        ");
 
         test_example("
         (assert-eq (cursor-set-next! (set-cursor-min @{0 1 2})) 0)
@@ -1849,6 +1913,28 @@ mod tests {
         (assert-eq (map-symmetric-difference {0 42, 1 41} {}) {0 42, 1 41})
         (assert-eq (map-symmetric-difference {} {1 41, 2 40}) {1 41, 2 40})
         (assert-eq (map-symmetric-difference {} {}) {})
+        ");
+
+        test_example("
+        (assert-eq (map-split {1 :a 3 :b 5 :c} 0) [{} {1 :a 3 :b 5 :c}])
+        (assert-eq (map-split {1 :a 3 :b 5 :c} 1) [{} {1 :a 3 :b 5 :c}])
+        (assert-eq (map-split {1 :a 3 :b 5 :c} 2) [{1 :a} {3 :b 5 :c}])
+        (assert-eq (map-split {1 :a 3 :b 5 :c} 3) [{1 :a} {3 :b 5 :c}])
+        (assert-eq (map-split {1 :a 3 :b 5 :c} 4) [{1 :a 3 :b} {5 :c}])
+        (assert-eq (map-split {1 :a 3 :b 5 :c} 5) [{1 :a 3 :b} {5 :c}])
+        (assert-eq (map-split {1 :a 3 :b 5 :c} 6) [{1 :a 3 :b 5 :c} {}])
+        ");
+
+        test_example("
+        (assert-eq (map-slice {1 :a 3 :b} 0 0) {})
+        (assert-eq (map-slice {1 :a 3 :b} 0 1) {})
+        (assert-eq (map-slice {1 :a 3 :b} 0 2) {1 :a})
+        (assert-eq (map-slice {1 :a 3 :b} 1 2) {1 :a})
+        (assert-eq (map-slice {1 :a 3 :b} 0 3) {1 :a})
+        (assert-eq (map-slice {1 :a 3 :b} 0 4) {1 :a 3 :b})
+        (assert-eq (map-slice {1 :a 3 :b} 2 4) {3 :b})
+        (assert-eq (map-slice {1 :a 3 :b} 4 0) {})
+        (assert-eq (map-slice {1 :a 3 :b} 99 98) {})
         ");
 
         test_example("
@@ -2411,63 +2497,162 @@ mod tests {
         ]))
         ");
 
+        test_example("
+        (assert-eq (match 42 42 true false) true)
+        (assert-eq (match 42 43 true false) false)
+        (assert-eq (match [] 42 true false) false)
 
+        (assert-eq (match 42 n n false) 42)
 
+        (assert-eq (match [1] [2] true false) false)
+        (assert-eq (match [1] [1] true false) true)
+        (assert-eq (match [1 2] [1 2] true false) true)
+        (assert-eq (match [1] [a] a false) 1)
+        (assert-eq (match [1 2] [a b] (int-add a b) false) 3)
+        (assert-eq (match [1 2] [a 3] (int-add a 3) false) false)
+        (assert-eq (match [1 2] [3 b] (int-add 3 b) false) false)
+        (assert-eq (match [1] [a b] (int-add a b) false) false)
+        (assert-eq (match [1 2 3] [a b] (int-add a b) false) false)
+        (assert-eq (match 42 [a b] (int-add a b) false) false)
 
+        (assert-eq (match {0 42 1 43 2 44} {0 x 1 y} (int-add x y) false) 85)
+        (assert-eq (match {0 42 2 44} {0 x 1 y} (int-add x y) false) false)
 
+        (assert-eq (match $(1) (:app 2) true false) false)
+        (assert-eq (match $(1) (:app 1) true false) true)
+        (assert-eq (match $(1 2) (:app 1 2) true false) true)
+        (assert-eq (match $(1) (:app a) a false) 1)
+        (assert-eq (match $(1 2) (:app a b) (int-add a b) false) 3)
+        (assert-eq (match $(1 2) (:app a 3) (int-add a 3) false) false)
+        (assert-eq (match $(1 2) (:app 3 b) (int-add 3 b) false) false)
+        (assert-eq (match $(1) (:app a b) (int-add a b) false) false)
+        (assert-eq (match $(1 2 3) (:app a b) (int-add a b) false) false)
+        (assert-eq (match 42 (:app a b) (int-add a b) false) false)
 
+        (assert-eq (match 42 (:mut n) n false) 42)
+        (assert-eq (match 42 (:mut n) (do [(set! n (int-add n 1)) n]) false) 43)
+
+        (assert-eq (match 42 (:guard n (>= n 17)) n false) 42)
+        (assert-eq (match 16 (:guard n (>= n 17)) n false) false)
+        (assert-eq (match [42 3] [(:guard n (>= n 17)) (:guard n (< n 17))] n false) 3)
+        (assert-eq (match [42 43] [(:guard n (>= n 17)) (:guard m (< n m))] [m n] false) [43 42])
+
+        (assert-eq (match [42] (:named outer [inner]) outer false) [42])
+        (assert-eq (match [42] (:named outer [inner]) inner false) 42)
+        (assert-eq (match [42] (:named x [x]) x false) 42)
+        (assert-eq (match [42] (:named (:mut outer) [inner]) (do [(set! outer (arr-update outer 0 17)) outer]) false) [17])
+
+        (assert-eq (match {0 42 1 43} (:map-exact {0 x 1 y}) (int-add x y) false) 85)
+        (assert-eq (match {0 42 1 43 2 44} (:map-exact {0 x 1 y}) (int-add x y) false) false)
+        (assert-eq (match {0 42} (:map-exact {0 x 1 y}) (int-add x y) false) false)
+
+        (assert-eq (match 42 (:= 42) true false) true)
+        (assert-eq (match 42 (:= 43) true false) false)
+
+        (assert-eq (match 42 (:typeof :int) true false) true)
+        (assert-eq (match 42 (:typeof :float) true false) false)
+
+        (assert-throw (macro-match 42 @{} true false) {:tag :err-pattern})
+        (assert-throw (macro-match [42] [@{}] true false) {:tag :err-pattern})
+        (assert-throw (macro-match 42 $() true false) {:tag :err-pattern})
+        (assert-throw (macro-match 42 $(:llll) true false) {:tag :err-pattern})
+        (assert-throw (macro-match 42 $(:mut) true false) {:tag :err-pattern})
+        (assert-throw (macro-match 42 $(:mut a b) true false) {:tag :err-pattern})
+        (assert-throw (macro-match 42 $(:guard a) true false) {:tag :err-pattern})
+        (assert-throw (macro-match 42 $(:guard a b c) true false) {:tag :err-pattern})
+        (assert-throw (macro-match 42 $(:named a) true false) {:tag :err-pattern})
+        (assert-throw (macro-match 42 $(:named a b c) true false) {:tag :err-pattern})
+        (assert-throw (macro-match 42 $(:named [a] b) true false) {:tag :err-pattern})
+        (assert-throw (macro-match [42] $(:map-exact [a]) true false) {:tag :err-pattern})
+        ");
+
+        test_example("
+        (assert-eq (case 0 [0 42 1 43 :else]) 42)
+        (assert-eq (case 1 [0 42 1 43 :else]) 43)
+        (assert-eq (case 2 [0 42 1 43 :else]) :else)
+        (assert-eq (case 2 [0 42 1 43]) nil)
+        ");
+
+        test_example("
+        (assert-eq (loop 0 [1 2]) nil)
+
+        (assert-eq
+            (do [
+                (:let (:mut sum) 0)
+                (:let (:mut n) 0)
+                (loop n [
+                    (:guard x (<= x 10000)) (do [
+                            (set! sum (int-add sum x))
+                            (set! n (int-add n 1))
+                        ])
+                    :foo :bar
+                ])
+                sum
+            ])
+            50005000 # 50005000 == 1 + 2 + ... + 10000
+        )
+        ");
 
         // test_example("
-        // (lambda [r] (lambda [] (r)))
-        // ");
-
-        // test_example("
-        // (lambda [g]
-        //     ((lambda [x] (x x)) (lambda [x]
-        //         (g (lambda [y] ((x x) y))))))
-        // ");
-
-        // test_example("
-        // ((
-        //     (lambda [g]
-        //         (
-        //             (lambda [f] (f f))
-        //             (lambda [x] (
-        //                 g
-        //                 (lambda [] ((x x)))
-        //             ))
-        //         )
+        // (assert-eq
+        //     (
+        //         (fn triangular [acc n] (if
+        //             (= n 0) acc
+        //             (triangular (int-add acc n) (int-sub n 1))
+        //         ))
+        //         0 10000
         //     )
-        //     (lambda [r] (lambda [] (r)))
-        // ))
+        //     50005000 # 50005000 == 1 + 2 + ... + 10000
+        // )
         // ");
+        //
+        // test_example("
+        // (assert-eq
+        //     (do [
+        //         (:let (:mut sum) 0)
+        //         (:let (:mut n) 0)
+        //         (while (<= n 10000) (do [
+        //             (set! sum (int-add sum n))
+        //             (set! n (int-add n 1))
+        //         ]))
+        //         sum
+        //     ])
+        //     50005000 # 50005000 == 1 + 2 + ... + 10000
+        // )
+        // ");
+
 
         // test_example("
         // ((
-        //     (lambda [g]
-        //         ((lambda [x] (x x)) (lambda [x]
-        //             (g (lambda [y] ((x x) y))))))
-        //     (lambda [r] (lambda [n] (if
-        //             (= n 0) 0
-        //             (= (int-mod n 10000) 0) (do (trace n) (r (int-sub n 1)))
-        //             (r (int-sub n 1))
-        //         )))
-        // ) 999999)
+        //     (sf-lambda [even? odd?] (lambda [n foo] (if (= n 0) false (even? (int-sub n 1)))))
+        //     nil nil) 0 :foo)
         // ");
 
         // test_example("
-        // ((
-        //     (lambda [g]
-        //         (
-        //             (lambda [f] (f f))
-        //             (lambda [x] (
-        //                 g
-        //                 (lambda [arg0 arg1] ((x x) arg0 arg1))
+        // (assert-eq
+        //
+        // (
+        //     (
+        //         (sf-lambda [e o] (
+        //             (sf-lambda [f] (f f)) # M combinator
+        //             (sf-lambda [x] (
+        //                 e
+        //                 (sf-lambda [e_n] ((x x) e_n))
+        //                 (sf-lambda [o_n o_foo] ((x x) o_n o_foo))
         //             ))
-        //         )
-        //     )
-        //     (lambda [r] (lambda [a b] (r a b)))
-        // ) 0 1)
+        //         ))
+        //         (sf-lambda [even? odd?] (lambda [n] (if (= n 0) true (odd? (int-sub n 1) nil))))
+        //         (sf-lambda [even? odd?] (lambda [n foo] (if (= n 0) false (even? (int-sub n 1)))))
+        //     ) # evaluates to even? (hopefully...)
+        //     10
+        // )
+        //
+        // true)
         // ");
+
+
+
+
+
     }
 }

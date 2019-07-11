@@ -40,6 +40,18 @@ pub fn typeof__(v: &Value) -> Value {
     }
 }
 
+pub fn utf8_error() -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-utf8")),
+        ])))
+}
+
+pub fn pattern_error() -> Value {
+    Value::map(OrdMap(ImOrdMap::from(vec![
+            (Value::kw_str("tag"), Value::kw_str("err-pattern")),
+        ])))
+}
+
 pub fn static_error() -> Value {
     Value::map(OrdMap(ImOrdMap::from(vec![
             (Value::kw_str("tag"), Value::kw_str("err-static")),
@@ -860,6 +872,19 @@ pub fn bytes_update(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Val
     Ok(Value::bytes(Vector(b.0.update(index, elem))))
 }
 
+pub fn bytes_split(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let b = bytes!(args.0[0]);
+    let i = index_incl!(&b, int!(args.0[1]));
+
+    let (left, right) = b.0.split_at(i);
+
+    return Ok(Value::arr_from_vec(vec![
+        Value::bytes(Vector(left)),
+        Value::bytes(Vector(right)),
+        ]));
+}
+
 pub fn bytes_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 3)?;
     let b = bytes!(args.0[0]);
@@ -969,6 +994,35 @@ pub fn char_to_int(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
 
 /////////////////////////////////////////////////////////////////////////////
 
+pub fn str_to_bytes(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let s = string!(args.0[0]);
+
+    return Ok(Value::bytes(Vector(s.0.bytes().collect())));
+}
+
+pub fn bytes_to_str(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let b = bytes!(args.0[0]);
+
+    let tmp: Vec<u8> = b.0.iter().map(|byte| *byte).collect();
+    match std::str::from_utf8(&tmp) {
+        Ok(yay) => return Ok(Value::string(Rope(Ropey::from_str(yay)))),
+        Err(_) => return Err(utf8_error()),
+    }
+}
+
+pub fn is_bytes_to_str(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let b = bytes!(args.0[0]);
+
+    let tmp: Vec<u8> = b.0.iter().map(|byte| *byte).collect();
+    match std::str::from_utf8(&tmp) {
+        Ok(_) => return Ok(Value::bool_(true)),
+        Err(_) => return Ok(Value::bool_(false)),
+    }
+}
+
 pub fn str_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 1)?;
     let s = string!(args.0[0]);
@@ -1051,6 +1105,20 @@ pub fn str_update(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value
     new.insert_char(index, elem);
 
     Ok(Value::string(Rope(new)))
+}
+
+pub fn str_split(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let s = string!(args.0[0]);
+    let i = index_char_incl!(&s, int!(args.0[1]));
+
+    let mut left = s.0.clone();
+    let right = left.split_off(i);
+
+    return Ok(Value::arr_from_vec(vec![
+        Value::string(Rope(left)),
+        Value::string(Rope(right)),
+        ]));
 }
 
 pub fn str_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
@@ -1632,6 +1700,19 @@ pub fn arr_update(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value
     Ok(Value::arr(Vector(arr.0.update(index, elem.clone()))))
 }
 
+pub fn arr_split(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let arr = arr!(args.0[0]);
+    let i = index_incl!(&arr, int!(args.0[1]));
+
+    let (left, right) = arr.0.split_at(i);
+
+    return Ok(Value::arr_from_vec(vec![
+        Value::arr(Vector(left)),
+        Value::arr(Vector(right)),
+        ]));
+}
+
 pub fn arr_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 3)?;
     let arr = arr!(args.0[0]);
@@ -1760,6 +1841,19 @@ pub fn app_update(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value
     let elem = args.0[2].clone();
 
     Ok(Value::app(Vector(app.0.update(index, elem))))
+}
+
+pub fn app_split(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let app = app!(args.0[0]);
+    let i = index_incl!(&app, int!(args.0[1]));
+
+    let (left, right) = app.0.split_at(i);
+
+    return Ok(Value::arr_from_vec(vec![
+        Value::app(Vector(left)),
+        Value::app(Vector(right)),
+        ]));
 }
 
 pub fn app_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
@@ -1998,19 +2092,33 @@ pub fn set_symmetric_difference(args: Vector<Value>, _cx: &mut Context) -> Resul
     Ok(Value::set(OrdSet(ret)))
 }
 
-// pub fn set_split(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-//     num_args(&args, 2)?;
-//     let set = set!(args.0[0]);
-//     let (left, member, mut right) = set.0.split_member(&args.0[1]);
-//     if member {
-//         right.insert(args.0[1].clone());
-//     }
-//
-//     return Ok(Value::arr_from_vec(vec![
-//         Value::set(OrdSet(left)),
-//         Value::set(OrdSet(right)),
-//         ]));
-// }
+// FIXME: This is O(n), pavo requires O(log n)
+pub fn set_split(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let set = set!(args.0[0]);
+    let (left, member, mut right) = set.0.split_member(&args.0[1]);
+    if member {
+        right.insert(args.0[1].clone());
+    }
+
+    return Ok(Value::arr_from_vec(vec![
+        Value::set(OrdSet(left)),
+        Value::set(OrdSet(right)),
+        ]));
+}
+
+// FIXME: This is O(n), pavo requires O(log n)
+pub fn set_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let set = set!(args.0[0]);
+    let (tmp, _) = set.0.split(&args.0[2]);
+    let (_, member, mut ret) = tmp.split_member(&args.0[1]);
+    if member {
+        ret.insert(args.0[1].clone());
+    }
+
+    return Ok(Value::set(OrdSet(ret)));
+}
 
 pub fn set_cursor_min(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 1)?;
@@ -2272,6 +2380,34 @@ pub fn map_symmetric_difference(args: Vector<Value>, _cx: &mut Context) -> Resul
 
     let ret = lhs.0.difference(rhs.0);
     Ok(Value::map(OrdMap(ret)))
+}
+
+// FIXME: This is O(n), pavo requires O(log n)
+pub fn map_split(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let map = map!(args.0[0]);
+    let (left, member, mut right) = map.0.split_lookup(&args.0[1]);
+    if let Some(v) = member {
+        right.insert(args.0[1].clone(), v);
+    }
+
+    return Ok(Value::arr_from_vec(vec![
+        Value::map(OrdMap(left)),
+        Value::map(OrdMap(right)),
+        ]));
+}
+
+// FIXME: This is O(n), pavo requires O(log n)
+pub fn map_slice(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let map = map!(args.0[0]);
+    let (tmp, _) = map.0.split(&args.0[2]);
+    let (_, member, mut ret) = tmp.split_lookup(&args.0[1]);
+    if let Some(v) = member {
+        ret.insert(args.0[1].clone(), v);
+    }
+
+    return Ok(Value::map(OrdMap(ret)));
 }
 
 pub fn map_cursor_min(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
@@ -3046,11 +3182,485 @@ pub fn macro_quasiquote(args: Vector<Value>, cx: &mut Context) -> Result<Value, 
     return quasiquote(&args.0[0], &mut HashMap::new(), cx);
 }
 
-// TODO: proper implementation (named recursion, pattern matching)
-pub fn macro_fn(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    num_args(&args, 2)?;
+// returns the y combinator for functions of k arguments:
+//
+// (lsf-ambda [g] (
+//     (sf-lambda [f] (f f)) # the M combinator
+//     (sf-lambda [x] (
+//         g
+//         (sf-lambda [arg-1 arg-2 ,,, arg-k] ((x x) arg-1 arg-2 ,,, arg-k))
+//     ))
+// ))
+fn y_k(k: u64, cx: &mut Context) -> Value {
+    let g = Value::Id(Id::Symbol(cx.next_symbol_id()));
+    let f = Value::Id(Id::Symbol(cx.next_symbol_id()));
+    let x = Value::Id(Id::Symbol(cx.next_symbol_id()));
+    let mut args: ImVector<Value> = ImVector::new();
+    for _ in 0..k {
+        args.push_back(Value::Id(Id::Symbol(cx.next_symbol_id())));
+    }
+    let mut args_to_x_x = args.clone();
+    args_to_x_x.push_front(Value::app_from_vec(vec![x.clone(), x.clone()]));
 
-    Ok(Value::app_from_vec(vec![Value::id_str("sf-lambda"), args.0[0].clone(), args.0[1].clone()]))
+    return Value::app_from_vec(vec![
+            Value::id_str("sf-lambda"),
+            Value::arr_from_vec(vec![g.clone()]),
+            Value::app_from_vec(vec![
+                    Value::app_from_vec(vec![
+                            Value::id_str("sf-lambda"),
+                            Value::arr_from_vec(vec![f.clone()]),
+                            Value::app_from_vec(vec![f.clone(), f.clone()]),
+                        ]),
+                    Value::app_from_vec(vec![
+                            Value::id_str("sf-lambda"),
+                            Value::arr_from_vec(vec![x.clone()]),
+                            Value::app_from_vec(vec![
+                                    g,
+                                    Value::app_from_vec(vec![
+                                            Value::id_str("sf-lambda"),
+                                            Value::arr(Vector(args)),
+                                            Value::app(Vector(args_to_x_x)),
+                                        ]),
+                                ]),
+                        ]),
+                ]),
+        ]);
+}
+
+pub fn macro_fn(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 3)?;
+    let name = id!(args.0[0]);
+    let fn_args = arr!(args.0[1]);
+
+    return Ok(Value::app_from_vec(vec![
+        y_k(fn_args.0.len() as u64, cx),
+        Value::app_from_vec(vec![
+            Value::id_str("sf-lambda"),
+            Value::arr_from_vec(vec![Value::id(name)]),
+            Value::app_from_vec(vec![
+                Value::id_str("lambda"),
+                args.0[1].clone(),
+                args.0[2].clone(),
+            ]),
+        ]),
+    ]));
+}
+
+pub fn macro_while(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let rec = Value::Id(Id::Symbol(cx.next_symbol_id()));
+
+    return Ok(Value::app_from_vec(vec![
+            Value::app_from_vec(vec![
+                Value::id_str("fn"),
+                rec.clone(),
+                Value::arr(Vector(ImVector::new())),
+                Value::app_from_vec(vec![
+                    Value::id_str("sf-if"),
+                    args.0[0].clone(),
+                    Value::app_from_vec(vec![
+                        Value::id_str("sf-do"),
+                        Value::arr_from_vec(vec![
+                            args.0[1].clone(),
+                            Value::app_from_vec(vec![rec]),
+                            ]),
+                        ]),
+                    Value::nil(),
+                ]),
+            ])
+        ]));
+}
+
+// nay is an identifier bound to a thunk that evaluates the non-matching expression
+fn match_arr(v: Value, patterns: &Vector<Value>, yay: Value, nay: Value, i: usize, cx: &mut Context) -> Result<Value, Value> {
+    if i < patterns.0.len() {
+        return Ok(macro_match_(
+            Value::app_from_vec(vec![
+                Value::builtin(value::Builtin::ArrGet),
+                v.clone(),
+                Value::int(i as i64),
+                ]),
+            patterns.0[i].clone(),
+            match_arr(v, patterns, yay, nay.clone(), i + 1, cx)?,
+            nay,
+            cx,
+        )?);
+    } else {
+        return Ok(yay);
+    }
+}
+
+// nay is an identifier bound to a thunk that evaluates the non-matching expression
+fn match_app(v: Value, patterns: &Vector<Value>, yay: Value, nay: Value, i: usize, cx: &mut Context) -> Result<Value, Value> {
+    if i < patterns.0.len() {
+        return Ok(macro_match_(
+            Value::app_from_vec(vec![
+                Value::builtin(value::Builtin::AppGet),
+                v.clone(),
+                Value::int((i - 1) as i64),
+                ]),
+            patterns.0[i].clone(),
+            match_app(v, patterns, yay, nay.clone(), i + 1, cx)?,
+            nay,
+            cx,
+        )?);
+    } else {
+        return Ok(yay);
+    }
+}
+
+// nay is an identifier bound to a thunk that evaluates the non-matching expression
+fn match_map(v: Value, patterns: OrdMap<Value, Value>, yay: Value, nay: Value, cx: &mut Context) -> Result<Value, Value> {
+    match patterns.0.get_min() {
+        None => return Ok(yay),
+        Some((k, p)) => return Ok(
+            Value::app_from_vec(vec![
+                Value::id_str("sf-if"),
+                Value::app_from_vec(vec![
+                    Value::builtin(value::Builtin::MapContains),
+                    v.clone(),
+                    k.clone(),
+                    ]),
+                macro_match_(
+                    Value::app_from_vec(vec![
+                        Value::builtin(value::Builtin::MapGet),
+                        v.clone(),
+                        k.clone(),
+                        ]),
+                    p.clone(),
+                    match_map(v, OrdMap(patterns.0.without(k)), yay, nay.clone(), cx)?,
+                    nay.clone(),
+                    cx,
+                )?,
+                Value::app_from_vec(vec![nay]),
+                ]),
+        ),
+    }
+}
+
+// nay is an identifier bound to a thunk that evaluates the non-matching expression
+fn macro_match_(v: Value, p: Value, yay: Value, nay: Value, cx: &mut Context) -> Result<Value, Value> {
+    match &p {
+        Value::Atomic(..) => return Ok(Value::app_from_vec(vec![
+            Value::id_str("sf-if"),
+            Value::app_from_vec(vec![
+                Value::builtin(value::Builtin::Eq),
+                v.clone(),
+                p.clone(),
+                ]),
+            yay.clone(),
+            Value::app_from_vec(vec![nay.clone()]),
+            ])),
+        Value::Id(..) => return Ok(Value::app_from_vec(vec![
+            Value::app_from_vec(vec![
+                Value::id_str("sf-lambda"),
+                Value::arr_from_vec(vec![p.clone()]),
+                yay.clone(),
+                ]),
+            v.clone(),
+            ])),
+        Value::Arr(arr) => {
+            let sym = Value::Id(Id::Symbol(cx.next_symbol_id()));
+
+            return Ok(Value::app_from_vec(vec![
+                Value::id_str("let"),
+                sym.clone(),
+                v,
+                Value::app_from_vec(vec![
+                    Value::id_str("sf-if"),
+                    Value::app_from_vec(vec![
+                        Value::id_str("&&"),
+                        Value::app_from_vec(vec![
+                            Value::builtin(value::Builtin::Eq),
+                            Value::app_from_vec(vec![
+                                Value::builtin(value::Builtin::Typeof),
+                                sym.clone(),
+                                ]),
+                            Value::kw_str("array"),
+                            ]),
+                        Value::app_from_vec(vec![
+                            Value::builtin(value::Builtin::Eq),
+                            Value::app_from_vec(vec![
+                                Value::builtin(value::Builtin::ArrCount),
+                                sym.clone(),
+                                ]),
+                            Value::int(arr.0.len() as i64),
+                            ])
+                        ]),
+                    match_arr(sym, arr, yay, nay.clone(), 0, cx)?,
+                    Value::app_from_vec(vec![nay.clone()]),
+                    ]),
+                ]));
+        }
+        Value::Map(map) => {
+            let sym = Value::Id(Id::Symbol(cx.next_symbol_id()));
+
+            return Ok(Value::app_from_vec(vec![
+                Value::id_str("let"),
+                sym.clone(),
+                v,
+                Value::app_from_vec(vec![
+                    Value::id_str("sf-if"),
+                    Value::app_from_vec(vec![
+                        Value::builtin(value::Builtin::Eq),
+                        Value::app_from_vec(vec![
+                            Value::builtin(value::Builtin::Typeof),
+                            sym.clone(),
+                            ]),
+                        Value::kw_str("map"),
+                        ]),
+                    match_map(sym, map.clone(), yay, nay.clone(), cx)?,
+                    Value::app_from_vec(vec![nay.clone()]),
+                    ]),
+                ]));
+        }
+        Value::App(app) if app.0.len() > 0 => {
+            let sym = Value::Id(Id::Symbol(cx.next_symbol_id()));
+
+            match app.0[0].as_kw() {
+                Some("app") => return Ok(Value::app_from_vec(vec![
+                    Value::id_str("let"),
+                    sym.clone(),
+                    v,
+                    Value::app_from_vec(vec![
+                        Value::id_str("sf-if"),
+                        Value::app_from_vec(vec![
+                            Value::id_str("&&"),
+                            Value::app_from_vec(vec![
+                                Value::builtin(value::Builtin::Eq),
+                                Value::app_from_vec(vec![
+                                    Value::builtin(value::Builtin::Typeof),
+                                    sym.clone(),
+                                    ]),
+                                Value::kw_str("application"),
+                                ]),
+                            Value::app_from_vec(vec![
+                                Value::builtin(value::Builtin::Eq),
+                                Value::app_from_vec(vec![
+                                    Value::builtin(value::Builtin::AppCount),
+                                    sym.clone(),
+                                    ]),
+                                Value::int((app.0.len() - 1) as i64),
+                                ])
+                            ]),
+                        match_app(sym, app, yay, nay.clone(), 1, cx)?,
+                        Value::app_from_vec(vec![nay.clone()]),
+                        ]),
+                    ])),
+
+                Some("mut") if app.0.len() == 2 => return Ok(Value::app_from_vec(vec![
+                    Value::id_str("let"),
+                    p,
+                    v,
+                    yay
+                    ])),
+
+                Some("guard") if app.0.len() == 3 => return macro_match_(
+                    v,
+                    app.0[1].clone(),
+                    Value::app_from_vec(vec![
+                        Value::id_str("sf-if"),
+                        app.0[2].clone(),
+                        yay,
+                        Value::app_from_vec(vec![nay.clone()]),
+                        ]),
+                    nay,
+                    cx,
+                ),
+
+                Some("named") if app.0.len() == 3 => {
+                    let sym = Value::Id(Id::Symbol(cx.next_symbol_id()));
+
+                    match app.0[1].as_id() {
+                        Some(_) => {},
+                        None => match app.0[1].as_app() {
+                            Some(inner) if inner.0.len() == 2 => {
+                                match inner.0[0].as_kw() {
+                                    Some("mut") => {
+                                        match inner.0[1].as_id() {
+                                            Some(_) => {}
+                                            None => return Err(pattern_error()),
+                                        }
+                                    }
+                                    _ => return Err(pattern_error()),
+                                }
+                            }
+                            _ => return Err(pattern_error()),
+                        }
+                    }
+
+                    return Ok(Value::app_from_vec(vec![
+                        Value::id_str("let"), // TODO what happens if this doesn't match?
+                        sym.clone(),
+                        v,
+                        Value::app_from_vec(vec![
+                            Value::id_str("let"),
+                            app.0[1].clone(),
+                            sym.clone(),
+                            macro_match_(sym.clone(), app.0[2].clone(), yay, nay, cx)?,
+                            ]),
+                        ]));
+                }
+
+                Some("map-exact") if app.0.len() == 2 => {
+                    match app.0[1].as_map() {
+                        None => return Err(pattern_error()),
+                        Some(map) => {
+                            let sym = Value::Id(Id::Symbol(cx.next_symbol_id()));
+
+                            return Ok(Value::app_from_vec(vec![
+                                Value::id_str("let"),
+                                sym.clone(),
+                                v,
+                                Value::app_from_vec(vec![
+                                    Value::id_str("sf-if"),
+                                    Value::app_from_vec(vec![
+                                        Value::id_str("&&"),
+                                        Value::app_from_vec(vec![
+                                            Value::builtin(value::Builtin::Eq),
+                                            Value::app_from_vec(vec![
+                                                Value::builtin(value::Builtin::Typeof),
+                                                sym.clone(),
+                                                ]),
+                                            Value::kw_str("map"),
+                                            ]),
+                                        Value::app_from_vec(vec![
+                                            Value::builtin(value::Builtin::Eq),
+                                            Value::app_from_vec(vec![
+                                                Value::builtin(value::Builtin::MapCount),
+                                                sym.clone(),
+                                                ]),
+                                            Value::int(map.0.len() as i64),
+                                            ])
+                                        ]),
+                                    match_map(sym, map.clone(), yay, nay.clone(), cx)?,
+                                    Value::app_from_vec(vec![nay.clone()]),
+                                    ]),
+                                ]));
+                        }
+                    }
+                }
+
+                Some("=") if app.0.len() == 2 => return Ok(Value::app_from_vec(vec![
+                    Value::id_str("sf-if"),
+                    Value::app_from_vec(vec![
+                        Value::builtin(value::Builtin::Eq),
+                        v.clone(),
+                        app.0[1].clone(),
+                        ]),
+                    yay.clone(),
+                    Value::app_from_vec(vec![nay.clone()]),
+                    ])),
+
+                Some("typeof") if app.0.len() == 2 => return Ok(Value::app_from_vec(vec![
+                    Value::id_str("sf-if"),
+                    Value::app_from_vec(vec![
+                        Value::builtin(value::Builtin::Eq),
+                        Value::app_from_vec(vec![
+                            Value::builtin(value::Builtin::Typeof),
+                            v.clone(),
+                            ]),
+                        app.0[1].clone(),
+                        ]),
+                    yay.clone(),
+                    Value::app_from_vec(vec![nay.clone()]),
+                    ])),
+
+                _ => return Err(pattern_error()),
+            }
+        }
+        _ => return Err(pattern_error()),
+    }
+}
+
+pub fn macro_match(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 4)?;
+    let sym = Value::Id(Id::Symbol(cx.next_symbol_id()));
+    let nay_thunk = Value::app_from_vec(vec![
+        Value::id_str("sf-lambda"),
+        Value::arr_from_vec(vec![]),
+        args.0[3].clone(),
+        ]);
+
+    return Ok(Value::app_from_vec(vec![
+        Value::id_str("let"),
+        sym.clone(),
+        nay_thunk,
+        macro_match_(args.0[0].clone(), args.0[1].clone(), args.0[2].clone(), sym, cx)?,
+        ]));
+}
+
+// nay is an identifier bound to a thunk that evaluates the non-matching expression
+fn macro_case_(v: Value, branches: Vector<Value>, nay: Value, cx: &mut Context) -> Result<Value, Value> {
+    if branches.0.len() <= 1 {
+        return Ok(nay.clone());
+    } else {
+        let mut tmp = ImVector::new();
+        tmp.push_back(v.clone());
+        tmp.push_back(branches.0[0].clone());
+        tmp.push_back(branches.0[1].clone());
+        tmp.push_back(macro_case_(v, Vector(branches.0.skip(2)), nay, cx)?);
+        return macro_match(Vector(tmp), cx);
+    }
+}
+
+pub fn macro_case(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let arr = arr!(args.0[1]);
+
+    let sym_v = Value::Id(Id::Symbol(cx.next_symbol_id()));
+
+    let sym_nay = Value::Id(Id::Symbol(cx.next_symbol_id()));
+    let nay = if arr.0.len() % 2 == 0 {
+        Value::nil()
+    } else {
+        arr.0[arr.0.len() - 1].clone()
+    };
+
+    return Ok(Value::app_from_vec(vec![
+        Value::id_str("let"),
+        sym_nay.clone(),
+        nay,
+        Value::app_from_vec(vec![
+            Value::id_str("let"),
+            sym_v.clone(),
+            args.0[0].clone(),
+            macro_case_(sym_v, Vector(arr.0.clone()), sym_nay, cx)?
+            ]),
+        ]));
+}
+
+pub fn macro_loop(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let arr = arr!(args.0[1]);
+    let rec = Value::Id(Id::Symbol(cx.next_symbol_id()));
+
+    let branches: ImVector<Value> = arr.0.iter().enumerate().map(|(i, v)| {
+        if i % 2 == 0 {
+            v.clone()
+        } else {
+            Value::app_from_vec(vec![
+                Value::id_str("sf-do"),
+                Value::arr_from_vec(vec![
+                    v.clone(),
+                    Value::app_from_vec(vec![rec.clone()]),
+                    ]),
+                ])
+        }
+    }).collect();
+
+    return Ok(Value::app_from_vec(vec![
+            Value::app_from_vec(vec![
+                Value::id_str("fn"),
+                rec,
+                Value::arr(Vector(ImVector::new())),
+                Value::app_from_vec(vec![
+                    Value::id_str("case"),
+                    args.0[0].clone(),
+                    Value::arr(Vector(branches)),
+                ]),
+            ])
+        ]));
 }
 
 // TODO: proper implementation (pattern matching)

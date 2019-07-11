@@ -57,6 +57,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "bytes-insert", Builtin::BytesInsert);
     env_add(&mut m, "bytes-remove", Builtin::BytesRemove);
     env_add(&mut m, "bytes-update", Builtin::BytesUpdate);
+    env_add(&mut m, "bytes-split", Builtin::BytesSplit);
     env_add(&mut m, "bytes-slice", Builtin::BytesSlice);
     env_add(&mut m, "bytes-splice", Builtin::BytesSplice);
     env_add(&mut m, "bytes-concat", Builtin::BytesConcat);
@@ -67,6 +68,9 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "int=>char?", Builtin::IsIntToChar);
     env_add(&mut m, "char->int", Builtin::CharToInt);
 
+    env_add(&mut m, "str->bytes", Builtin::StrToBytes);
+    env_add(&mut m, "bytes=>str", Builtin::BytesToStr);
+    env_add(&mut m, "bytes=>str?", Builtin::IsBytesToStr);
     env_add(&mut m, "str-count", Builtin::StrCount);
     env_add(&mut m, "str-count-utf8", Builtin::StrCountUtf8);
     env_add(&mut m, "str-get", Builtin::StrGet);
@@ -76,6 +80,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "str-insert", Builtin::StrInsert);
     env_add(&mut m, "str-remove", Builtin::StrRemove);
     env_add(&mut m, "str-update", Builtin::StrUpdate);
+    env_add(&mut m, "str-split", Builtin::StrSplit);
     env_add(&mut m, "str-slice", Builtin::StrSlice);
     env_add(&mut m, "str-splice", Builtin::StrSplice);
     env_add(&mut m, "str-concat", Builtin::StrConcat);
@@ -144,6 +149,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "arr-insert", Builtin::ArrInsert);
     env_add(&mut m, "arr-remove", Builtin::ArrRemove);
     env_add(&mut m, "arr-update", Builtin::ArrUpdate);
+    env_add(&mut m, "arr-split", Builtin::ArrSplit);
     env_add(&mut m, "arr-slice", Builtin::ArrSlice);
     env_add(&mut m, "arr-splice", Builtin::ArrSplice);
     env_add(&mut m, "arr-concat", Builtin::ArrConcat);
@@ -155,6 +161,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "app-insert", Builtin::AppInsert);
     env_add(&mut m, "app-remove", Builtin::AppRemove);
     env_add(&mut m, "app-update", Builtin::AppUpdate);
+    env_add(&mut m, "app-split", Builtin::AppSplit);
     env_add(&mut m, "app-slice", Builtin::AppSlice);
     env_add(&mut m, "app-splice", Builtin::AppSplice);
     env_add(&mut m, "app-concat", Builtin::AppConcat);
@@ -175,7 +182,8 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "set-intersection", Builtin::SetIntersection);
     env_add(&mut m, "set-difference", Builtin::SetDifference);
     env_add(&mut m, "set-symmetric-difference", Builtin::SetSymmetricDifference);
-    // env_add(&mut m, "set-split", Builtin::SetSplit);
+    env_add(&mut m, "set-split", Builtin::SetSplit);
+    env_add(&mut m, "set-slice", Builtin::SetSlice);
     env_add(&mut m, "set-cursor-min", Builtin::SetCursorMin);
     env_add(&mut m, "set-cursor-max", Builtin::SetCursorMax);
     env_add(&mut m, "set-cursor-<", Builtin::SetCursorLessStrict);
@@ -202,6 +210,8 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "map-intersection", Builtin::MapIntersection);
     env_add(&mut m, "map-difference", Builtin::MapDifference);
     env_add(&mut m, "map-symmetric-difference", Builtin::MapSymmetricDifference);
+    env_add(&mut m, "map-split", Builtin::MapSplit);
+    env_add(&mut m, "map-slice", Builtin::MapSlice);
     env_add(&mut m, "map-cursor-min", Builtin::MapCursorMin);
     env_add(&mut m, "map-cursor-max", Builtin::MapCursorMax);
     env_add(&mut m, "map-cursor-<", Builtin::MapCursorLessStrict);
@@ -283,7 +293,10 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "macro-or2", Builtin::MacroOr2);
     env_add(&mut m, "macro-and2", Builtin::MacroAnd2);
     env_add(&mut m, "macro-quasiquote", Builtin::MacroQuasiquote);
-    // TODO remaining macro functions
+    env_add(&mut m, "macro-while", Builtin::MacroWhile);
+    env_add(&mut m, "macro-match", Builtin::MacroMatch);
+    env_add(&mut m, "macro-case", Builtin::MacroCase);
+    env_add(&mut m, "macro-loop", Builtin::MacroLoop);
 
     m
 }
