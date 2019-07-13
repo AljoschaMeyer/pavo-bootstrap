@@ -78,6 +78,8 @@ pub fn expand(v: &Value, env: &HashMap<Id, (Value, bool)>, macros: &ImOrdMap<Id,
                     expand(&vals.0[3], env, &new_macros, cx)
                 }
 
+                // TODO preven other special forms from being treated as macros (but still expand their bodies)
+
                 Value::Id(id) => match macros.get(id) {
                     Some(macro_) => {
                         match macro_ {

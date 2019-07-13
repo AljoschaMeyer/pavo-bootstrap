@@ -304,19 +304,19 @@ If the number of inner entries exceeds 2^63-1 (before eliminating entries with d
 
 The previous expressions have all been *literals*. There are five more expressions that serve as shorthands for commonly used literals:
 
-- A dollar sign `$` followed by an expression `exp` is parsed to the same value as `(quote exp)`
+- A dollar sign `$` followed by an expression `exp` is parsed to the same value as `(sf-quote exp)`
 - A backtick `\`` followed by an expression `exp` is parsed to the same value as `(quasiquote exp)`
 - A tilde `~` followed by an expression `exp` is parsed to the same value as `(:unquote exp)`
 - `@~` followed by an expression `exp` is parsed to the same value as `(:unquote-splice exp)`
 - An at sign `@` followed by an identifier `id` is parsed to the same value as `(:fresh-name id)`
 
 ```pavo
-(assert-eq (sf-quote $a) (sf-quote (quote a)))
+(assert-eq (sf-quote $a) (sf-quote (sf-quote a)))
 (assert-eq (sf-quote `a) (sf-quote (quasiquote a)))
 (assert-eq (sf-quote ~a) (sf-quote (:unquote a)))
 (assert-eq (sf-quote @~a) (sf-quote (:unquote-splice a)))
 (assert-eq (sf-quote @a) (sf-quote (:fresh-name a)))
-(assert-eq (sf-quote $$a) (sf-quote (quote (quote a))))
+(assert-eq (sf-quote $$a) (sf-quote (f-quote (sf-quote a))))
 # $ by itself is a parse error (same for the other shorthands)
 # $ 0 is a parse error, no whitespace allowed (same for the other shorthands)
 # @0, @:a, @nil, @true, @false and @0a are parse errors, @ can only precede an identifier
@@ -4046,14 +4046,6 @@ The `set!` macro is a shorthand to safe typing the `sf-` prefix of the `sf-set!`
 
 ```pavo
 (assert-eq (macro-set! 42 43) $(sf-set! 42 43))
-```
-
-#### `(macro-quote v)`
-
-The `quote` macro is a shorthand to safe typing the `sf-` prefix of the `sf-quote` special form. `(quote v)` expands to `(sf-quote v)`.
-
-```pavo
-(assert-eq (macro-quote 42) $(sf-quote 42))
 ```
 
 #### `(macro-throw v)`

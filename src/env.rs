@@ -277,7 +277,6 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "cursor-map-prev!", Builtin::CursorMapPrev);
 
     env_add(&mut m, "macro-set!", Builtin::MacroSetBang);
-    env_add(&mut m, "macro-quote", Builtin::MacroQuote);
     env_add(&mut m, "macro-throw", Builtin::MacroThrow);
     env_add(&mut m, "macro-do", Builtin::MacroDo);
     env_add(&mut m, "macro-cond", Builtin::MacroCond);

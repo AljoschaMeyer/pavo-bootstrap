@@ -5,7 +5,6 @@ use crate::value::{Value, Id, Builtin};
 pub fn default() -> ImOrdMap<Id, Value> {
     let mut m = ImOrdMap::new();
 
-    env_add(&mut m, "quote", Builtin::MacroQuote);
     env_add(&mut m, "do", Builtin::MacroDo);
     env_add(&mut m, "cond", Builtin::MacroCond);
     env_add(&mut m, "set!", Builtin::MacroSetBang);

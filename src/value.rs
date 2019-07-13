@@ -882,7 +882,6 @@ impl Fun {
             Fun::Builtin(Builtin::CursorMapNext) => builtins::cursor_map_next(args, cx),
             Fun::Builtin(Builtin::CursorMapPrev) => builtins::cursor_map_prev(args, cx),
 
-            Fun::Builtin(Builtin::MacroQuote) => builtins::macro_quote(args, cx),
             Fun::Builtin(Builtin::MacroIf) => builtins::macro_if(args, cx),
             Fun::Builtin(Builtin::MacroSetBang) => builtins::macro_set_bang(args, cx),
             Fun::Builtin(Builtin::MacroThrow) => builtins::macro_throw(args, cx),
@@ -1104,7 +1103,6 @@ pub enum Builtin {
     MacroMatch,
     MacroOr,
     MacroQuasiquote,
-    MacroQuote,
     MacroSetBang,
     MacroThrow,
     MacroWhile,

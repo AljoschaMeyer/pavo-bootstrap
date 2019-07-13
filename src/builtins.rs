@@ -2758,12 +2758,6 @@ pub fn trace(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
 
 /////////////////////////////////////////////////////////////////////////////
 
-pub fn macro_quote(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    num_args(&args, 1)?;
-
-    Ok(Value::app_from_vec(vec![Value::id_str("sf-quote"), args.0[0].clone()]))
-}
-
 fn macro_do_(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     let mut tmp = Vector(ImVector::new());
 
@@ -3055,7 +3049,7 @@ pub fn macro_and2(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value>
 fn quasiquote(v: &Value, fresh_names: &mut HashMap<Id, u64>, cx: &mut Context) -> Result<Value, Value> {
     match v {
         Value::Atomic(_) | Value::Fun(..) | Value::Cell(..) | Value::Opaque(..) => Ok(v.clone()),
-        Value::Id(_) => Ok(Value::app_from_vec(vec![Value::id_str("quote"), v.clone()])),
+        Value::Id(_) => Ok(Value::app_from_vec(vec![Value::id_str("sf-quote"), v.clone()])),
         Value::Arr(arr) => {
             let mut new_arr = ImVector::new();
             for w in arr.0.iter() {

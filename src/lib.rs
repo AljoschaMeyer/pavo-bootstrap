@@ -326,12 +326,12 @@ mod tests {
         assert_any_parse_error("{1}");
         assert_any_parse_error("{1 2 3}");
 
-        assert_ok("(sf-quote $a)", Value::app_from_vec(vec![Value::id_str("quote"), Value::id_str("a")]));
+        assert_ok("(sf-quote $a)", Value::app_from_vec(vec![Value::id_str("sf-quote"), Value::id_str("a")]));
         assert_ok("(sf-quote `a)", Value::app_from_vec(vec![Value::id_str("quasiquote"), Value::id_str("a")]));
         assert_ok("(sf-quote ~a)", Value::app_from_vec(vec![Value::kw_str("unquote"), Value::id_str("a")]));
         assert_ok("(sf-quote @~a)", Value::app_from_vec(vec![Value::kw_str("unquote-splice"), Value::id_str("a")]));
         assert_ok("(sf-quote @a)", Value::app_from_vec(vec![Value::kw_str("fresh-name"), Value::id_str("a")]));
-        assert_ok("(sf-quote $$a)", Value::app_from_vec(vec![Value::id_str("quote"), Value::app_from_vec(vec![Value::id_str("quote"), Value::id_str("a")])]));
+        assert_ok("(sf-quote $$a)", Value::app_from_vec(vec![Value::id_str("sf-quote"), Value::app_from_vec(vec![Value::id_str("sf-quote"), Value::id_str("a")])]));
         assert_any_parse_error("$");
         assert_any_parse_error("`");
         assert_any_parse_error("~");
@@ -2365,8 +2365,6 @@ mod tests {
     #[test]
     fn test_macros() {
         test_example("(assert-eq (macro-set! 42 43) $(sf-set! 42 43))");
-
-        test_example("(assert-eq (macro-quote 42) $(sf-quote 42))");
 
         test_example("
         (assert-eq (macro-throw 42) $(sf-throw 42))

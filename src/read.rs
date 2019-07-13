@@ -280,7 +280,7 @@ named!(id(CompleteStr) -> Value, map!(id_str, |id| if id.0 == "nil" {
 named!(quote(CompleteStr) -> Value, do_parse!(
     tag!("$") >>
     inner: obj >>
-    (Value::app_from_vec(vec![Value::id_str("quote"), inner]))
+    (Value::app_from_vec(vec![Value::id_str("sf-quote"), inner]))
 ));
 
 named!(quasiquote(CompleteStr) -> Value, do_parse!(
