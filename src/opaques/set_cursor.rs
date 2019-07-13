@@ -3,7 +3,7 @@ use gc_derive::{Trace, Finalize};
 use crate::gc_foreign::OrdSet;
 
 // FIXME this doesn't uphold the time complexity guarantees, next and prev always take O(log n)
-#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
+#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize, PartialOrd, Ord)]
 pub struct SetCursor<T: Ord + Clone> {
     index: Option<T>, // Some(t): just before elem t, None: just beyond the greatest element
     set: OrdSet<T>,

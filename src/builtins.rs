@@ -14,6 +14,7 @@ use crate::expand::expand as expand_;
 use crate::check::check as check_;
 use crate::env;
 use crate::macros;
+use crate::special_forms::to_code;
 use crate::compile::compile as compile_;
 use crate::opaques::{set_cursor, map_cursor};
 
@@ -2615,9 +2616,12 @@ pub fn check(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
         check_env.insert(id!(val), false);
     }
 
-    match check_(&v, &check_env) {
-        Ok(()) => return Ok(Value::bool_(true)),
-        Err(_) => return Ok(Value::bool_(false)),
+    match to_code(v) {
+        Err(_) => return  Ok(Value::bool_(false)),
+        Ok(code) => match check_(code, &check_env) {
+            Ok(()) => return Ok(Value::bool_(true)),
+            Err(_) => return Ok(Value::bool_(false)),
+        }
     }
 }
 

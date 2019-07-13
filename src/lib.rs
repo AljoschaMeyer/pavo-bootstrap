@@ -21,7 +21,7 @@ mod read;
 mod vm;
 mod opaques;
 
-use check::StaticError;
+use compile::StaticError;
 use context::Context;
 use expand::ExpandError;
 use value::{Id, Value};
@@ -156,6 +156,25 @@ mod tests {
         assert_ok(&src_in_context, Value::nil());
     }
 
+    // #[test]
+    // fn test_name() {
+    //     assert_ok("`([(0)])", Value::bool_(true));
+    //     // assert_ok("`(sf-do [(k)])", Value::bool_(true));
+    //     // assert_ok("
+    //     // (macro
+    //     //     foo
+    //     //     (sf-lambda [totry exception]
+    //     //         `(sf-try
+    //     //             (sf-do [~totry (sf-throw :assert-throw)])
+    //     //             errlklkl
+    //     //             nil
+    //     //          )
+    //     //     )
+    //     //     nil
+    //     //     )
+    //     // ", Value::nil());
+    // }
+
     // ## Syntax
 
     #[test]
@@ -255,99 +274,99 @@ mod tests {
         assert_any_parse_error("\"\"\"");
         assert_any_parse_error("\"\\\"");
         assert_any_parse_error("\"\\r\"");
-        test_example(r#"
-        (assert-eq @"no escape for inner " or \ needed"@ "no escape for inner \" or \\ needed")
-        (assert-eq @"\n"@ "\\n")
-        (assert-eq @"\{1234}"@ "\\{1234}")
-        (assert-eq @@@@""@@@@ "")
-        (assert-eq @@@@@@@@""@@@@@@@@ "")
-        (assert-eq @@@"@"@@"""@@@ "@\"@@\"\"")
-        "#);
-        assert_any_parse_error(r#"@@@@@@@@@"nope"@@@@@@@@@"#);
-        assert_any_parse_error(r#"@@@@@@@"nope"@@@@@@@@@"#);
-
-        assert_ok("@[]", Value::bytes_from_vec(vec![]));
-        assert_ok("@[0]", Value::bytes_from_vec(vec![0]));
-        assert_ok("@[0,0]", Value::bytes_from_vec(vec![0, 0]));
-        assert_ok("@[0xF]", Value::bytes_from_vec(vec![15]));
-        assert_ok("@[   ,, 0xfE   ]", Value::bytes_from_vec(vec![254]));
-        assert_ok("@[0, 001, 255]", Value::bytes_from_vec(vec![0, 1, 255]));
-        assert_ok("@[1 0x1]", Value::bytes_from_vec(vec![1, 1]));
-        assert_any_parse_error("@[1111]");
-        assert_any_parse_error("@[256]");
-        assert_any_parse_error("@[0x]");
-        assert_any_parse_error("@[0xddd]");
-        assert_any_parse_error("@[10x1]");
-
-        assert_ok("[]", Value::arr_from_vec(vec![]));
-        assert_ok("[0]", Value::arr_from_vec(vec![Value::int(0)]));
-        assert_ok("[0,1]", Value::arr_from_vec(vec![Value::int(0), Value::int(1)]));
-        assert_ok("[ 0, 1  ,,2 ]", Value::arr_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)]));
-        assert_ok("[[0],1,]", Value::arr_from_vec(vec![Value::arr_from_vec(vec![Value::int(0)]), Value::int(1)]));
-        assert_ok("[1 :a]", Value::arr_from_vec(vec![Value::int(1), Value::kw_str("a")]));
-        assert_ok("[[] []]", Value::arr_from_vec(vec![Value::arr_from_vec(vec![]), Value::arr_from_vec(vec![])]));
-        assert_any_parse_error("[1a]");
-        assert_any_parse_error("[1:a]");
-        assert_any_parse_error("[[][]]");
-
-        assert_ok("(sf-quote ())", Value::app_from_vec(vec![]));
-        assert_ok("(sf-quote (0))", Value::app_from_vec(vec![Value::int(0)]));
-        assert_ok("(sf-quote (0,1))", Value::app_from_vec(vec![Value::int(0), Value::int(1)]));
-        assert_ok("(sf-quote ( 0, 1  ,,2 ))", Value::app_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)]));
-        assert_ok("(sf-quote ((0),1,))", Value::app_from_vec(vec![Value::app_from_vec(vec![Value::int(0)]), Value::int(1)]));
-        assert_ok("(sf-quote (1 :a))", Value::app_from_vec(vec![Value::int(1), Value::kw_str("a")]));
-        assert_ok("(sf-quote (() ()))", Value::app_from_vec(vec![Value::app_from_vec(vec![]), Value::app_from_vec(vec![])]));
-        assert_any_parse_error("(1a)");
-        assert_any_parse_error("(1:a)");
-        assert_any_parse_error("(()())");
-
-        assert_ok("@{}", Value::set_from_vec(vec![]));
-        assert_ok("@{0}", Value::set_from_vec(vec![Value::int(0)]));
-        assert_ok("@{0,1}", Value::set_from_vec(vec![Value::int(0), Value::int(1)]));
-        assert_ok("@{1,0}", Value::set_from_vec(vec![Value::int(0), Value::int(1)]));
-        assert_ok("@{ 0, 1  ,,2 }", Value::set_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)]));
-        assert_ok("@{@{0},1,}", Value::set_from_vec(vec![Value::set_from_vec(vec![Value::int(0)]), Value::int(1)]));
-        assert_ok("@{1 :a}", Value::set_from_vec(vec![Value::int(1), Value::kw_str("a")]));
-        assert_ok("@{@{} @{}}", Value::set_from_vec(vec![Value::set_from_vec(vec![]), Value::set_from_vec(vec![])]));
-        assert_ok("@{0 0}", Value::set_from_vec(vec![Value::int(0)]));
-        assert_ok("@{0 0x0}", Value::set_from_vec(vec![Value::int(0)]));
-        assert_any_parse_error("@{1a}");
-        assert_any_parse_error("@{1:a}");
-        assert_any_parse_error("@{@{}@{}}");
-
-        assert_ok("{}", Value::map_from_vec(vec![]));
-        assert_ok("{0 0}", Value::map_from_vec(vec![(Value::int(0), Value::int(0))]));
-        assert_ok("{ 0,1 ,2 3 }", Value::map_from_vec(vec![(Value::int(0), Value::int(1)), (Value::int(2), Value::int(3))]));
-        assert_ok("{2 3 0 1}", Value::map_from_vec(vec![(Value::int(0), Value::int(1)), (Value::int(2), Value::int(3))]));
-        assert_ok("{0 1 0 2 1 3 0 4}", Value::map_from_vec(vec![(Value::int(0), Value::int(4)), (Value::int(1), Value::int(3))]));
-        assert_any_parse_error("{1a}");
-        assert_any_parse_error("{1:a}");
-        assert_any_parse_error("{{}{}}");
-        assert_any_parse_error("{1}");
-        assert_any_parse_error("{1 2 3}");
-
-        assert_ok("(sf-quote $a)", Value::app_from_vec(vec![Value::id_str("sf-quote"), Value::id_str("a")]));
-        assert_ok("(sf-quote `a)", Value::app_from_vec(vec![Value::id_str("quasiquote"), Value::id_str("a")]));
-        assert_ok("(sf-quote ~a)", Value::app_from_vec(vec![Value::kw_str("unquote"), Value::id_str("a")]));
-        assert_ok("(sf-quote @~a)", Value::app_from_vec(vec![Value::kw_str("unquote-splice"), Value::id_str("a")]));
-        assert_ok("(sf-quote @a)", Value::app_from_vec(vec![Value::kw_str("fresh-name"), Value::id_str("a")]));
-        assert_ok("(sf-quote $$a)", Value::app_from_vec(vec![Value::id_str("sf-quote"), Value::app_from_vec(vec![Value::id_str("sf-quote"), Value::id_str("a")])]));
-        assert_any_parse_error("$");
-        assert_any_parse_error("`");
-        assert_any_parse_error("~");
-        assert_any_parse_error("@~");
-        assert_any_parse_error("@");
-        assert_any_parse_error("$ a");
-        assert_any_parse_error("` a");
-        assert_any_parse_error("~ a");
-        assert_any_parse_error("@~ a");
-        assert_any_parse_error("@ a");
-        assert_any_parse_error("@0");
-        assert_any_parse_error("@:a");
-        assert_any_parse_error("@nil");
-        assert_any_parse_error("@true");
-        assert_any_parse_error("@false");
-        assert_any_parse_error("@0a");
+        // test_example(r#"
+        // (assert-eq @"no escape for inner " or \ needed"@ "no escape for inner \" or \\ needed")
+        // (assert-eq @"\n"@ "\\n")
+        // (assert-eq @"\{1234}"@ "\\{1234}")
+        // (assert-eq @@@@""@@@@ "")
+        // (assert-eq @@@@@@@@""@@@@@@@@ "")
+        // (assert-eq @@@"@"@@"""@@@ "@\"@@\"\"")
+        // "#);
+        // assert_any_parse_error(r#"@@@@@@@@@"nope"@@@@@@@@@"#);
+        // assert_any_parse_error(r#"@@@@@@@"nope"@@@@@@@@@"#);
+        //
+        // assert_ok("@[]", Value::bytes_from_vec(vec![]));
+        // assert_ok("@[0]", Value::bytes_from_vec(vec![0]));
+        // assert_ok("@[0,0]", Value::bytes_from_vec(vec![0, 0]));
+        // assert_ok("@[0xF]", Value::bytes_from_vec(vec![15]));
+        // assert_ok("@[   ,, 0xfE   ]", Value::bytes_from_vec(vec![254]));
+        // assert_ok("@[0, 001, 255]", Value::bytes_from_vec(vec![0, 1, 255]));
+        // assert_ok("@[1 0x1]", Value::bytes_from_vec(vec![1, 1]));
+        // assert_any_parse_error("@[1111]");
+        // assert_any_parse_error("@[256]");
+        // assert_any_parse_error("@[0x]");
+        // assert_any_parse_error("@[0xddd]");
+        // assert_any_parse_error("@[10x1]");
+        //
+        // assert_ok("[]", Value::arr_from_vec(vec![]));
+        // assert_ok("[0]", Value::arr_from_vec(vec![Value::int(0)]));
+        // assert_ok("[0,1]", Value::arr_from_vec(vec![Value::int(0), Value::int(1)]));
+        // assert_ok("[ 0, 1  ,,2 ]", Value::arr_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)]));
+        // assert_ok("[[0],1,]", Value::arr_from_vec(vec![Value::arr_from_vec(vec![Value::int(0)]), Value::int(1)]));
+        // assert_ok("[1 :a]", Value::arr_from_vec(vec![Value::int(1), Value::kw_str("a")]));
+        // assert_ok("[[] []]", Value::arr_from_vec(vec![Value::arr_from_vec(vec![]), Value::arr_from_vec(vec![])]));
+        // assert_any_parse_error("[1a]");
+        // assert_any_parse_error("[1:a]");
+        // assert_any_parse_error("[[][]]");
+        //
+        // assert_ok("(sf-quote ())", Value::app_from_vec(vec![]));
+        // assert_ok("(sf-quote (0))", Value::app_from_vec(vec![Value::int(0)]));
+        // assert_ok("(sf-quote (0,1))", Value::app_from_vec(vec![Value::int(0), Value::int(1)]));
+        // assert_ok("(sf-quote ( 0, 1  ,,2 ))", Value::app_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)]));
+        // assert_ok("(sf-quote ((0),1,))", Value::app_from_vec(vec![Value::app_from_vec(vec![Value::int(0)]), Value::int(1)]));
+        // assert_ok("(sf-quote (1 :a))", Value::app_from_vec(vec![Value::int(1), Value::kw_str("a")]));
+        // assert_ok("(sf-quote (() ()))", Value::app_from_vec(vec![Value::app_from_vec(vec![]), Value::app_from_vec(vec![])]));
+        // assert_any_parse_error("(1a)");
+        // assert_any_parse_error("(1:a)");
+        // assert_any_parse_error("(()())");
+        //
+        // assert_ok("@{}", Value::set_from_vec(vec![]));
+        // assert_ok("@{0}", Value::set_from_vec(vec![Value::int(0)]));
+        // assert_ok("@{0,1}", Value::set_from_vec(vec![Value::int(0), Value::int(1)]));
+        // assert_ok("@{1,0}", Value::set_from_vec(vec![Value::int(0), Value::int(1)]));
+        // assert_ok("@{ 0, 1  ,,2 }", Value::set_from_vec(vec![Value::int(0), Value::int(1), Value::int(2)]));
+        // assert_ok("@{@{0},1,}", Value::set_from_vec(vec![Value::set_from_vec(vec![Value::int(0)]), Value::int(1)]));
+        // assert_ok("@{1 :a}", Value::set_from_vec(vec![Value::int(1), Value::kw_str("a")]));
+        // assert_ok("@{@{} @{}}", Value::set_from_vec(vec![Value::set_from_vec(vec![]), Value::set_from_vec(vec![])]));
+        // assert_ok("@{0 0}", Value::set_from_vec(vec![Value::int(0)]));
+        // assert_ok("@{0 0x0}", Value::set_from_vec(vec![Value::int(0)]));
+        // assert_any_parse_error("@{1a}");
+        // assert_any_parse_error("@{1:a}");
+        // assert_any_parse_error("@{@{}@{}}");
+        //
+        // assert_ok("{}", Value::map_from_vec(vec![]));
+        // assert_ok("{0 0}", Value::map_from_vec(vec![(Value::int(0), Value::int(0))]));
+        // assert_ok("{ 0,1 ,2 3 }", Value::map_from_vec(vec![(Value::int(0), Value::int(1)), (Value::int(2), Value::int(3))]));
+        // assert_ok("{2 3 0 1}", Value::map_from_vec(vec![(Value::int(0), Value::int(1)), (Value::int(2), Value::int(3))]));
+        // assert_ok("{0 1 0 2 1 3 0 4}", Value::map_from_vec(vec![(Value::int(0), Value::int(4)), (Value::int(1), Value::int(3))]));
+        // assert_any_parse_error("{1a}");
+        // assert_any_parse_error("{1:a}");
+        // assert_any_parse_error("{{}{}}");
+        // assert_any_parse_error("{1}");
+        // assert_any_parse_error("{1 2 3}");
+        //
+        // assert_ok("(sf-quote $a)", Value::app_from_vec(vec![Value::id_str("sf-quote"), Value::id_str("a")]));
+        // assert_ok("(sf-quote `a)", Value::app_from_vec(vec![Value::id_str("quasiquote"), Value::id_str("a")]));
+        // assert_ok("(sf-quote ~a)", Value::app_from_vec(vec![Value::kw_str("unquote"), Value::id_str("a")]));
+        // assert_ok("(sf-quote @~a)", Value::app_from_vec(vec![Value::kw_str("unquote-splice"), Value::id_str("a")]));
+        // assert_ok("(sf-quote @a)", Value::app_from_vec(vec![Value::kw_str("fresh-name"), Value::id_str("a")]));
+        // assert_ok("(sf-quote $$a)", Value::app_from_vec(vec![Value::id_str("sf-quote"), Value::app_from_vec(vec![Value::id_str("sf-quote"), Value::id_str("a")])]));
+        // assert_any_parse_error("$");
+        // assert_any_parse_error("`");
+        // assert_any_parse_error("~");
+        // assert_any_parse_error("@~");
+        // assert_any_parse_error("@");
+        // assert_any_parse_error("$ a");
+        // assert_any_parse_error("` a");
+        // assert_any_parse_error("~ a");
+        // assert_any_parse_error("@~ a");
+        // assert_any_parse_error("@ a");
+        // assert_any_parse_error("@0");
+        // assert_any_parse_error("@:a");
+        // assert_any_parse_error("@nil");
+        // assert_any_parse_error("@true");
+        // assert_any_parse_error("@false");
+        // assert_any_parse_error("@0a");
     }
 
     // ## Static Checks
@@ -2364,232 +2383,232 @@ mod tests {
 
     #[test]
     fn test_macros() {
-        test_example("(assert-eq (macro-set! 42 43) $(sf-set! 42 43))");
+        // test_example("(assert-eq (macro-set! 42 43) $(sf-set! 42 43))");
+        //
+        // test_example("
+        // (assert-eq (macro-throw 42) $(sf-throw 42))
+        // (assert-throw (macro-throw) {:tag :err-num-args})
+        // ");
+        //
+        // test_example("(assert-eq (macro-if 0 1 2) $(sf-if 0 1 2))");
+        //
+        // test_example("
+        // (assert-eq (macro-do []) $(sf-do []))
+        // (assert-eq (macro-do [0]) $(sf-do [0]))
+        // (assert-eq (macro-do [0 1 2]) $(sf-do [0 1 2]))
+        // (assert-eq (macro-do [0 $(:let a 42) 2 $a]) $(sf-do [0 (let a 42 (sf-do [2 a]))]))
+        // (assert-eq (do [0 (:let a 42) 2 a]) 42)
+        // (assert-eq (macro-do [0 $(:let a 42)]) $(sf-do [0 (let a 42 (sf-do []))]))
+        // (assert-throw (macro-do [$(:let a)]) {:tag :err-num-args})
+        // ");
+        //
+        // test_example("
+        // (assert-eq (macro-cond []) nil)
+        // (assert-eq (macro-cond [0]) 0)
+        // (assert-eq (macro-cond [0 1]) $(sf-if 0 1 nil))
+        // (assert-eq (macro-cond [0 1 2]) $(sf-if 0 1 2))
+        // (assert-eq (macro-cond [0 1 2 3]) $(sf-if 0 1 (sf-if 2 3 nil)))
+        // (assert-eq (macro-cond [0 1 2 3 4]) $(sf-if 0 1 (sf-if 2 3 4)))
+        // ");
+        //
+        // test_example("
+        // (assert-eq (let a 42 a) 42)
+        // (assert-eq (macro-let 0 1 2) $((lambda [0] 2) 1))
+        // ");
+        //
+        // test_example("
+        // (assert-eq (-> 42 [
+        //     (int-sub ,,, 2) # the commas are whitespace, used here to indicate the insertion point
+        //     (int->float ,,,)
+        // ]) 40.0)
+        //
+        // (assert-eq (macro--> 42 []) 42)
+        // (assert-eq (macro--> 42 [$(int-sub 2)]) $(int-sub 42 2))
+        // (assert-eq (macro--> 42 [$(int-sub 2) $(int->float)]) $(int->float (int-sub 42 2)))
+        // (assert-throw (macro--> 42 [$int->float]) {:tag :err-type})
+        // (assert-throw (macro--> 42 [$()]) {:tag :err-lookup})
+        // ");
+        //
+        // test_example("
+        // (assert-eq (->> 42 [
+        //     (int-sub 2 ,,,) # the commas are whitespace, used here to indicate the insertion point
+        //     (int->float ,,,)
+        // ]) -40.0)
+        //
+        // (assert-eq (macro-->> 42 []) 42)
+        // (assert-eq (macro-->> 42 [$(int-sub 2)]) $(int-sub 2 42))
+        // (assert-eq (macro-->> 42 [$(int-sub 2) $(int->float)]) $(int->float (int-sub 2 42)))
+        // (assert-eq (macro-->> 42 [$()]) $(42))
+        // (assert-throw (macro-->> 42 [$int->float]) {:tag :err-type})
+        // ");
+        //
+        // test_example("
+        // (assert-eq (as-> foo 42 [
+        //     (int-sub foo 2)
+        //     (int-sub 3 foo)
+        // ]) -37)
+        //
+        // (assert-eq (macro-as-> $foo 42 []) 42)
+        // (assert-eq (macro-as-> $foo 42 [$(int-sub foo 2)]) $(let foo 42 (int-sub foo 2)))
+        // (assert-eq (macro-as-> $foo 42 [$(int-sub foo 2) $(int-sub 3 foo)]) $(let foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
+        // ");
+        //
+        // test_example("
+        // (assert-eq (macro-or []) false)
+        // (assert-eq (macro-or [42]) 42)
+        // (assert-eq (macro-or [nil]) nil)
+        // (assert-eq (or [0 1]) 0)
+        // (assert-eq (or [0 false]) 0)
+        // (assert-eq (or [false 1]) 1)
+        // (assert-eq (or [false nil]) nil)
+        // (assert-eq (or [nil false 2]) 2)
+        // (assert-eq (or [nil false 2 3]) 2)
+        // ");
+        //
+        // test_example("
+        // (assert-eq (|| 0 1) 0)
+        // (assert-eq (|| 0 false) 0)
+        // (assert-eq (|| false 1) 1)
+        // (assert-eq (|| false nil) nil)
+        // ");
+        //
+        // test_example("
+        // (assert-eq (macro-and []) true)
+        // (assert-eq (macro-and [42]) 42)
+        // (assert-eq (macro-and [nil]) nil)
+        // (assert-eq (and [0 1]) 1)
+        // (assert-eq (and [0 false]) false)
+        // (assert-eq (and [false 1]) false)
+        // (assert-eq (and [false nil]) false)
+        // (assert-eq (and [nil false 2]) nil)
+        // (assert-eq (and [nil false 2 3]) nil)
+        // (assert-eq (and [3 2 false nil]) false)
+        // ");
+        //
+        // test_example("
+        // (assert-eq (&& 0 1) 1)
+        // (assert-eq (&& 0 false) false)
+        // (assert-eq (&& false 1) false)
+        // (assert-eq (&& false nil) false)
+        // ");
+        //
+        // test_example("
+        // (assert-eq `42 42)
+        // (assert-eq `foo $foo)
+        // (assert-eq `[42 foo] [42 $foo])
+        //
+        // (assert-eq `() $())
+        // (assert-eq `(42 foo) (arr->app [42 $foo]))
+        //
+        // (assert-eq `~(int-add 1 2) 3)
+        // (assert-eq `[42 ~(int-add 1 2)] [42 3])
+        // (assert-eq `(42 ~(int-add 1 2)) $(42 3))
+        //
+        // (assert-eq `(0 @~$() 1) $(0 1))
+        // (assert-eq `(0 @~$(1) 2) $(0 1 2))
+        // (assert-eq `(0 @~$(1 2) 3) $(0 1 2 3))
+        //
+        // (let expanded (macro-quasiquote $[@foo @bar @foo]) (do [
+        //     (assert-eq (= (arr-get expanded 0) (arr-get expanded 1)) false)
+        //     (assert-eq (arr-get expanded 0) (arr-get expanded 2))
+        // ]))
+        // ");
 
-        test_example("
-        (assert-eq (macro-throw 42) $(sf-throw 42))
-        (assert-throw (macro-throw) {:tag :err-num-args})
-        ");
-
-        test_example("(assert-eq (macro-if 0 1 2) $(sf-if 0 1 2))");
-
-        test_example("
-        (assert-eq (macro-do []) $(sf-do []))
-        (assert-eq (macro-do [0]) $(sf-do [0]))
-        (assert-eq (macro-do [0 1 2]) $(sf-do [0 1 2]))
-        (assert-eq (macro-do [0 $(:let a 42) 2 $a]) $(sf-do [0 (let a 42 (sf-do [2 a]))]))
-        (assert-eq (do [0 (:let a 42) 2 a]) 42)
-        (assert-eq (macro-do [0 $(:let a 42)]) $(sf-do [0 (let a 42 (sf-do []))]))
-        (assert-throw (macro-do [$(:let a)]) {:tag :err-num-args})
-        ");
-
-        test_example("
-        (assert-eq (macro-cond []) nil)
-        (assert-eq (macro-cond [0]) 0)
-        (assert-eq (macro-cond [0 1]) $(sf-if 0 1 nil))
-        (assert-eq (macro-cond [0 1 2]) $(sf-if 0 1 2))
-        (assert-eq (macro-cond [0 1 2 3]) $(sf-if 0 1 (sf-if 2 3 nil)))
-        (assert-eq (macro-cond [0 1 2 3 4]) $(sf-if 0 1 (sf-if 2 3 4)))
-        ");
-
-        test_example("
-        (assert-eq (let a 42 a) 42)
-        (assert-eq (macro-let 0 1 2) $((lambda [0] 2) 1))
-        ");
-
-        test_example("
-        (assert-eq (-> 42 [
-            (int-sub ,,, 2) # the commas are whitespace, used here to indicate the insertion point
-            (int->float ,,,)
-        ]) 40.0)
-
-        (assert-eq (macro--> 42 []) 42)
-        (assert-eq (macro--> 42 [$(int-sub 2)]) $(int-sub 42 2))
-        (assert-eq (macro--> 42 [$(int-sub 2) $(int->float)]) $(int->float (int-sub 42 2)))
-        (assert-throw (macro--> 42 [$int->float]) {:tag :err-type})
-        (assert-throw (macro--> 42 [$()]) {:tag :err-lookup})
-        ");
-
-        test_example("
-        (assert-eq (->> 42 [
-            (int-sub 2 ,,,) # the commas are whitespace, used here to indicate the insertion point
-            (int->float ,,,)
-        ]) -40.0)
-
-        (assert-eq (macro-->> 42 []) 42)
-        (assert-eq (macro-->> 42 [$(int-sub 2)]) $(int-sub 2 42))
-        (assert-eq (macro-->> 42 [$(int-sub 2) $(int->float)]) $(int->float (int-sub 2 42)))
-        (assert-eq (macro-->> 42 [$()]) $(42))
-        (assert-throw (macro-->> 42 [$int->float]) {:tag :err-type})
-        ");
-
-        test_example("
-        (assert-eq (as-> foo 42 [
-            (int-sub foo 2)
-            (int-sub 3 foo)
-        ]) -37)
-
-        (assert-eq (macro-as-> $foo 42 []) 42)
-        (assert-eq (macro-as-> $foo 42 [$(int-sub foo 2)]) $(let foo 42 (int-sub foo 2)))
-        (assert-eq (macro-as-> $foo 42 [$(int-sub foo 2) $(int-sub 3 foo)]) $(let foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
-        ");
-
-        test_example("
-        (assert-eq (macro-or []) false)
-        (assert-eq (macro-or [42]) 42)
-        (assert-eq (macro-or [nil]) nil)
-        (assert-eq (or [0 1]) 0)
-        (assert-eq (or [0 false]) 0)
-        (assert-eq (or [false 1]) 1)
-        (assert-eq (or [false nil]) nil)
-        (assert-eq (or [nil false 2]) 2)
-        (assert-eq (or [nil false 2 3]) 2)
-        ");
-
-        test_example("
-        (assert-eq (|| 0 1) 0)
-        (assert-eq (|| 0 false) 0)
-        (assert-eq (|| false 1) 1)
-        (assert-eq (|| false nil) nil)
-        ");
-
-        test_example("
-        (assert-eq (macro-and []) true)
-        (assert-eq (macro-and [42]) 42)
-        (assert-eq (macro-and [nil]) nil)
-        (assert-eq (and [0 1]) 1)
-        (assert-eq (and [0 false]) false)
-        (assert-eq (and [false 1]) false)
-        (assert-eq (and [false nil]) false)
-        (assert-eq (and [nil false 2]) nil)
-        (assert-eq (and [nil false 2 3]) nil)
-        (assert-eq (and [3 2 false nil]) false)
-        ");
-
-        test_example("
-        (assert-eq (&& 0 1) 1)
-        (assert-eq (&& 0 false) false)
-        (assert-eq (&& false 1) false)
-        (assert-eq (&& false nil) false)
-        ");
-
-        test_example("
-        (assert-eq `42 42)
-        (assert-eq `foo $foo)
-        (assert-eq `[42 foo] [42 $foo])
-
-        (assert-eq `() $())
-        (assert-eq `(42 foo) (arr->app [42 $foo]))
-
-        (assert-eq `~(int-add 1 2) 3)
-        (assert-eq `[42 ~(int-add 1 2)] [42 3])
-        (assert-eq `(42 ~(int-add 1 2)) $(42 3))
-
-        (assert-eq `(0 @~$() 1) $(0 1))
-        (assert-eq `(0 @~$(1) 2) $(0 1 2))
-        (assert-eq `(0 @~$(1 2) 3) $(0 1 2 3))
-
-        (let expanded (macro-quasiquote $[@foo @bar @foo]) (do [
-            (assert-eq (= (arr-get expanded 0) (arr-get expanded 1)) false)
-            (assert-eq (arr-get expanded 0) (arr-get expanded 2))
-        ]))
-        ");
-
-        test_example("
-        (assert-eq (match 42 42 true false) true)
-        (assert-eq (match 42 43 true false) false)
-        (assert-eq (match [] 42 true false) false)
-
-        (assert-eq (match 42 n n false) 42)
-
-        (assert-eq (match [1] [2] true false) false)
-        (assert-eq (match [1] [1] true false) true)
-        (assert-eq (match [1 2] [1 2] true false) true)
-        (assert-eq (match [1] [a] a false) 1)
-        (assert-eq (match [1 2] [a b] (int-add a b) false) 3)
-        (assert-eq (match [1 2] [a 3] (int-add a 3) false) false)
-        (assert-eq (match [1 2] [3 b] (int-add 3 b) false) false)
-        (assert-eq (match [1] [a b] (int-add a b) false) false)
-        (assert-eq (match [1 2 3] [a b] (int-add a b) false) false)
-        (assert-eq (match 42 [a b] (int-add a b) false) false)
-
-        (assert-eq (match {0 42 1 43 2 44} {0 x 1 y} (int-add x y) false) 85)
-        (assert-eq (match {0 42 2 44} {0 x 1 y} (int-add x y) false) false)
-
-        (assert-eq (match $(1) (:app 2) true false) false)
-        (assert-eq (match $(1) (:app 1) true false) true)
-        (assert-eq (match $(1 2) (:app 1 2) true false) true)
-        (assert-eq (match $(1) (:app a) a false) 1)
-        (assert-eq (match $(1 2) (:app a b) (int-add a b) false) 3)
-        (assert-eq (match $(1 2) (:app a 3) (int-add a 3) false) false)
-        (assert-eq (match $(1 2) (:app 3 b) (int-add 3 b) false) false)
-        (assert-eq (match $(1) (:app a b) (int-add a b) false) false)
-        (assert-eq (match $(1 2 3) (:app a b) (int-add a b) false) false)
-        (assert-eq (match 42 (:app a b) (int-add a b) false) false)
-
-        (assert-eq (match 42 (:mut n) n false) 42)
-        (assert-eq (match 42 (:mut n) (do [(set! n (int-add n 1)) n]) false) 43)
-
-        (assert-eq (match 42 (:guard n (>= n 17)) n false) 42)
-        (assert-eq (match 16 (:guard n (>= n 17)) n false) false)
-        (assert-eq (match [42 3] [(:guard n (>= n 17)) (:guard n (< n 17))] n false) 3)
-        (assert-eq (match [42 43] [(:guard n (>= n 17)) (:guard m (< n m))] [m n] false) [43 42])
-
-        (assert-eq (match [42] (:named outer [inner]) outer false) [42])
-        (assert-eq (match [42] (:named outer [inner]) inner false) 42)
-        (assert-eq (match [42] (:named x [x]) x false) 42)
-        (assert-eq (match [42] (:named (:mut outer) [inner]) (do [(set! outer (arr-update outer 0 17)) outer]) false) [17])
-
-        (assert-eq (match {0 42 1 43} (:map-exact {0 x 1 y}) (int-add x y) false) 85)
-        (assert-eq (match {0 42 1 43 2 44} (:map-exact {0 x 1 y}) (int-add x y) false) false)
-        (assert-eq (match {0 42} (:map-exact {0 x 1 y}) (int-add x y) false) false)
-
-        (assert-eq (match 42 (:= 42) true false) true)
-        (assert-eq (match 42 (:= 43) true false) false)
-
-        (assert-eq (match 42 (:typeof :int) true false) true)
-        (assert-eq (match 42 (:typeof :float) true false) false)
-
-        (assert-throw (macro-match 42 @{} true false) {:tag :err-pattern})
-        (assert-throw (macro-match [42] [@{}] true false) {:tag :err-pattern})
-        (assert-throw (macro-match 42 $() true false) {:tag :err-pattern})
-        (assert-throw (macro-match 42 $(:llll) true false) {:tag :err-pattern})
-        (assert-throw (macro-match 42 $(:mut) true false) {:tag :err-pattern})
-        (assert-throw (macro-match 42 $(:mut a b) true false) {:tag :err-pattern})
-        (assert-throw (macro-match 42 $(:guard a) true false) {:tag :err-pattern})
-        (assert-throw (macro-match 42 $(:guard a b c) true false) {:tag :err-pattern})
-        (assert-throw (macro-match 42 $(:named a) true false) {:tag :err-pattern})
-        (assert-throw (macro-match 42 $(:named a b c) true false) {:tag :err-pattern})
-        (assert-throw (macro-match 42 $(:named [a] b) true false) {:tag :err-pattern})
-        (assert-throw (macro-match [42] $(:map-exact [a]) true false) {:tag :err-pattern})
-        ");
-
-        test_example("
-        (assert-eq (case 0 [0 42 1 43 :else]) 42)
-        (assert-eq (case 1 [0 42 1 43 :else]) 43)
-        (assert-eq (case 2 [0 42 1 43 :else]) :else)
-        (assert-eq (case 2 [0 42 1 43]) nil)
-        ");
-
-        test_example("
-        (assert-eq (loop 0 [1 2]) nil)
-
-        (assert-eq
-            (do [
-                (:let (:mut sum) 0)
-                (:let (:mut n) 0)
-                (loop n [
-                    (:guard x (<= x 10000)) (do [
-                            (set! sum (int-add sum x))
-                            (set! n (int-add n 1))
-                        ])
-                    :foo :bar
-                ])
-                sum
-            ])
-            50005000 # 50005000 == 1 + 2 + ... + 10000
-        )
-        ");
+        // test_example("
+        // (assert-eq (match 42 42 true false) true)
+        // (assert-eq (match 42 43 true false) false)
+        // (assert-eq (match [] 42 true false) false)
+        //
+        // (assert-eq (match 42 n n false) 42)
+        //
+        // (assert-eq (match [1] [2] true false) false)
+        // (assert-eq (match [1] [1] true false) true)
+        // (assert-eq (match [1 2] [1 2] true false) true)
+        // (assert-eq (match [1] [a] a false) 1)
+        // (assert-eq (match [1 2] [a b] (int-add a b) false) 3)
+        // (assert-eq (match [1 2] [a 3] (int-add a 3) false) false)
+        // (assert-eq (match [1 2] [3 b] (int-add 3 b) false) false)
+        // (assert-eq (match [1] [a b] (int-add a b) false) false)
+        // (assert-eq (match [1 2 3] [a b] (int-add a b) false) false)
+        // (assert-eq (match 42 [a b] (int-add a b) false) false)
+        //
+        // (assert-eq (match {0 42 1 43 2 44} {0 x 1 y} (int-add x y) false) 85)
+        // (assert-eq (match {0 42 2 44} {0 x 1 y} (int-add x y) false) false)
+        //
+        // (assert-eq (match $(1) (:app 2) true false) false)
+        // (assert-eq (match $(1) (:app 1) true false) true)
+        // (assert-eq (match $(1 2) (:app 1 2) true false) true)
+        // (assert-eq (match $(1) (:app a) a false) 1)
+        // (assert-eq (match $(1 2) (:app a b) (int-add a b) false) 3)
+        // (assert-eq (match $(1 2) (:app a 3) (int-add a 3) false) false)
+        // (assert-eq (match $(1 2) (:app 3 b) (int-add 3 b) false) false)
+        // (assert-eq (match $(1) (:app a b) (int-add a b) false) false)
+        // (assert-eq (match $(1 2 3) (:app a b) (int-add a b) false) false)
+        // (assert-eq (match 42 (:app a b) (int-add a b) false) false)
+        //
+        // (assert-eq (match 42 (:mut n) n false) 42)
+        // (assert-eq (match 42 (:mut n) (do [(set! n (int-add n 1)) n]) false) 43)
+        //
+        // (assert-eq (match 42 (:guard n (>= n 17)) n false) 42)
+        // (assert-eq (match 16 (:guard n (>= n 17)) n false) false)
+        // (assert-eq (match [42 3] [(:guard n (>= n 17)) (:guard n (< n 17))] n false) 3)
+        // (assert-eq (match [42 43] [(:guard n (>= n 17)) (:guard m (< n m))] [m n] false) [43 42])
+        //
+        // (assert-eq (match [42] (:named outer [inner]) outer false) [42])
+        // (assert-eq (match [42] (:named outer [inner]) inner false) 42)
+        // (assert-eq (match [42] (:named x [x]) x false) 42)
+        // (assert-eq (match [42] (:named (:mut outer) [inner]) (do [(set! outer (arr-update outer 0 17)) outer]) false) [17])
+        //
+        // (assert-eq (match {0 42 1 43} (:map-exact {0 x 1 y}) (int-add x y) false) 85)
+        // (assert-eq (match {0 42 1 43 2 44} (:map-exact {0 x 1 y}) (int-add x y) false) false)
+        // (assert-eq (match {0 42} (:map-exact {0 x 1 y}) (int-add x y) false) false)
+        //
+        // (assert-eq (match 42 (:= 42) true false) true)
+        // (assert-eq (match 42 (:= 43) true false) false)
+        //
+        // (assert-eq (match 42 (:typeof :int) true false) true)
+        // (assert-eq (match 42 (:typeof :float) true false) false)
+        //
+        // (assert-throw (macro-match 42 @{} true false) {:tag :err-pattern})
+        // (assert-throw (macro-match [42] [@{}] true false) {:tag :err-pattern})
+        // (assert-throw (macro-match 42 $() true false) {:tag :err-pattern})
+        // (assert-throw (macro-match 42 $(:llll) true false) {:tag :err-pattern})
+        // (assert-throw (macro-match 42 $(:mut) true false) {:tag :err-pattern})
+        // (assert-throw (macro-match 42 $(:mut a b) true false) {:tag :err-pattern})
+        // (assert-throw (macro-match 42 $(:guard a) true false) {:tag :err-pattern})
+        // (assert-throw (macro-match 42 $(:guard a b c) true false) {:tag :err-pattern})
+        // (assert-throw (macro-match 42 $(:named a) true false) {:tag :err-pattern})
+        // (assert-throw (macro-match 42 $(:named a b c) true false) {:tag :err-pattern})
+        // (assert-throw (macro-match 42 $(:named [a] b) true false) {:tag :err-pattern})
+        // (assert-throw (macro-match [42] $(:map-exact [a]) true false) {:tag :err-pattern})
+        // ");
+        //
+        // test_example("
+        // (assert-eq (case 0 [0 42 1 43 :else]) 42)
+        // (assert-eq (case 1 [0 42 1 43 :else]) 43)
+        // (assert-eq (case 2 [0 42 1 43 :else]) :else)
+        // (assert-eq (case 2 [0 42 1 43]) nil)
+        // ");
+        //
+        // test_example("
+        // (assert-eq (loop 0 [1 2]) nil)
+        //
+        // (assert-eq
+        //     (do [
+        //         (:let (:mut sum) 0)
+        //         (:let (:mut n) 0)
+        //         (loop n [
+        //             (:guard x (<= x 10000)) (do [
+        //                     (set! sum (int-add sum x))
+        //                     (set! n (int-add n 1))
+        //                 ])
+        //             :foo :bar
+        //         ])
+        //         sum
+        //     ])
+        //     50005000 # 50005000 == 1 + 2 + ... + 10000
+        // )
+        // ");
 
         // test_example("
         // (assert-eq

@@ -1,11 +1,32 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use im_rc::Vector as ImVector;
+
 use crate::builtins;
-use crate::check::{check_toplevel, StaticError};
-use crate::special_forms::{SpecialForm, special};
+use crate::check::{check_toplevel, BindingError};
+use crate::gc_foreign::Vector;
+use crate::special_forms::{Code, to_code, SpecialFormSyntaxError};
 use crate::value::{Value, Id};
 use crate::vm::{Closure, DeBruijn, BindingId, BBId, BB_RETURN, Instruction, IrChunk, Addr, Environment};
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum StaticError {
+    SpecialFormSyntax(SpecialFormSyntaxError),
+    Binding(BindingError),
+}
+
+impl From<SpecialFormSyntaxError> for StaticError {
+    fn from(err: SpecialFormSyntaxError) -> Self {
+        StaticError::SpecialFormSyntax(err)
+    }
+}
+
+impl From<BindingError> for StaticError {
+    fn from(err: BindingError) -> Self {
+        StaticError::Binding(err)
+    }
+}
 
 use Instruction::*;
 
@@ -111,14 +132,21 @@ impl BBB {
     }
 }
 
-pub fn compile<'a>(
+pub fn compile(
     v: &Value,
     toplevel: &HashMap<Id, (Value, bool)>,
 ) -> Result<Closure, StaticError> {
-    check_toplevel(v, toplevel)?;
+    compile_code(to_code(v)?, toplevel)
+}
+
+pub fn compile_code(
+    c: Code,
+    toplevel: &HashMap<Id, (Value, bool)>,
+) -> Result<Closure, StaticError> {
+    check_toplevel(c.clone(), toplevel)?;
 
     let mut s = Stack::from_toplevel(toplevel);
-    let chunk = Rc::new(compile_lambda(&vec![], v, &mut s));
+    let chunk = Rc::new(compile_lambda(Vector(ImVector::new()), c, &mut s));
 
     return Ok(Closure {
         fun: chunk,
@@ -127,168 +155,186 @@ pub fn compile<'a>(
     });
 }
 
-fn val_to_ir(v: &Value, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
-    match v {
-        Value::Atomic(..) | Value::Fun(..) | Value::Cell(..) | Value::Opaque(..) => {
+fn code_to_ir(c: Code, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
+    match c {
+        Code::Atomic(a) => {
             if push {
-                bbb.append(Literal(v.clone()));
+                bbb.append(Literal(Value::Atomic(a.clone())));
             }
         }
 
-        Value::Arr(inners) => {
+        Code::Fun(fun) => {
+            if push {
+                bbb.append(Literal(Value::Fun(fun.clone())));
+            }
+        }
+
+        Code::Cell(cell, id) => {
+            if push {
+                bbb.append(Literal(Value::Cell(cell.clone(), id.clone())));
+            }
+        }
+
+        Code::Opaque(o, id) => {
+            if push {
+                bbb.append(Literal(Value::Opaque(o.clone(), id.clone())));
+            }
+        }
+
+        Code::Arr(inners) => {
+            let len = inners.0.len();
             for inner in inners.0.iter() {
-                val_to_ir(inner, push, bbb, false, s);
+                code_to_ir(inner.clone(), push, bbb, false, s);
             }
 
             if push {
-                bbb.append(Arr(inners.0.len()))
+                bbb.append(Arr(len))
             }
         }
 
-        Value::Set(inners) => {
+        Code::App(app) => {
+            let len = app.0.len();
+
+            if len == 0 {
+                bbb.append(Literal(builtins::index_error()));
+                bbb.append(Throw);
+            } else {
+                for inner in app.0.iter() {
+                    code_to_ir(inner.clone(), true, bbb, false, s);
+                }
+
+                if tail {
+                    bbb.append(TailCall(len - 1, push));
+                } else {
+                    bbb.append(Call(len - 1, push));
+                }
+            }
+        }
+
+        Code::Set(inners) => {
+            let len = inners.0.len();
             for inner in inners.0.iter() {
-                val_to_ir(inner, push, bbb, false, s);
+                code_to_ir(inner.clone(), push, bbb, false, s);
             }
 
             if push {
-                bbb.append(Set(inners.0.len()))
+                bbb.append(Set(len))
             }
         }
 
-        Value::Map(entries) => {
+        Code::Map(entries) => {
+            let len = entries.0.len();
             for (key, val) in entries.0.iter() {
-                val_to_ir(key, push, bbb, false, s);
-                val_to_ir(val, push, bbb, false, s);
+                code_to_ir(key.clone(), push, bbb, false, s);
+                code_to_ir(val.clone(), push, bbb, false, s);
             }
 
             if push {
-                bbb.append(Map(entries.0.len()))
+                bbb.append(Map(len))
             }
         }
 
-        Value::Id(id) => {
-            let db = s.resolve(id);
+        Code::Id(id) => {
+            let db = s.resolve(&id);
             bbb.append(Push(Addr::env(db)));
         }
 
-        Value::App(app) => {
-            match special(app) {
-                Err(_) => unreachable!("static checks already discovered this"),
-
-                // ordinary function application
-                Ok(None) => {
-                    if app.0.len() == 0 {
-                        bbb.append(Literal(builtins::index_error()));
-                        bbb.append(Throw);
-                    } else {
-                        for inner in app.0.iter() {
-                            val_to_ir(inner, true, bbb, false, s);
-                        }
-
-                        if tail {
-                            if tail {
-                                bbb.append(TailCall(app.0.len() - 1, push));
-                            } else {
-                                bbb.append(Call(app.0.len() - 1, push));
-                            }
-                        } else {
-                            bbb.append(Call(app.0.len() - 1, push));
-                        }
-                    }
-                }
-
-                Ok(Some(SpecialForm::Quote(quotation))) => {
-                    bbb.append(Literal(quotation.clone()));
-                }
-
-                Ok(Some(SpecialForm::Do(stmts))) => {
-                    if stmts.len() == 0 {
-                        if push {
-                            bbb.push_nil();
-                        }
-                    } else {
-                        for stmt in stmts.iter().take(stmts.len() - 1) {
-                            val_to_ir(stmt, false, bbb, false, s);
-                        }
-                        val_to_ir(stmts[stmts.len() - 1], push, bbb, tail, s);
-                    }
-                }
-
-                Ok(Some(SpecialForm::SetBang(id, rhs))) => {
-                    val_to_ir(rhs, true, bbb, false, s);
-
-                    let db = s.resolve(id);
-                    bbb.append(Pop(Addr::env(db)));
-
-                    if push {
-                        bbb.push_nil();
-                    }
-                }
-
-                Ok(Some(SpecialForm::If(cond, then, else_))) => {
-                    let bb_then = bbb.new_block();
-                    let bb_else = bbb.new_block();
-                    let bb_cont = bbb.new_block();
-
-                    val_to_ir(cond, true, bbb, false, s);
-                    bbb.append(CondJump(bb_then, bb_else));
-
-                    bbb.set_active_block(bb_then);
-                    val_to_ir(then, push, bbb, tail, s);
-                    bbb.append(Jump(bb_cont));
-
-                    bbb.set_active_block(bb_else);
-                    val_to_ir(else_, push, bbb, tail, s);
-                    bbb.append(Jump(bb_cont));
-
-                    bbb.set_active_block(bb_cont);
-                }
-
-                Ok(Some(SpecialForm::Throw(exception))) => {
-                    val_to_ir(exception, true, bbb, false, s);
-                    bbb.append(Throw);
-                }
-
-                Ok(Some(SpecialForm::Try(yay, _, binder, nay))) => {
-                    let bb_catch = bbb.new_block();
-                    let bb_cont = bbb.new_block();
-
-                    let prev_trap_handler = bbb.trap_handler;
-                    bbb.trap_handler = bb_catch;
-                    bbb.append(SetCatchHandler(bb_catch));
-                    val_to_ir(yay, push, bbb, false, s);
-                    bbb.trap_handler = prev_trap_handler;
-                    bbb.append(SetCatchHandler(prev_trap_handler));
-                    bbb.append(Jump(bb_cont));
-
-                    bbb.set_active_block(bb_catch);
-                    bbb.append(SetCatchHandler(prev_trap_handler));
-                    let db = DeBruijn { up: 0, id: s.add(binder) };
-                    bbb.append(Pop(Addr::env(db)));
-                    val_to_ir(nay, push, bbb, tail, s);
-                    bbb.append(Jump(bb_cont));
-
-                    bbb.set_active_block(bb_cont);
-                }
-
-                Ok(Some(SpecialForm::Lambda(args, body))) => {
-                    let ir_chunk = Rc::new(compile_lambda(&args, body, s));
-                    bbb.append(FunLiteral(ir_chunk, args.len()));
-                }
+        Code::Quote(q) => {
+            if push {
+                bbb.append(Literal(q));
             }
+        }
+
+        Code::Do(stmts) => {
+            let len = stmts.0.len();
+
+            if len == 0 {
+                if push {
+                    bbb.push_nil();
+                }
+            } else {
+                let last = stmts.0[len - 1].clone();
+                for stmt in stmts.0.into_iter().take(len - 1) {
+                    code_to_ir(stmt, false, bbb, false, s);
+                }
+                code_to_ir(last, push, bbb, tail, s);
+            }
+        }
+
+        Code::SetBang(id, rhs) => {
+            code_to_ir(*rhs, true, bbb, false, s);
+
+            let db = s.resolve(&id);
+            bbb.append(Pop(Addr::env(db)));
+
+            if push {
+                bbb.push_nil();
+            }
+        }
+
+        Code::If(cond, then, else_) => {
+            let bb_then = bbb.new_block();
+            let bb_else = bbb.new_block();
+            let bb_cont = bbb.new_block();
+
+            code_to_ir(*cond, true, bbb, false, s);
+            bbb.append(CondJump(bb_then, bb_else));
+
+            bbb.set_active_block(bb_then);
+            code_to_ir(*then, push, bbb, tail, s);
+            bbb.append(Jump(bb_cont));
+
+            bbb.set_active_block(bb_else);
+            code_to_ir(*else_, push, bbb, tail, s);
+            bbb.append(Jump(bb_cont));
+
+            bbb.set_active_block(bb_cont);
+        }
+
+        Code::Throw(exception) => {
+            code_to_ir(*exception, true, bbb, false, s);
+            bbb.append(Throw);
+        }
+
+        Code::Try(yay, _, binder, nay) => {
+            let bb_catch = bbb.new_block();
+            let bb_cont = bbb.new_block();
+
+            let prev_trap_handler = bbb.trap_handler;
+            bbb.trap_handler = bb_catch;
+            bbb.append(SetCatchHandler(bb_catch));
+            code_to_ir(*yay, push, bbb, false, s);
+            bbb.trap_handler = prev_trap_handler;
+            bbb.append(SetCatchHandler(prev_trap_handler));
+            bbb.append(Jump(bb_cont));
+
+            bbb.set_active_block(bb_catch);
+            bbb.append(SetCatchHandler(prev_trap_handler));
+            let db = DeBruijn { up: 0, id: s.add(&binder) };
+            bbb.append(Pop(Addr::env(db)));
+            code_to_ir(*nay, push, bbb, tail, s);
+            bbb.append(Jump(bb_cont));
+
+            bbb.set_active_block(bb_cont);
+        }
+
+        Code::Lambda(args, body) => {
+            let len = args.0.len();
+            let ir_chunk = Rc::new(compile_lambda(args, *body, s));
+            bbb.append(FunLiteral(ir_chunk, len));
         }
     }
 }
 
-fn compile_lambda(args: &Vec<(bool, &Id)>, body: &Value, s: &mut Stack) -> IrChunk {
+fn compile_lambda(args: Vector<(bool, Id)>, body: Code, s: &mut Stack) -> IrChunk {
     let mut bbb = BBB::new();
     s.push_scope();
 
-    for (_, binder) in args {
+    for (_, binder) in args.0.iter() {
         s.add(binder);
     }
 
-    val_to_ir(body, true, &mut bbb, true, s);
+    code_to_ir(body, true, &mut bbb, true, s);
     s.pop_scope();
 
     return bbb.into_ir();

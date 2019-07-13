@@ -3,7 +3,7 @@ use gc_derive::{Trace, Finalize};
 use crate::gc_foreign::Rope;
 
 // FIXME this doesn't uphold the time complexity guarantees, next and prev always take O(log n)
-#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
+#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize, PartialOrd, Ord)]
 pub struct RopeCursor {
     index: usize,
     rope: Rope,

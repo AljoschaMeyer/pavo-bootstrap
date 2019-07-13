@@ -1,138 +1,103 @@
-//! Static validity checks performed *after* macro expansion.
-//!
-//! This checks that:
-//! - All unquoted identifiers are either binders, bound, or free but with a special form.
-//! - All special forms are well-formed.
-//! - The `set!` special form only mutates mutable bindings.
-
 use std::collections::HashMap;
 
 use im_rc::OrdMap;
 
-use crate::special_forms::{SpecialForm, SpecialFormSyntaxError, special};
+use crate::special_forms::Code;
 use crate::value::{Value, Id};
 
-/// All the things the syntax checker disallows.
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum StaticError {
+pub enum BindingError {
     Free(Id),
     Immutable(Id),
-    SpecialFormSyntax(SpecialFormSyntaxError),
 }
 
-impl From<SpecialFormSyntaxError> for StaticError {
-    fn from(err: SpecialFormSyntaxError) -> Self {
-        StaticError::SpecialFormSyntax(err)
-    }
-}
-
-pub fn check_toplevel(v: &Value, bindings: &HashMap<Id, (Value, bool)>) -> Result<(), StaticError> {
+pub fn check_toplevel(c: Code, bindings: &HashMap<Id, (Value, bool)>) -> Result<(), BindingError> {
     let mut env = OrdMap::new();
 
     for (key, (_, mutability)) in bindings.iter() {
         env.insert(key.clone(), *mutability);
     }
 
-    return check(v, &env);
+    return check(c, &env);
 }
 
 pub fn check(
-    v: &Value,
+    c: Code,
     bindings: &OrdMap<Id, bool /*mutability*/>
-) -> Result<(), StaticError> {
-    match v {
-        Value::Atomic(..) | Value::Fun(..) | Value::Cell(..) | Value::Opaque(..) => Ok(()),
+) -> Result<(), BindingError> {
+    match c {
+        Code::Atomic(..) | Code::Fun(..) | Code::Cell(..) | Code::Opaque(..) => Ok(()),
 
-        Value::Id(id) => match bindings.get(id) {
+        Code::Id(id) => match bindings.get(&id) {
             Some(_) => Ok(()),
-            None => Err(StaticError::Free(id.clone())),
+            None => Err(BindingError::Free(id.clone())),
         }
 
-        Value::Arr(vals) => {
+        Code::Arr(vals) => {
             for val in vals.0.iter() {
-                check(val, bindings)?
+                check(val.clone(), bindings)?
             }
             Ok(())
         }
 
-        Value::Map(m) => {
+        Code::App(vals) => {
+            for val in vals.0.iter() {
+                check(val.clone(), bindings)?
+            }
+            Ok(())
+        }
+
+        Code::Map(m) => {
             for entry in m.0.iter() {
-                check(&entry.0, bindings)?;
-                check(&entry.1, bindings)?;
+                check(entry.0.clone(), bindings)?;
+                check(entry.1.clone(), bindings)?;
             }
             Ok(())
         }
 
-        Value::Set(vals) => {
+        Code::Set(vals) => {
             for val in vals.0.iter() {
-                check(val, bindings)?
+                check(val.clone(), bindings)?
             }
             Ok(())
         }
 
-        Value::App(params) => {
-            if params.0.len() == 0 {
-                return Ok(());
+        Code::Quote(_) => return Ok(()),
+
+        Code::Do(stmts) => {
+            for stmt in stmts.0.iter() {
+                check(stmt.clone(), bindings)?;
             }
+            Ok(())
+        }
 
-            let fst = &params.0[0];
-
-            match &fst {
-                Value::Id(id) => {
-                    match special(params)? {
-                        Some(SpecialForm::Do(stmts)) => {
-                            for stmt in stmts.iter() {
-                                check(stmt, bindings)?;
-                            }
-                            Ok(())
-                        }
-                        Some(SpecialForm::Quote(_)) => Ok(()),
-                        Some(SpecialForm::SetBang(id, body)) => {
-                            match bindings.get(id) {
-                                Some(true) => check(body, bindings),
-                                Some(false) => Err(StaticError::Immutable(id.clone())),
-                                None => Err(StaticError::Free(id.clone())),
-                            }
-                        }
-                        Some(SpecialForm::If(cond, then, else_)) => {
-                            check(cond, bindings)?;
-                            check(then, bindings)?;
-                            check(else_, bindings)
-                        }
-                        Some(SpecialForm::Throw(thrown)) => check(thrown, bindings),
-                        Some(SpecialForm::Try(try_, mutable, bound, catch)) => {
-                            let _ = check(try_, bindings)?;
-                            check(catch, &bindings.update(bound.clone(), mutable))
-                        }
-                        Some(SpecialForm::Lambda(args, body)) => {
-                            let mut fn_bindings = bindings.clone();
-                            for (mutable, bound) in args {
-                                fn_bindings = fn_bindings.update((*bound).clone(), mutable);
-                            }
-                            check(body, &fn_bindings)
-                        }
-                        None => {
-                            match bindings.get(id) {
-                                Some(_) => {
-                                    for param in params.0.iter() {
-                                        check(param, bindings)?;
-                                    }
-                                    Ok(())
-                                }
-                                None => Err(StaticError::Free(id.clone())),
-                            }
-                        }
-                    }
-                }
-
-                // First element is not an identifier.
-                _ => {
-                    for param in params.0.iter() {
-                        check(param, bindings)?;
-                    }
-                    Ok(())
-                },
+        Code::SetBang(id, body) => {
+            match bindings.get(&id) {
+                Some(true) => check(*body, bindings),
+                Some(false) => Err(BindingError::Immutable(id.clone())),
+                None => Err(BindingError::Free(id.clone())),
             }
+        }
+
+        Code::If(cond, then, else_) => {
+            check(*cond, bindings)?;
+            check(*then, bindings)?;
+            check(*else_, bindings)
+        }
+
+        Code::Throw(thrown) => check(*thrown, bindings),
+
+        Code::Try(try_, mutable, bound, catch) => {
+            let _ = check(*try_, bindings)?;
+            check(*catch, &bindings.update(bound.clone(), mutable))
+        }
+
+        Code::Lambda(args, body) => {
+            let mut fn_bindings = bindings.clone();
+            for (mutable, bound) in args.0.iter() {
+                fn_bindings = fn_bindings.update((*bound).clone(), *mutable);
+            }
+            check(*body, &fn_bindings)
         }
     }
 }

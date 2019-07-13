@@ -1197,7 +1197,7 @@ pub enum Builtin {
     Write,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
+#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize, PartialOrd, Ord)]
 pub enum Opaque {
     User(Box<Value>, u64),
     Builtin(BuiltinOpaque),
@@ -1212,7 +1212,7 @@ impl Opaque {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize)]
+#[derive(Debug, Clone, PartialEq, Eq, Trace, Finalize, PartialOrd, Ord)]
 pub enum BuiltinOpaque {
     CursorArr(Gc<GcCell<VectorCursor<Value>>>),
     CursorApp(Gc<GcCell<VectorCursor<Value>>>),

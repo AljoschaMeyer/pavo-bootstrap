@@ -78,7 +78,13 @@ pub fn expand(v: &Value, env: &HashMap<Id, (Value, bool)>, macros: &ImOrdMap<Id,
                     expand(&vals.0[3], env, &new_macros, cx)
                 }
 
-                // TODO preven other special forms from being treated as macros (but still expand their bodies)
+                Value::Id(Id::User(id)) if id == "sf-quote" || id == "sf-do" || id == "sf-set!" || id == "sf-if" || id == "sf-throw" || id == "sf-try" || id == "sf-lambda" || id == "sf-letfn" || id == "sf-match" => {
+                    let mut expanded = Vec::with_capacity(vals.0.len());
+                    for item in vals.0.iter() {
+                        expanded.push(expand(item, env, macros, cx)?);
+                    }
+                    return Ok(Value::app_from_vec(expanded));
+                }
 
                 Value::Id(id) => match macros.get(id) {
                     Some(macro_) => {
