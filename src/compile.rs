@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use im_rc::Vector as ImVector;
+use im_rc::{Vector as ImVector, OrdMap as ImOrdMap};
 
 use crate::builtins;
 use crate::check::{check_toplevel, BindingError};
-use crate::gc_foreign::Vector;
-use crate::special_forms::{Code, to_code, SpecialFormSyntaxError};
+use crate::gc_foreign::{Vector, OrdMap};
+use crate::special_forms::{Code, to_code, SpecialFormSyntaxError, Pattern};
 use crate::value::{Value, Id};
-use crate::vm::{Closure, DeBruijn, BindingId, BBId, BB_RETURN, Instruction, IrChunk, Addr, Environment};
+use crate::vm::{Closure, DeBruijn, BindingId, BBId, BB_RETURN, Instruction, IrChunk, Addr, Environment, CompiledPattern};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum StaticError {
@@ -254,8 +254,8 @@ fn code_to_ir(c: Code, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
                 }
             } else {
                 let last = stmts.0[len - 1].clone();
-                for stmt in stmts.0.into_iter().take(len - 1) {
-                    code_to_ir(stmt, false, bbb, false, s);
+                for stmt in stmts.0.iter().take(len - 1) {
+                    code_to_ir(stmt.clone(), false, bbb, false, s);
                 }
                 code_to_ir(last, push, bbb, tail, s);
             }
@@ -310,10 +310,62 @@ fn code_to_ir(c: Code, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
 
             bbb.set_active_block(bb_catch);
             bbb.append(SetCatchHandler(prev_trap_handler));
+            s.push_scope();
+            bbb.append(PushScope);
             let db = DeBruijn { up: 0, id: s.add(&binder) };
             bbb.append(Pop(Addr::env(db)));
             code_to_ir(*nay, push, bbb, tail, s);
+            bbb.append(PopScope);
+            s.pop_scope();
             bbb.append(Jump(bb_cont));
+
+            bbb.set_active_block(bb_cont);
+        }
+
+        Code::Case(c, branches) => {
+            if branches.0.len() == 0 {
+                bbb.append(Literal(builtins::type_error()));
+                bbb.append(Throw);
+                return;
+            }
+
+            let bbs: Vec<(BBId, BBId)> = branches.0.iter().map(|_|
+                (bbb.new_block(), bbb.new_block()
+            )).collect();
+            let bb_failure = bbb.new_block();
+            let bb_cont = bbb.new_block();
+
+            code_to_ir(*c, true, bbb, false, s);
+            bbb.append(Jump(bbs[0].0));
+
+            for (i, (pattern, then)) in branches.0.iter().enumerate() {
+                bbb.set_active_block(bbs[i].0);
+                bbb.append(DoubleTop);
+                let bb_next = if i + 1 < branches.0.len() {
+                    bbs[i + 1].0
+                } else {
+                    bb_failure
+                };
+                if i != 0 {
+                    bbb.append(PopScope);
+                }
+                s.push_scope();
+                bbb.append(PushScope);
+                bbb.append(Match(compile_pattern(pattern, s), bbs[i].1, bb_next));
+
+                bbb.set_active_block(bbs[i].1);
+                bbb.append(DropTop);
+                code_to_ir(then.clone(), push, bbb, tail, s);
+                bbb.append(PopScope);
+                s.pop_scope();
+                bbb.append(Jump(bb_cont));
+            }
+
+            bbb.set_active_block(bb_failure);
+            bbb.append(PopScope);
+            bbb.append(DropTop);
+            bbb.append(Literal(builtins::type_error()));
+            bbb.append(Throw);
 
             bbb.set_active_block(bb_cont);
         }
@@ -322,6 +374,28 @@ fn code_to_ir(c: Code, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
             let len = args.0.len();
             let ir_chunk = Rc::new(compile_lambda(args, *body, s));
             bbb.append(FunLiteral(ir_chunk, len));
+        }
+
+        Code::LetFn(defs, cont) => {
+            s.push_scope();
+            bbb.append(PushScope);
+
+            for name in defs.0.keys() {
+                s.add(name);
+            }
+
+            for (name, (args, body)) in defs.0.iter() {
+                let len = args.0.len();
+                let db = s.resolve(name);
+                let ir_chunk = Rc::new(compile_lambda(args.clone(), body.clone(), s));
+                bbb.append(FunLiteral(ir_chunk, len));
+                bbb.append(Pop(Addr::env(db)));
+            }
+
+            code_to_ir(*cont, push, bbb, tail, s);
+
+            bbb.append(PopScope);
+            s.pop_scope();
         }
     }
 }
@@ -338,4 +412,42 @@ fn compile_lambda(args: Vector<(bool, Id)>, body: Code, s: &mut Stack) -> IrChun
     s.pop_scope();
 
     return bbb.into_ir();
+}
+
+fn compile_pattern(p: &Pattern, s: &mut Stack) -> CompiledPattern {
+    match p {
+        Pattern::Name(_, id) => {
+            let db = DeBruijn { up: 0, id: s.add(&id) };
+            return CompiledPattern::Name(db);
+        }
+        Pattern::Atomic(a) => CompiledPattern::Atomic(a.clone()),
+        Pattern::Set(set) => CompiledPattern::Set(set.clone()),
+        Pattern::Arr(arr) => {
+            let ret = CompiledPattern::Arr(Vector(
+                arr.0.iter()
+                .map(|p_| compile_pattern(p_, s))
+                .collect()
+            ));
+            return ret;
+        }
+        Pattern::App(app) => {
+            let ret = CompiledPattern::App(Vector(
+                app.0.iter()
+                .map(|p_| compile_pattern(p_, s))
+                .collect()
+            ));
+            return ret;
+        }
+        Pattern::Map(map) => {
+            let mut comp_map = ImOrdMap::new();
+            for (k, p_) in map.0.iter() {
+                comp_map.insert(k.clone(), compile_pattern(p_, s));
+            }
+            return CompiledPattern::Map(OrdMap(comp_map));
+        }
+        Pattern::Named(_, id, inner) => {
+            let db = DeBruijn { up: 0, id: s.add(&id) };
+            return CompiledPattern::Named(db, Box::new(compile_pattern(inner, s)));
+        }
+    }
 }

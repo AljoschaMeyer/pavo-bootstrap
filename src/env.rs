@@ -242,6 +242,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "exval", Builtin::Exval);
 
     env_add(&mut m, "typeof", Builtin::Typeof);
+    env_add(&mut m, "truthy?", Builtin::IsTruthy);
     env_add(&mut m, "not", Builtin::Not);
     env_add(&mut m, "diverge", Builtin::Diverge);
     env_add(&mut m, "trace", Builtin::Trace);

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use im_rc::OrdMap;
 
-use crate::special_forms::Code;
+use crate::special_forms::{Code, Pattern};
 use crate::value::{Value, Id};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -92,12 +92,66 @@ pub fn check(
             check(*catch, &bindings.update(bound.clone(), mutable))
         }
 
+        Code::Case(v, patterns) => {
+            check(*v, bindings)?;
+            for (pattern, then) in patterns.0.iter() {
+                check(then.clone(), &bindings_from_pattern(bindings, pattern))?;
+            }
+            return Ok(());
+        }
+
         Code::Lambda(args, body) => {
             let mut fn_bindings = bindings.clone();
             for (mutable, bound) in args.0.iter() {
                 fn_bindings = fn_bindings.update((*bound).clone(), *mutable);
             }
             check(*body, &fn_bindings)
+        }
+
+        Code::LetFn(defs, cont) => {
+            let mut cont_bindings = bindings.clone();
+            for name in defs.0.keys() {
+                cont_bindings.insert(name.clone(), false);
+            }
+            let cont_bindings = cont_bindings;
+
+            for (args, body) in defs.0.values() {
+                let mut fn_bindings = cont_bindings.clone();
+                for (mutable, bound) in args.0.iter() {
+                    fn_bindings = fn_bindings.update((*bound).clone(), *mutable);
+                }
+                let _ = check(body.clone(), &fn_bindings)?;
+            }
+
+            return check(*cont, &cont_bindings);
+        }
+    }
+}
+
+pub fn bindings_from_pattern(
+    bindings: &OrdMap<Id, bool /*mutability*/>,
+    p: &Pattern,
+) -> OrdMap<Id, bool /*mutability*/> {
+    match p {
+        Pattern::Atomic(_) | Pattern::Set(_) => return bindings.clone(),
+        Pattern::Name(mutable, id) => return bindings.update(id.clone(), *mutable),
+        Pattern::Arr(ps) | Pattern::App(ps) => {
+            let mut ret = bindings.clone();
+            for p_ in ps.0.iter() {
+                ret = bindings_from_pattern(&ret, p_);
+            }
+            return ret;
+        }
+        Pattern::Map(map) => {
+            let mut ret = bindings.clone();
+            for p_ in map.0.values() {
+                ret = bindings_from_pattern(&ret, p_);
+            }
+            return ret;
+        }
+        Pattern::Named(mutable, id, p_) => {
+            let new_bindings = bindings.update(id.clone(), *mutable);
+            return bindings_from_pattern(&new_bindings, p_);
         }
     }
 }

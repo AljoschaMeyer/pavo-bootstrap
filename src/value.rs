@@ -490,6 +490,13 @@ impl Value {
         }
     }
 
+    pub fn as_set(&self) -> Option<&OrdSet<Value>> {
+        match self {
+            Value::Set(set) => Some(set),
+            _ => None,
+        }
+    }
+
     pub fn as_map(&self) -> Option<&OrdMap<Value, Value>> {
         match self {
             Value::Map(map) => Some(map),
@@ -863,6 +870,7 @@ impl Fun {
             Fun::Builtin(Builtin::Exval) => builtins::exval(args, cx),
 
             Fun::Builtin(Builtin::Typeof) => builtins::typeof_(args, cx),
+            Fun::Builtin(Builtin::IsTruthy) => builtins::is_truthy(args, cx),
             Fun::Builtin(Builtin::Not) => builtins::not(args, cx),
             Fun::Builtin(Builtin::Diverge) => builtins::diverge(args, cx),
             Fun::Builtin(Builtin::Trace) => builtins::trace(args, cx),
@@ -1192,6 +1200,7 @@ pub enum Builtin {
     Symbol,
 
     Trace,
+    IsTruthy,
     Typeof,
 
     Write,

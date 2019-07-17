@@ -7,11 +7,22 @@ use im_rc::Vector as ImVector;
 
 use crate::builtins::{num_args_error, type_error};
 use crate::context::Context;
-use crate::gc_foreign::Vector;
-use crate::value::{Value, Fun, Id};
+use crate::gc_foreign::{Vector, OrdMap, OrdSet};
+use crate::value::{Value, Fun, Id, Atomic};
 
 pub type BBId = usize;
 pub type BindingId = usize;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CompiledPattern {
+    Atomic(Atomic),
+    Name(DeBruijn),
+    Arr(Vector<CompiledPattern>),
+    App(Vector<CompiledPattern>),
+    Set(OrdSet<Value>),
+    Map(OrdMap<Value, CompiledPattern>),
+    Named(DeBruijn, Box<CompiledPattern>),
+}
 
 // Indicates the path from a bound identifier site to its binder.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -57,6 +68,9 @@ pub enum Instruction {
     /// Pop the topmost stack element. Jump to the first basic block if the value was truthy,
     /// jump to the second block otherwise.
     CondJump(BBId, BBId),
+    /// Pop the topmost stack element. Jump to the first basic block if the value matches the
+    /// pattern (bringing bindings into scope), jump to the second block otherwise.
+    Match(CompiledPattern, BBId, BBId),
     /// Jump to the current catch handler basic block. If the bb is `BB_RETURN`, the function throws.
     Throw,
     /// Set the catch hander basic block.
@@ -65,6 +79,10 @@ pub enum Instruction {
     Push(Addr),
     /// Pop the stack and write the value to the Addr.
     Pop(Addr),
+    /// Double the topmost stack element.
+    DoubleTop,
+    /// Remove the topmost stack element.
+    DropTop,
     /// Call the len+1'th stack element with the topmost len arguments in reverse order. If the
     /// bool is true, push the result onto the stack.
     ///
@@ -73,6 +91,10 @@ pub enum Instruction {
     Call(usize /*len*/, bool),
     /// Same as `Call`, but performs tco.
     TailCall(usize /*len*/, bool),
+    /// Create a new scope in the environment.
+    PushScope,
+    /// Pop the newest scope in the environment.
+    PopScope,
 }
 use Instruction::*;
 
@@ -129,12 +151,18 @@ impl LocalState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub struct Environment {
     // The bindings local to this environment.
     bindings: Vec<Value>,
     // (Mutable) access to the parent binding, which is `None` for the top-level environment.
     parent: Option<Gc<GcCell<Environment>>>,
+}
+
+impl std::fmt::Debug for Environment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Env {{ x: {}, y: {:?} }}", self.bindings.len(), self.parent)
+    }
 }
 
 impl Environment {
@@ -167,6 +195,13 @@ impl Environment {
         let env = Environment::root();
         env.borrow_mut().parent = Some(parent);
         env
+    }
+
+    pub fn pop(env: &Gc<GcCell<Environment>>) -> Gc<GcCell<Environment>> {
+        match env.borrow().parent {
+            Some(ref parent) => parent.clone(),
+            None => panic!("Tried to pop the toplevel environment -> buggy compilation"),
+        }
     }
 
     pub fn root() -> Gc<GcCell<Environment>> {
@@ -321,6 +356,14 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                     }
                 }
 
+                Some(Match(p, yay, nay)) => {
+                    if handle_match(state.pop(), p, &mut state, &c.env) {
+                        state.pc = (*yay, 0);
+                    } else {
+                        state.pc = (*nay, 0);
+                    }
+                }
+
                 Some(Throw) => {
                     if state.catch_handler == BB_RETURN {
                         return Err(state.pop());
@@ -339,6 +382,16 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                 Some(Pop(addr)) => {
                     let val = state.pop();
                     addr.store(val, &mut state, &c.env);
+                }
+
+                Some(DoubleTop) => {
+                    let val = state.pop();
+                    state.push(val.clone());
+                    state.push(val);
+                }
+
+                Some(DropTop) => {
+                    let _ = state.pop();
                 }
 
                 Some(Call(num_args, push)) => {
@@ -402,8 +455,80 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                         }
                     }
                 }
+
+                Some(PushScope) => {
+                    c.env = Environment::child(c.env.clone());
+                }
+
+                Some(PopScope) => {
+                    c.env = Environment::pop(&c.env)
+                }
             }
         }
     }
 
+}
+
+fn handle_match(
+    val: Value,
+    p: &CompiledPattern,
+    state: &mut LocalState,
+    env: &Gc<GcCell<Environment>>
+) -> bool {
+    match p {
+        CompiledPattern::Name(db) => {
+            Addr::env(*db).store(val, state, env);
+            return true;
+        }
+
+        CompiledPattern::Atomic(a) => match val.as_atomic() {
+            Some(a2) if a2 == a => return true,
+            _ => return false,
+        }
+
+        CompiledPattern::Set(set) => match val.as_set() {
+            Some(set2) if set2 == set => return true,
+            _ => return false,
+        }
+
+        CompiledPattern::Arr(ps) => match val.as_arr() {
+            Some(arr) if arr.0.len() == ps.0.len() => {
+                return ps.0.iter().zip(arr.0.iter()).all(|(p_, v_)|
+                    handle_match(v_.clone(), p_, state, env)
+                );
+            }
+            _ => return false,
+        }
+
+        CompiledPattern::App(ps) => match val.as_app() {
+            Some(app) if app.0.len() == ps.0.len() => {
+                return ps.0.iter().zip(app.0.iter()).all(|(p_, v_)|
+                    handle_match(v_.clone(), p_, state, env)
+                );
+            }
+            _ => return false,
+        }
+
+        CompiledPattern::Map(pattern) => match val.as_map() {
+            Some(map) => {
+                for (key, p_) in pattern.0.iter() {
+                    match map.0.get(key) {
+                        None => return false,
+                        Some(val) => {
+                            if !handle_match(val.clone(), p_, state, env) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+            None => return false,
+        }
+
+        CompiledPattern::Named(db, inner) => {
+            Addr::env(*db).store(val.clone(), state, env);
+            return handle_match(val, inner, state, env);
+        }
+    }
 }

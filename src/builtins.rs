@@ -2741,15 +2741,27 @@ pub fn typeof_(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     Ok(typeof__(&args.0[0]))
 }
 
+pub fn is_truthy(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    Ok(match args.0[0] {
+        Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(false)) => Value::bool_(false),
+        _ => Value::bool_(true),
+    })
+}
+
 pub fn not(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
     Ok(match args.0[0] {
         Value::Atomic(Atomic::Nil) | Value::Atomic(Atomic::Bool(false)) => Value::bool_(true),
         _ => Value::bool_(false),
     })
 }
 
-pub fn diverge(_args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
-    panic!("Called diverge")
+pub fn diverge(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let mut buf = String::new();
+    value::debug_print(&args.0[0], 0, 2, &mut buf);
+    panic!("Called diverge: {}", buf);
 }
 
 pub fn trace(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
@@ -2832,9 +2844,17 @@ pub fn macro_throw(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Valu
 pub fn macro_if(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 3)?;
 
-    let mut tmp = args.clone();
-    tmp.0.push_front(Value::id_str("sf-if"));
-    return Ok(Value::app(tmp));
+    return Ok(Value::app_from_vec(vec![
+        Value::id_str("sf-case"),
+        Value::app_from_vec(vec![
+            Value::builtin(value::Builtin::IsTruthy),
+            args.0[0].clone(),
+            ]),
+        Value::arr_from_vec(vec![
+            Value::bool_(true), args.0[1].clone(),
+            Value::bool_(false), args.0[2].clone(),
+            ]),
+        ]));
 }
 
 fn macro_cond_(arr: &Vector<Value>) -> Result<Value, Value> {
@@ -2842,19 +2862,19 @@ fn macro_cond_(arr: &Vector<Value>) -> Result<Value, Value> {
         0 => return Ok(Value::nil()),
         1 => return Ok(arr.0[0].clone()),
         2 => return Ok(Value::app_from_vec(vec![
-                Value::id_str("sf-if"),
+                Value::id_str("if"),
                 arr.0[0].clone(),
                 arr.0[1].clone(),
                 Value::nil(),
             ])),
         3 => return Ok(Value::app_from_vec(vec![
-                Value::id_str("sf-if"),
+                Value::id_str("if"),
                 arr.0[0].clone(),
                 arr.0[1].clone(),
                 arr.0[2].clone(),
             ])),
         _ => return Ok(Value::app_from_vec(vec![
-                Value::id_str("sf-if"),
+                Value::id_str("if"),
                 arr.0[0].clone(),
                 arr.0[1].clone(),
                 macro_cond_(&Vector(arr.0.skip(2)))?,
@@ -3661,11 +3681,29 @@ pub fn macro_loop(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value>
         ]));
 }
 
-// TODO: proper implementation (pattern matching)
-pub fn macro_lambda(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+pub fn macro_lambda(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
 
-    Ok(Value::app_from_vec(vec![Value::id_str("sf-lambda"), args.0[0].clone(), args.0[1].clone()]))
+    let pats_arr = arr!(args.0[0]);
+
+    let mut fn_args = ImVector::new();
+    for _ in 0..pats_arr.0.len() {
+        fn_args.push_back(Value::Id(Id::Symbol(cx.next_symbol_id())));
+    }
+
+
+    return Ok(Value::app_from_vec(vec![
+        Value::id_str("sf-lambda"),
+        Value::arr(Vector(fn_args.clone())),
+        Value::app_from_vec(vec![
+            Value::id_str("sf-case"),
+            Value::arr(Vector(fn_args.clone())),
+            Value::arr_from_vec(vec![
+                args.0[0].clone(),
+                args.0[1].clone(),
+                ])
+            ]),
+        ]));
 }
 
 //////////////////////////////////////////////////////////////////////////////

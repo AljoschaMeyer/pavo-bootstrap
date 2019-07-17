@@ -2,6 +2,8 @@
 
 This document serves as the reference description of the pavo programming language. Reading it is *not* the recommended way to *learn* the language, since it aims to be exhaustive rather than pedagocical, and it primarily deals with the *what* and *how* of pavo, not the *why*. Still, care has been taken to write it such that all aspects of the language are introduced before they are being referred to.
 
+**Status of this Document**: Not particularly well-written, but sufficiently precise (more or less).
+
 Pavo is a [homoiconic](https://en.wikipedia.org/wiki/Homoiconicity), [dynamically typed](https://en.wikipedia.org/wiki/Type_system#Dynamic_type_checking_and_runtime_type_information) but otherwise rather static [lisp](https://en.wikipedia.org/wiki/Lisp_(programming_language)) in the tradition of [scheme](https://en.wikipedia.org/wiki/Scheme_(programming_language)) and [clojure](https://clojure.org/), with [deterministic semantics](https://en.wikipedia.org/wiki/Deterministic_algorithm). Running a program consists of the following steps:
 
 1. The source code is *parsed* into a value.
@@ -9,7 +11,6 @@ Pavo is a [homoiconic](https://en.wikipedia.org/wiki/Homoiconicity), [dynamicall
 3. A number of *static checks* guarantees that the obtained value is a valid pavo program.
 4. The program value is *evaluated* into the final result.
 
-**Status of this Document**: Apart from some macros, everything should be precisely specified. It's not particularly well-written, but it should be sufficiently precise (except for those macros...).
 
 ## Values
 
@@ -330,7 +331,7 @@ There are two classes of static checks: Those enforcing the syntactic well-forme
 
 ### Special Form Syntax
 
-Special forms are application literals whose first item is one of the following identifiers: `sf-quote`, `sf-do`, `sf-if`, `sf-set!`, `sf-throw`, `sf-try`, and `sf-lambda`. Checking special form syntax of a value proceeds recursively.
+Special forms are application literals whose first item is one of the following identifiers: `sf-quote`, `sf-do`, `sf-if`, `sf-set!`, `sf-throw`, `sf-try`, `sf-case`, `sf-lambda`, and `sf-letfn`. Checking special form syntax of a value proceeds recursively:
 
 If the value is an identifier, symbol, nil, bool, int, float, char, string, bytes, keyword, function, cell or opaque, the check finishes successfully. To check an array, set, or map in an environment `E`, all inner values are checked. When checking an application, if it is a special form, it must satisfy the criteria outlined below. Then, if it is not a `sf-quote` form, all inner values are checked.
 
@@ -382,7 +383,7 @@ An application literal whose first item is `sf-throw` must have exactly two item
 
 #### `sf-try`
 
-An application literal whose first item is `(sf-try)` must have exactly four items, the third of which is either a name or a two-element application containing the keyword `:mut` followed by a name.
+An application literal whose first item is `sf-try` must have exactly four items, the third of which is either a name or a two-element application containing the keyword `:mut` followed by a name.
 
 
 ```pavo
@@ -395,9 +396,34 @@ An application literal whose first item is `(sf-try)` must have exactly four ite
 # (sf-try), (sf-try 0), (sf-try 0 a), (sf-try) and (sf-try 0 a 1 2) are static errors
 ```
 
+#### `sf-case`
+
+An application literal whose first item is `sf-case` must have exactly three items, the third of which is an array. This array must contain an even number of items, and the items with an even index must be *patterns*. A pattern is any of the following:
+
+- *immutable binder pattern*: a name (identifier or symbol)
+- *atomic pattern*: `nil`, a bool, int, float, char, string, bytes or keyword
+- *array pattern*: an array containing zero or more patterns
+- *set pattern*: a set
+- *map pattern*: a map whose values are patterns (keys can be arbitrary)
+- *mutable binder pattern*: an application of two items: the keyword `:mut` followed by a name
+- *application pattern*: an application whose first item is the keyword `:app` and whose remaining items are patterns
+- *named pattern*: an application of three items: the keyword `:named`, followed by either a name or an application `(:mut name)`, followed by a pattern
+
+```pavo
+(sf-case 42 [])
+(sf-case 42 [42 42])
+# (sf-case), (sf-case 42), (sf-case 42 [] 43), (sf-case 42 43)
+# (sf-case 42 [() 42]) (`()` is not a valid pattern)
+# (sf-case 42 [[()] 42]) (`[()]` is not a valid pattern)
+# (sf-case 42 [{43 ()} 42]) (`{43 ()}` is not a valid pattern)
+# (sf-case 42 [(:mut) 42]), (sf-case 42 [(:mut a b) 42]), (sf-case 42 [(:mut 43) 42])
+# (sf-case 42 [(:app ()) 42]) (`(:app ())` is not a valid pattern)
+# (sf-case 42 [(:named 43 44) 43]), (sf-case 42 [(:named a) 43]), (sf-case 42 [(:named a 43 44) 43])
+```
+
 #### `sf-lambda`
 
-An application literal whose first item is `(sf-lambda)` must have exactly three items, the second of which is an array that contains any number of either names or two-element applications containing the keyword `:mut` followed by a name.
+An application literal whose first item is `sf-lambda` must have exactly three items, the second of which is an array that contains any number of either names or two-element applications containing the keyword `:mut` followed by a name.
 
 ```pavo
 (sf-lambda [] 0)
@@ -416,6 +442,21 @@ An application literal whose first item is `(sf-lambda)` must have exactly three
 # (sf-lambda []) and (sf-lambda [] 0 1) are static errors
 ```
 
+#### `sf-letfn`
+
+An application literal whose first item is `sf-lambda` must have exactly three items, the second of which is a map whose keys are names (identifiers or symbols) and whose values are applications of two items, the first of which is an array that contains any number of either names or two-element applications containing the keyword `:mut` followed by a name.
+
+```pavo
+(sf-letfn {} nil)
+(sf-letfn {a ([] 0)} nil)
+(sf-letfn {a ([] 0), b ([(:mut a) a] 1)} nil)
+# (sf-letfn 0 1)
+# (sf-letfn { 42 ([] 42)} 1)
+# (sf-letfn {a ([] 0 1)} 1)
+# (sf-letfn {a 42} 1)
+# (sf-letfn {}), (sf-letfn {} 0 1)
+```
+
 ### Binding Correctness
 
 Binding rules govern the usage of names (identifiers and symbols). The static checking of a value occurs in the context of a *check-environment*. A check-environment is a [partial function](https://en.wikipedia.org/wiki/Partial_function) (mathematically, not a pavo function) from names to booleans. A name that is mapped to false is called an *immutable binding*, a name that is mapped to true is called a *mutable binding*, and a name that is not mapped to anything is called a *free name*. By default, the initial check-environment used for checking a value contains exactly the values listed in section `Toplevel Values`, all of them mapped to false.
@@ -427,17 +468,34 @@ Checking bindings for a value proceeds recursively. If the value is a name (iden
 - `(sf-try <try-exp> <binder-name> <caught-exp>)`: Check `<try-exp>` in the check-environment `E`. If successful, check `<caught-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to false.
 - `(sf-try <try-exp> (:mut <binder-name>) <caught-exp>)`: Check `<try-exp>` in the check-environment `E`. If successful, check `<caught-exp>` in the check-environment that behaves like `E` except that it maps `<binder-name>` to true.
 - `(sf-lambda <args-array> <body-exp>)`: Check `<body-exp>` in the check-environment that behaves like `E` except that all names directly contained in the `<args-array>` map to false, and those inside an application with the `:mut` keyword map to `true`. For duplicate names, the mutability of the rightmost one is used.
+- `(sf-letfn <fns-map> <body-exp>)`: For all entries in the `<fns-map>`, check the values as if they were `(sf-lambda)` declarations in the environment that behaves like `E` except that all the names that are keys in the `<fns-map>` map to false. Finally, check `<body-exp>` in the check-environment that behaves like `E` except that all names that are keys in the `<fns-map>` map to false.
+- `(sf-case <exp> <branches>)`: Check `<exp>` in the check-environment `E`. If successful, for each pair `<pattern>, <then>` in the `<branches>` array (which always has an even number of entries, so it can always be divided into such pairs):
+  - if the `<pattern>` is `nil`, a bool, int, float, char, string, bytes, keyword or set: check `<then>` in the check-environment `E`
+  - if the `<pattern>` is a name, check `<then>` in the check-environment that behaves like `E` except that the name maps to false
+  - if the `<pattern>` is `(:mut some-name)`, check `<then>` in the check-environment that behaves like `E` except that the name maps to true
+  - if the `<pattern>` is an array, iteratively update the check-environment according to the contain patterns (left-to-right) and check `<then>` against the resulting check-environment
+  - if the `<pattern>` is `(:app patterns...)`, iteratively update the check-environment according to the contain patterns (left-to-right) and check `<then>` against the resulting check-environment
+  - if the `<pattern>` is a map, iteratively update the check-environment according to the contained patterns (in the order of their corresponding keys) and check `<then>` against the resulting check-environment
+  - if the `<pattern>` is `(:named some-name subpattern)`, update `E` to map the name to false, then update it according to the subpattern, then check `<then>` against the resulting check-environment
+  - if the `<pattern>` is `(:named (:mut some-name) subpattern)`, update `E` to map the name to true, then update it according to the subpattern, then check `<then>` against the resulting check-environment
 - Otherwise, all inner values are checked in the check-environment `E`.
 
 ```pavo
 (sf-quote a)
 (sf-try 0 a a)
 (sf-try 0 (:mut a) (sf-set! a 42))
+(sf-case [0 1] [[a (:mut a)] (sf-set! a 42)])
+(sf-case 42 [(:named a (:mut a)) (sf-set! a 42)])
 (sf-lambda [a] a)
 (sf-lambda [(:mut a)] (sf-set! a 42))
 (sf-lambda [a] (sf-lambda [(:mut a)] (sf-set! a 0)))
+(sf-lambda [a (:mut a)] (sf-set! a 0))
+(sf-letfn {a ([] (a))} nil) # infinite loop
+(sf-letfn {a ([(:mut a)] (sf-set! a 42))} (a 41))
 # some-id, [some-id] and (sf-set! some-id 0) are static errors because the name is not bound
 # (sf-set! int-max-val 42), (sf-try 0 a (sf-set! a 42)) and (sf-lambda [a] (sf-set! a 42)) are static errors because the name is bound immutably
+# (sf-case [0 1] [[(:mut a) a] (sf-set! a 42)])
+# (sf-case 42 [(:named (:mut a) a) (sf-set! a 42)])
 # (sf-lambda [(:mut a) a] (sf-set! a 42)) is a static error because the name is bound immutably
 ```
 
@@ -502,7 +560,7 @@ Evaluates to the literal value denoted by `x`, without evaluating `x`.
 
 #### `(sf-do [exprs...])`
 
-Evaluates the expressions in the array in sequence, evaluating to the value of the last expression. If there are zero expressions, evaluates to `nil`.
+Evaluates the expressions in the array in sequence, evaluating to the value of the last expression. If there are zero expressions, evaluates to `nil`. Changes to the environment do *not* persist across the different expressions.
 
 ```pavo
 (assert-eq (sf-do []) nil)
@@ -563,6 +621,55 @@ Evaluates the `try-exp`. If it throws, the thrown value is bound to the `id` and
 (assert-throw (sf-try (sf-throw 0) foo (sf-throw 1)) 1)
 ```
 
+#### `(sf-case exp [p1 then1, p2 then2, ...])`
+
+Evaluates the `exp`. If it doesn't throw, checks the patterns `p1`, `p2`, ... in sequence until the first one matches, then evaluates the corresponding `then-n` expression (with the environment modified according to the pattern). If none of the patterns matches, throws `{:tag :err-type}`. The rules for matching a value to a pattern are as follows:
+
+- if the pattern is `nil`, a bool, int, float, char, string, bytes, keyword or set, the value must be equal to the pattern in order to match
+- if the pattern is a name (identifier or symbol), the pattern matches, and the environment is updated with an immutable binding from the name to the value
+- if the pattern is `(:mut name)`, the pattern matches, and the environment is updated with a mutable binding from the name to the value
+- if the pattern is an array (of patterns), the value matches if it is an array of the same length and its items match the corresponding subpatterns
+- if the pattern is `(:app patterns...)`, the value matches if it is an application of the same length as the number of patterns and its items match the corresponding subpatterns
+if the pattern is a map from keys to patterns, the value matches if it is a map, and for each key in the pattern, the value contains an entry with the same key whose value matches the corresponding pattern
+- if the pattern is `(:named name subpattern)`, the environment is updated with an immutable binding from the name to the value, and then the value is checked against the subpattern
+- if the pattern is `(:named (:mut named) subpattern)`, the environment is updated with a mutable binding from the name to the value, and then the value is checked against the subpattern
+
+```pavo
+(assert-throw (sf-case 42 []) {:tag :err-type})
+(assert-eq (sf-case 42 [a a]) 42)
+(assert-eq (sf-case 42 [a (int-add a 1)]) 43)
+(assert-eq (sf-case 42 [(:mut a) a]) 42)
+(assert-eq (sf-case 42 [
+    (:mut a) (sf-do [
+        (sf-set! a (int-add a 1))
+        a
+    ])]) 43)
+
+(assert-throw (sf-case 42 [41 0]) {:tag :err-type})
+(assert-eq (sf-case 42 [41 0, 42 1, 43 2]) 1)
+(assert-throw (sf-case @{42} [@{41} 0]) {:tag :err-type})
+(assert-eq (sf-case @{42} [@{} 0, @{42 43} 1, @{42} 2]) 2)
+
+(assert-eq (sf-case [0 1] [[0] 0, [0 1 2] 1, [0 1] 2]) 2)
+(assert-eq (sf-case [1 2 [3]] [[a 2 [c]] (int-add a c)]) 4)
+(assert-eq (sf-case [1 2 [3]] [[a 2 [a]] (int-add a a)]) 6)
+
+(assert-eq (sf-case $(0 1) [(:app 0) 0, (:app 0 1 2) 1, (:app 0 1) 2]) 2)
+(assert-eq (sf-case $(1 2 (3)) [(:app a 2 (:app c)) (int-add a c)]) 4)
+(assert-eq (sf-case $(1 2 (3)) [(:app a 2 (:app a)) (int-add a a)]) 6)
+
+(assert-eq (sf-case {0 1} [{0 1 2 3} 0, {0 1} 1, {} 2]) 1)
+(assert-eq (sf-case {0 1 4 5} [{0 1 2 3} 0, {0 1} 1, {} 2]) 1)
+(assert-eq (sf-case {0 1 2 3} [{0 1 2 3} 0, {0 1} 1, {} 2]) 0)
+(assert-eq (sf-case {0 1} [{0 1 2 3} 0, {} 1, {0 1} 2]) 1)
+(assert-eq (sf-case {0 1} [{0 a 2 3} a, {0 a} a]) 1)
+
+(assert-eq (sf-case 42 [(:named a 42) a]) 42)
+(assert-eq (sf-case [42] [(:named a [b]) b]) 42)
+(assert-eq (sf-case [42] [(:named a [a]) a]) 42)
+(assert-eq (sf-case [42] [(:named (:mut a) [b]) (sf-set! a 43)]) nil)
+```
+
 #### `(sf-lambda [args...] body)`
 
 Evaluates to a function. Associated with that function is the current environment, i.e. the same set of variable bindings that are in scope at the program point where the `sf-lambda` form occurs. When applying the function, the environment is modified according to the arguments (see below), and then the `body` expression is evaluated in that environment. The bindings introduced through application to arguments shadow any bindings of the same identifier that have been in lexical scope at the point of the function definition.
@@ -584,6 +691,20 @@ Pavo guarantees tail-call optimization, (mutually) recursive function calls in t
 - the last expression in the array of an `sf-do` form that is in tail position
 - the `then` and `else` expressions of an `sf-if` form that is in tail position
 - the `caught-exp` of an `sf-try` form that is in tail position
+
+### `(sf-letfn <fn-map> cont)`
+
+Evaluates the expression `cont` in an environment in which the functions of the `<fn-map>` are immutably bound to their key names. The functions themselves work like lambdas, except that the names of the `<fn-map>` are bound to the function values when evaluating the body of one of the functions. Arguments shadow those names.
+
+```pavo
+(assert-eq
+    (sf-letfn {
+        even? ([n] (sf-case n [0 true, _ (odd? (int-sub n 1))]))
+        odd? ([n] (sf-case n [0 false, _ (even? (int-sub n 1))]))
+    }
+    (bool-and (odd? 9999) (even? 10000))
+) true)
+```
 
 ## Macro Expansion
 
@@ -639,7 +760,80 @@ For all other applications, the expanded value is an application containing the 
 
 ## Toplevel Macros
 
-There is a function named `macro-xyz` for each builtin macro `xyz` that is the implementation of the macro. For now, look up the documentation of these functions as documentation for the builtin macros.
+These macros are available in the default toplevel environment. This section documents the semantics of the macros, not the specific code they produce. For each macro `xyz`, there is a toplevel function `macro-xyz` that computes the macro. The documentation for these functions details the *exact* output of the macros.
+
+#### `(set! name v)`
+
+Sets the mutable binding of the `name` to the value `v`. A shorthand for `(sf-set! name v)`.
+
+```pavo
+(assert-eq ((sf-lambda [(:mut n)] (sf-do [(set! n (int-add n 1)) n])) 42) 43)
+```
+
+#### `(throw v)`
+
+Throws the value `v`. A shorthand for `(sf-throw v)`.
+
+```pavo
+(assert-throw (throw 42) 42)
+```
+
+#### `(if u v w)`
+
+If `u` is truthy (neither `nil` nor `false`), evaluates `v`, otherwise evaluates `w`.
+
+```pavo
+(assert-eq (if 0 1 2) 1)
+(assert-eq (if false 1 2) 2)
+(assert-eq (if nil 1 2) 2)
+```
+
+#### `(cond [exprs...])`
+
+Emulates `if - elseif` chains. The array consists of alternating conditions and `then` expressions. The conditions are evaluated until one is truthy, then the corresponding `then` expression is evaluated.
+
+Optionally there can be a single `else` expression at the end of the array (whenever the array has odd length). If no condition is true, the `else` expression is evluated. If none was supplied, `nil` is used.
+
+
+```pavo
+(assert-eq (cond []) nil)
+(assert-eq (cond [42]) 42)
+(assert-eq (cond [0 1]) 1)
+(assert-eq (cond [false 1]) nil)
+(assert-eq (cond [false 1 42]) 42)
+(assert-eq (cond [false 1, 2 3]) 3)
+(assert-eq (cond [0 1, 2 3]) 1)
+(assert-eq (cond [nil 1, false 3]) nil)
+```
+
+#### `(lambda [patterns...] body)`
+
+Creates a function whose arguments must match the patterns.
+
+```pavo
+(assert-eq ((lambda [n] n) 42) 42)
+(assert-eq ((lambda [n [m]] (int-add n m)) 1 [2]) 3)
+(assert-eq ((lambda [true] 42) true) 42)
+(assert-throw ((lambda [true] 42) :nope) {:tag :err-type})
+```
+
+#### `(do [exprs...])`
+
+Emulates variable definitions in a statement-based language: Evaluates the expressions in sequence, like a `(sf-do [exprs...])` special form. In addition, when an expression of the form `(:let pattern v)` is reached, the value is matched against the pattern, and if successful, the bindings that are brought into scope become available for the remaining expressions.
+
+```pavo
+(assert-eq (do []) nil)
+(assert-eq (do [0]) 0)
+(assert-eq (do [0 1 2]) 2)
+(assert-eq (do [(:let a 3)]) nil)
+(assert-eq (do [
+    0
+    (:let [a b] [1 2])
+    (:let c 3)
+    42
+    (int-add (int-add a b) c)
+]) 6)
+```
 
 ## Toplevel Values
 
@@ -4006,11 +4200,21 @@ If the value `v` is opaque, returns its type symbol, otherwise returns a keyword
     ))
 ```
 
-#### `(not x)`
+#### `(truthy? v)`
 
-Returns `true` if `x` is `nil` or `false`, and `false` otherwise.
+Returns `false` if `v` is `nil` or `false`, and `true` otherwise.
 
-Equivalent to `(if x false true)`.
+```pavo
+(assert-eq (truthy? nil) false)
+(assert-eq (truthy? false) false)
+(assert-eq (truthy? true) true)
+(assert-eq (truthy? 0) true)
+(assert-eq (truthy? truthy?) true)
+```
+
+#### `(not v)`
+
+Returns `true` if `v` is `nil` or `false`, and `false` otherwise.
 
 ```pavo
 (assert-eq (not nil) true)
@@ -4058,11 +4262,11 @@ Returns `(sf-throw v)`.
 
 #### `(macro-if u v w)`
 
-Returns `(sf-if u v w)`.
+Returns `(sf-case (<truthy?> u) [true v, false w])`, where `<truthy?>` is the function that is bound to the toplevel identifier `truthy?` (*not* the identifier itself).
 
-```pavo
-(assert-eq (macro-if 0 1 2) $(sf-if 0 1 2))
-```
+#### `(macro-lambda [patterns...] body)`
+
+Returns `(sf-lambda [args...] (sf-case [args...] [[patterns...] body]))`, where `args...` are as many fresh symbols as there are patterns.
 
 #### `(macro-do [exprs...])`
 
@@ -4080,15 +4284,15 @@ If none of the expressions is an application whose first item is the keyword `:l
 
 #### `(macro-cond [exprs...])`
 
-If there are exactly zero expressions in the array, returns `nil`. If there is exactly one expression `else`, returns `else`. If there are exactly two expressions `condition` and `then`, returns `(sf-if condition then nil)`. If there are exactly three expressions `condition`, `then` and `else`, returns `(sf-if condition then else)`. If there are four or more expressions `condition`, `then` and `rest...`, returns `(sf-if cond then <rec>)`, where `<rec>` is the result of evaluating `(macro-cond [rest...])` (propagating any errors).
+If there are exactly zero expressions in the array, returns `nil`. If there is exactly one expression `else`, returns `else`. If there are exactly two expressions `condition` and `then`, returns `(if condition then nil)`. If there are exactly three expressions `condition`, `then` and `else`, returns `(if condition then else)`. If there are four or more expressions `condition`, `then` and `rest...`, returns `(if cond then <rec>)`, where `<rec>` is the result of evaluating `(macro-cond [rest...])` (propagating any errors).
 
 ```pavo
 (assert-eq (macro-cond []) nil)
 (assert-eq (macro-cond [0]) 0)
-(assert-eq (macro-cond [0 1]) $(sf-if 0 1 nil))
-(assert-eq (macro-cond [0 1 2]) $(sf-if 0 1 2))
-(assert-eq (macro-cond [0 1 2 3]) $(sf-if 0 1 (sf-if 2 3 nil)))
-(assert-eq (macro-cond [0 1 2 3 4]) $(sf-if 0 1 (sf-if 2 3 4)))
+(assert-eq (macro-cond [0 1]) $(if 0 1 nil))
+(assert-eq (macro-cond [0 1 2]) $(if 0 1 2))
+(assert-eq (macro-cond [0 1 2 3]) $(if 0 1 (if 2 3 nil)))
+(assert-eq (macro-cond [0 1 2 3 4]) $(if 0 1 (if 2 3 4)))
 ```
 
 #### `(macro-let pattern v body)`
@@ -4378,8 +4582,6 @@ Evaluate `v`. If it does not match any of the patterns, evaluates to `nil`. Othe
     50005000 # 50005000 == 1 + 2 + ... + 10000
 )
 ```
-
-TODO pattern macros: lambda
 
 #### `(macro-fn name [args...] body)`
 
@@ -4720,33 +4922,8 @@ TODO
 
 ---
 
-TODO introduce special form sf-letfn
-
 TODO `require` (dynamic linking, *not* loading)
 
 TODO while and loop should evaluate to last loop body (or nil if none)
 
----
-
-TODO
-
-letfn:
-
-Defines some functions via `<fns>`, then evaluates to `exp` in an environment in which these functions are immutably bound to some names. `<fns>` is a map from identifiers to applications that contain the `[<args>]` and `body` like a regular `sf-lambda` definition. When evaluating one of those function bodies, all the functions defined by the `sf-letfn` form are immutably bound to their respective identifier.
-
-```pavo
-(assert-eq (sf-letfn {
-    even? ([n] (
-        sf-if
-            (= n 0)
-            true
-            (odd? (- n 1))
-        )),
-    odd? ([n] (
-        sf-if
-            (= n 0)
-            false
-            (even? (- n 1))
-        ))
-} [(even? 10000) (odd? 10000)]) [true false])
-```
+TODO remove sf-if, add truthy?
