@@ -896,6 +896,7 @@ impl Fun {
             Fun::Builtin(Builtin::MacroDo) => builtins::macro_do(args, cx),
             Fun::Builtin(Builtin::MacroCond) => builtins::macro_cond(args, cx),
             Fun::Builtin(Builtin::MacroLet) => builtins::macro_let(args, cx),
+            Fun::Builtin(Builtin::MacroLetFn) => builtins::macro_letfn(args, cx),
             Fun::Builtin(Builtin::MacroFn) => builtins::macro_fn(args, cx),
             Fun::Builtin(Builtin::MacroLambda) => builtins::macro_lambda(args, cx),
             Fun::Builtin(Builtin::MacroThreadFirst) => builtins::macro_thread_first(args, cx),
@@ -910,6 +911,7 @@ impl Fun {
             Fun::Builtin(Builtin::MacroMatch) => builtins::macro_match(args, cx),
             Fun::Builtin(Builtin::MacroCase) => builtins::macro_case(args, cx),
             Fun::Builtin(Builtin::MacroLoop) => builtins::macro_loop(args, cx),
+            Fun::Builtin(Builtin::MacroTry) => builtins::macro_try(args, cx),
 
             Fun::Builtin(Builtin::Require) => unimplemented!(),
         }
@@ -1107,12 +1109,14 @@ pub enum Builtin {
     MacroIf,
     MacroLambda,
     MacroLet,
+    MacroLetFn,
     MacroLoop,
     MacroMatch,
     MacroOr,
     MacroQuasiquote,
     MacroSetBang,
     MacroThrow,
+    MacroTry,
     MacroWhile,
     MacroOr2,
 

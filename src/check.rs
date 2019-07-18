@@ -79,12 +79,6 @@ pub fn check(
             }
         }
 
-        Code::If(cond, then, else_) => {
-            check(*cond, bindings)?;
-            check(*then, bindings)?;
-            check(*else_, bindings)
-        }
-
         Code::Throw(thrown) => check(*thrown, bindings),
 
         Code::Try(try_, mutable, bound, catch) => {

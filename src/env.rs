@@ -284,6 +284,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "macro-if", Builtin::MacroIf);
     env_add(&mut m, "macro-let", Builtin::MacroLet);
     env_add(&mut m, "macro-lambda", Builtin::MacroLambda);
+    env_add(&mut m, "macro-letfn", Builtin::MacroLetFn);
     env_add(&mut m, "macro-fn", Builtin::MacroFn);
     env_add(&mut m, "macro-->", Builtin::MacroThreadFirst);
     env_add(&mut m, "macro-->>", Builtin::MacroThreadLast);
@@ -297,6 +298,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "macro-match", Builtin::MacroMatch);
     env_add(&mut m, "macro-case", Builtin::MacroCase);
     env_add(&mut m, "macro-loop", Builtin::MacroLoop);
+    env_add(&mut m, "macro-try", Builtin::MacroTry);
 
     m
 }

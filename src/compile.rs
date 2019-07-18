@@ -272,25 +272,6 @@ fn code_to_ir(c: Code, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
             }
         }
 
-        Code::If(cond, then, else_) => {
-            let bb_then = bbb.new_block();
-            let bb_else = bbb.new_block();
-            let bb_cont = bbb.new_block();
-
-            code_to_ir(*cond, true, bbb, false, s);
-            bbb.append(CondJump(bb_then, bb_else));
-
-            bbb.set_active_block(bb_then);
-            code_to_ir(*then, push, bbb, tail, s);
-            bbb.append(Jump(bb_cont));
-
-            bbb.set_active_block(bb_else);
-            code_to_ir(*else_, push, bbb, tail, s);
-            bbb.append(Jump(bb_cont));
-
-            bbb.set_active_block(bb_cont);
-        }
-
         Code::Throw(exception) => {
             code_to_ir(*exception, true, bbb, false, s);
             bbb.append(Throw);

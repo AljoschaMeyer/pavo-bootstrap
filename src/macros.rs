@@ -11,6 +11,7 @@ pub fn default() -> ImOrdMap<Id, Value> {
     env_add(&mut m, "throw", Builtin::MacroThrow);
     env_add(&mut m, "if", Builtin::MacroIf);
     env_add(&mut m, "let", Builtin::MacroLet);
+    env_add(&mut m, "letfn", Builtin::MacroLetFn);
     env_add(&mut m, "fn", Builtin::MacroFn);
     env_add(&mut m, "lambda", Builtin::MacroLambda);
     env_add(&mut m, "->", Builtin::MacroThreadFirst);
@@ -25,6 +26,7 @@ pub fn default() -> ImOrdMap<Id, Value> {
     env_add(&mut m, "match", Builtin::MacroMatch);
     env_add(&mut m, "case", Builtin::MacroCase);
     env_add(&mut m, "loop", Builtin::MacroLoop);
+    env_add(&mut m, "try", Builtin::MacroTry);
 
     return m;
 }

@@ -18,7 +18,6 @@ pub enum Code {
     Quote(Value),
     Do(Vector<Code>),
     SetBang(Id, Box<Code>),
-    If(Box<Code>, Box<Code>, Box<Code>),
     Throw(Box<Code>),
     Try(Box<Code>, bool, Id, Box<Code>),
     Lambda(Vector<(bool, Id)>, Box<Code>),
@@ -126,18 +125,6 @@ pub fn to_code(v: &Value) -> Result<Code, SpecialFormSyntaxError> {
                     };
 
                     return Ok(Code::SetBang(id.clone(), Box::new(to_code(&app.0[2])?)));
-                }
-
-                Some("sf-if") => {
-                    if app.0.len() != 4 {
-                        return Err(SpecialFormSyntaxError::Arity(FormType::If, app.0.len()));
-                    }
-
-                    return Ok(Code::If(
-                        Box::new(to_code(&app.0[1])?),
-                        Box::new(to_code(&app.0[2])?),
-                        Box::new(to_code(&app.0[3])?),
-                    ));
                 }
 
                 Some("sf-throw") => {

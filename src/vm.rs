@@ -122,15 +122,18 @@ struct LocalState {
     // Where to resume execution after something throws. If this is `BB_RETURN`, the function
     // itself throws rather than resuming execution.
     catch_handler: BBId,
+    // The environment in which to resume execution after something throws.
+    catch_env: Gc<GcCell<Environment>>,
 }
 
 impl LocalState {
     // Create and initialize a `LocalState` suitable for executing the given chunk.
-    fn new(_chunk: &IrChunk) -> LocalState {
+    fn new(_chunk: &IrChunk, catch_env: Gc<GcCell<Environment>>) -> LocalState {
         LocalState {
             pc: (0, 0),
             stack: vec![],
             catch_handler: BB_RETURN,
+            catch_env,
         }
     }
 
@@ -276,7 +279,7 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
     let mut state;
 
     loop {
-        state = LocalState::new(&c.fun);
+        state = LocalState::new(&c.fun, c.env.clone());
 
         if args.0.len() != c.args {
             return Err(num_args_error());
@@ -366,13 +369,18 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
 
                 Some(Throw) => {
                     if state.catch_handler == BB_RETURN {
+                        c.env = state.catch_env.clone();
                         return Err(state.pop());
                     } else {
                         state.pc = (state.catch_handler, 0);
+                        c.env = state.catch_env.clone();
                     }
                 }
 
-                Some(SetCatchHandler(bb)) => state.catch_handler = *bb,
+                Some(SetCatchHandler(bb)) => {
+                    state.catch_handler = *bb;
+                    state.catch_env = c.env.clone();
+                }
 
                 Some(Push(addr)) => {
                     let val = addr.load(&mut state, &c.env);
@@ -406,8 +414,10 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                         }
                         Err(err) => {
                             if state.catch_handler == BB_RETURN {
+                                c.env = state.catch_env.clone();
                                 return Err(err);
                             } else {
+                                c.env = state.catch_env.clone();
                                 state.push(err);
                                 state.pc = (state.catch_handler, 0);
                             }
@@ -435,8 +445,10 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                                 }
                                 Err(err) => {
                                     if state.catch_handler == BB_RETURN {
+                                        c.env = state.catch_env.clone();
                                         return Err(err);
                                     } else {
+                                        c.env = state.catch_env.clone();
                                         state.push(err);
                                         state.pc = (state.catch_handler, 0);
                                     }
@@ -447,8 +459,10 @@ fn do_compute(mut c: Closure, mut args: Vector<Value>, cx: &mut Context) -> Resu
                         _ => {
                             let err = type_error();
                             if state.catch_handler == BB_RETURN {
+                                c.env = state.catch_env.clone();
                                 return Err(err);
                             } else {
+                                c.env = state.catch_env.clone();
                                 state.push(err);
                                 state.pc = (state.catch_handler, 0);
                             }

@@ -331,12 +331,12 @@ There are two classes of static checks: Those enforcing the syntactic well-forme
 
 ### Special Form Syntax
 
-Special forms are application literals whose first item is one of the following identifiers: `sf-quote`, `sf-do`, `sf-if`, `sf-set!`, `sf-throw`, `sf-try`, `sf-case`, `sf-lambda`, and `sf-letfn`. Checking special form syntax of a value proceeds recursively:
+Special forms are application literals whose first item is one of the following identifiers: `sf-quote`, `sf-do`, `sf-set!`, `sf-throw`, `sf-try`, `sf-case`, `sf-lambda`, and `sf-letfn`. Checking special form syntax of a value proceeds recursively:
 
 If the value is an identifier, symbol, nil, bool, int, float, char, string, bytes, keyword, function, cell or opaque, the check finishes successfully. To check an array, set, or map in an environment `E`, all inner values are checked. When checking an application, if it is a special form, it must satisfy the criteria outlined below. Then, if it is not a `sf-quote` form, all inner values are checked.
 
 ```pavo
-(sf-quote (sf-if)) # this is ok - the sf-if is malformed, but that's ok because it is quoted
+(sf-quote (sf-do)) # this is ok - the sf-do is malformed, but that's ok because it is quoted
 ```
 
 #### `sf-quote`
@@ -351,15 +351,6 @@ An application literal whose first item is `sf-quote` must have exactly two item
 #### `sf-do`
 
 An application literal whose first item is `sf-do` must have exactly two items, the second one must be an array.
-
-#### `sf-if`
-
-An application literal whose first item is `sf-quote` must have exactly two items.
-
-```pavo
-(sf-if :cond :then :else)
-# (sf-if), (sf-if :cond), (sf-if :cond :then) and (sf-if :cond :then :else :wut?) are static errors
-```
 
 #### `sf-set!`
 
@@ -568,19 +559,6 @@ Evaluates the expressions in the array in sequence, evaluating to the value of t
 (assert-eq (sf-do [1 2 3]) 3)
 ```
 
-#### `(sf-if condition then else)`
-
-Evaluates the `condition`. If it evaluated to `nil` or `false`, evaluates to the value of `else`, otherwise to the value of `then`. At most one of `then` and `else` is getting evaluated (or none if evaluating `condition` throws).
-
-```pavo
-(assert-eq (sf-if true :then :else) :then)
-(assert-eq (sf-if 0 :then :else) :then)
-(assert-eq (sf-if [] :then :else) :then)
-(assert-eq (sf-if (sf-quote ()) :then :else) :then)
-(assert-eq (sf-if nil :then :else) :else)
-(assert-eq (sf-if false :then :else) :else)
-```
-
 #### `(sf-set! id exp)`
 
 Evaluates `exp` and rebinds identifier `id` to the value. `id` must refer to a mutable binding in scope. The form itself evaluates to `nil`. If evaluating `exp` throws, the identifier is not rebound.
@@ -602,7 +580,7 @@ Evaluates `x` and throws the result.
     (sf-throw 2)
     3
 ]) 1)
-(assert-throw (sf-if
+(assert-throw (if
     (sf-throw 0)
     (sf-throw 1)
     (sf-throw 2)
@@ -689,7 +667,7 @@ Pavo guarantees tail-call optimization, (mutually) recursive function calls in t
 
 - the body of a function
 - the last expression in the array of an `sf-do` form that is in tail position
-- the `then` and `else` expressions of an `sf-if` form that is in tail position
+- the `then` expressions of an `sf-case` form that is in tail position
 - the `caught-exp` of an `sf-try` form that is in tail position
 
 ### `(sf-letfn <fn-map> cont)`
@@ -819,7 +797,7 @@ Creates a function whose arguments must match the patterns.
 
 #### `(do [exprs...])`
 
-Emulates variable definitions in a statement-based language: Evaluates the expressions in sequence, like a `(sf-do [exprs...])` special form. In addition, when an expression of the form `(:let pattern v)` is reached, the value is matched against the pattern, and if successful, the bindings that are brought into scope become available for the remaining expressions.
+Emulates variable definitions in a statement-based language: Evaluates the expressions in sequence, like a `(sf-do [exprs...])` special form. In addition, when an expression of the form `(:let pattern v)` is reached, the value is matched against the pattern, and if successful, the bindings that are brought into scope become available for the remaining expressions (otherwise `{:tag err-type}` is thrown).
 
 ```pavo
 (assert-eq (do []) nil)
@@ -833,6 +811,236 @@ Emulates variable definitions in a statement-based language: Evaluates the expre
     42
     (int-add (int-add a b) c)
 ]) 6)
+(assert-throw (do [(:let true false)]) {:tag err-type})
+```
+
+#### `(let pattern v w)`
+
+Matches `v` against the pattern `pattern` and evaluates `w` in the resulting environment. If `v` doesn't match the mattern, throws `{:tag :err-type}`.
+
+```pavo
+(assert-eq (let a 42 a) 42)
+(assert-eq (let [a b] [1 2] (int-add a b)) 3)
+(assert-throw (let true false nil) {:tag :err-type})
+```
+
+#### `(-> v [applications...])`
+
+Threads the value `v` through the applications, inserting it (or the result of the previous application) as the first argument (i.e. second item) of the next application.
+
+```pavo
+(assert-eq (-> 42 [
+    (int-sub ,,, 2) # the commas are whitespace, used here to indicate the insertion point
+    (int->float ,,,)
+]) 40.0)
+```
+
+#### `(->> v [applications...])`
+
+Threads the value `v` through the applications, inserting it (or the result of the previous application) as the last item of the next application.
+
+```pavo
+(assert-eq (->> 42 [
+    (int-sub 2 ,,,) # the commas are whitespace, used here to indicate the insertion point
+    (int->float ,,,)
+]) -40.0)
+```
+
+#### `(as-> pattern v [exprs...])`
+
+Threads the value `v` through the expressions, matching it (or the result of the previous expression) against the pattern between each step to update the environment in which the next expression is evaluated.
+
+```pavo
+(assert-eq (as-> foo 42 [
+    (int-sub foo 2)
+    (int-sub 3 foo)
+]) -37)
+```
+
+#### `(or [exprs...])`
+
+Evaluates to the first expression that evaluates to neither `nil` nor `false`, or to the last expression otherwise. This is shortcircuiting, it stops evaluating expressions as soon as possible.
+
+```pavo
+(assert-eq (or [0 1]) 0)
+(assert-eq (or [0 false]) 0)
+(assert-eq (or [0 (throw 42)]) 0)
+(assert-eq (or [false 1]) 1)
+(assert-eq (or [false nil]) nil)
+(assert-eq (or [nil false 2]) 2)
+(assert-eq (or [nil false 2 3]) 2)
+```
+
+#### `(|| v w)`
+
+Evaluates `v`. If it is `nil` or `false`, evaluates `w`.
+
+```pavo
+(assert-eq (|| 0 1) 0)
+(assert-eq (|| 0 false) 0)
+(assert-eq (|| 0 (throw 42)) 0)
+(assert-eq (|| false 1) 1)
+(assert-eq (|| false nil) nil)
+```
+
+#### `(and [exprs...])`
+
+Evaluates to the first expression that evaluates to `nil` nor `false`, or to the last expression otherwise. This is shortcircuiting, it stops evaluating expressions as soon as possible.
+
+```pavo
+(assert-eq (and [0 1]) 1)
+(assert-eq (and [0 false]) false)
+(assert-eq (and [false 1]) false)
+(assert-eq (and [false nil]) false)
+(assert-eq (and [false (throw 42)]) false)
+(assert-eq (and [nil false 2]) nil)
+(assert-eq (and [nil false 2 3]) nil)
+(assert-eq (and [3 2 false nil]) false)
+```
+
+#### `(&& v w)`
+
+Evaluates `v`. If it is neither `nil` or `false`, evaluates `w`.
+
+```pavo
+(assert-eq (&& 0 1) 1)
+(assert-eq (&& 0 false) false)
+(assert-eq (&& false 1) false)
+(assert-eq (&& false nil) false)
+(assert-eq (&& false (throw 42)) false)
+```
+
+#### `(quasiquote v)`
+
+Returns an expression that evaluates to the value `v` (*not* to the result of evaluating `v`), except that:
+
+- occurences of `(:unquote w)` within `v` evaluate to the result of evaluating `w`
+- for each occurence of `(:unquote-splice w)` within an application within `v`, `w` is evaluated and the result is spliced into the containing application.
+- occurences of `(:fresh-name some-name)` (names are identifiers or symbols) are replaced with a freshly generated symbol, all such forms with the same name receive the same symbol.
+
+Reminder: \`v is a shorthand for `(quasiquote v)`, `~v` for `(:unquote v)`, `@~v` for `(:unquote-splice v)` and `(@name)` for `(:fresh-name name)` if `name` is a name.
+
+```pavo
+(assert-eq `42 42)
+(assert-eq `foo $foo)
+(assert-eq `[42 foo] [42 $foo])
+
+(assert-eq `() $())
+(assert-eq `(42 foo) (arr->app [42 $foo]))
+
+(assert-eq `~(int-add 1 2) 3)
+(assert-eq `[42 ~(int-add 1 2)] [42 3])
+(assert-eq `(42 ~(int-add 1 2)) $(42 3))
+
+(assert-eq `(0 @~$() 1) $(0 1))
+(assert-eq `(0 @~$(1) 2) $(0 1 2))
+(assert-eq `(0 @~$(1 2) 3) $(0 1 2 3))
+```
+
+#### `(case v [exprs...])`
+
+Behaves just like `(sf-case v [exprs...])`, but also allows the number of `exprs...` to be odd. If it is odd, the last expression is evaluated as a default if none of the other branches matched.
+
+```pavo
+(assert-eq (case 0 [0 42 1 43 :else]) 42)
+(assert-eq (case 1 [0 42 1 43 :else]) 43)
+(assert-eq (case 2 [0 42 1 43 :else]) :else)
+(assert-throw (case 2 [0 42 1 43]) {:tag :err-type})
+```
+
+#### `(match v p yay nay)`
+
+Evaluates matches `v` against the pattern `p`, evaluating `yay` if it matches and `nay` otherwise.
+
+```pavo
+(assert-eq (match 0 0 1 2) 1)
+(assert-eq (match 0 a a 2) 0)
+(assert-eq (match 42 0 1 2) 2)
+```
+
+#### `(try v pattern w)`
+
+Like `sf-try`, but allows an arbitrary pattern for destructuring the caught value.
+
+```pavo
+(assert-eq (try (throw 42) a a) 42)
+(assert-eq (try (throw [42]) [a] a) 42)
+(assert-throw (try (throw 42) [a] a) {:tag :err-type})
+```
+
+#### `(letfn fn-map cont)`
+
+This is to `sf-letfn` what the `lambda` macro is to `sf-lambda`: Allows definition of mutually recursive functions that destructure their arguments against patterns.
+
+```pavo
+(assert-eq (letfn {foo ([[a, true]] a)} (foo [42 true])) 42)
+(assert-throw (letfn {foo ([[a, true]] a)} (foo [42 false])) {:tag :err-type})
+```
+
+#### `(fn name args body)`
+
+Defines a function just like `lambda`, except that the name `name` can be used inside the body to refer to the function itself.
+
+```pavo
+(assert-eq
+    (
+        # https://en.wikipedia.org/wiki/Triangular_number
+        (fn triangular [acc n] (if
+            (= n 0) acc
+            (triangular (int-add acc n) (int-sub n 1))
+        ))
+        0 10000
+    )
+    50005000 # 50005000 == 1 + 2 + ... + 10000
+)
+```
+
+#### `(while cond body)`
+
+A [while loop](https://en.wikipedia.org/wiki/While_loop): While `cond` evaluates to neither `nil` nor `false`, evaluates the `body` and then checks the condition again. When `cond` evalutes to `nil` or `false`, evalutes to whatever the body evaluated to in the last iteration, or `nil` if the body was never executed.
+
+```pavo
+(assert-eq (while false 42) nil)
+(assert-eq (do [
+    (:let (:mut cond) true)
+    (while cond (do [
+        (set! cond false)
+        42
+        ]))
+    ])
+42)
+(assert-eq
+    (do [
+        (:let (:mut sum) 0)
+        (:let (:mut n) 0)
+        (while (<= n 10000) (do [
+            (set! sum (int-add sum n))
+            (set! n (int-add n 1))
+            ]))
+        sum
+        ])
+    50005000 # 50005000 == 1 + 2 + ... + 10000
+)
+```
+
+#### `(macro-loop v [p1, then1, p2, then2, ...])`
+
+While `v` matches one of the patterns (according to a `case`), evaluates the corresponding `then-n` expression and then tries to match again. When `v` doesn't match any pattern, evalutes to whatever the `then-n` expression evaluated to in the last iteration, or `nil` if the pattern didn't match in the first iteration.
+
+```pavo
+(assert-throw (macro-loop 42 [:odd]) {:tag :err-type})
+(assert-eq (loop 0 [1 2]) nil)
+(assert-eq (do [
+    (:let (:mut cond) true)
+    (loop cond [
+        true (do [
+              (set! cond false)
+              42
+          ])
+    ])
+])
+42)
+)
 ```
 
 ## Toplevel Values
@@ -4266,7 +4474,7 @@ Returns `(sf-case (<truthy?> u) [true v, false w])`, where `<truthy?>` is the fu
 
 #### `(macro-lambda [patterns...] body)`
 
-Returns `(sf-lambda [args...] (sf-case [args...] [[patterns...] body]))`, where `args...` are as many fresh symbols as there are patterns.
+Returns `(sf-lambda [args...] (case [args...] [[patterns...] body]))`, where `args...` are as many fresh symbols as there are patterns.
 
 #### `(macro-do [exprs...])`
 
@@ -4297,18 +4505,15 @@ If there are exactly zero expressions in the array, returns `nil`. If there is e
 
 #### `(macro-let pattern v body)`
 
-Returns `((lambda [pattern] body) v)`, effectively evaluating `body` in a context where the pattern has been destructured against the value `v`.
+Returns `((lambda [pattern] body) v)`.
 
 ```pavo
-(assert-eq (let a 42 a) 42)
 (assert-eq (macro-let 0 1 2) $((lambda [0] 2) 1))
 ```
 
 #### `(macro--> v [])` `(macro--> v [app])` `(macro--> v [app rest...])`
 
 If the array is empty, returns `v`. If the array contains one item `app`, returns the result of evaluating `(app-insert app 1 v)`, throwing any error. If the array contains more than one item, `app` and `rest...`, returns the result of evaluating `(macro--> <spliced> [rest...])` (propagating any error), where `<spliced>` is the result of evaluating `(app-insert app 1 v)`, throwing any error.
-
-In effect, this threads the value `v` through the applications, inserting it (or the result of the previous application) as the first argument of the next application.
 
 ```pavo
 (assert-eq (-> 42 [
@@ -4330,11 +4535,6 @@ If the array is empty, returns `v`. If the array contains one item `app`, return
 In effect, this threads the value `v` through the applications, inserting it (or the result of the previous application) as the last argument of the next application.
 
 ```pavo
-(assert-eq (->> 42 [
-    (int-sub 2 ,,,) # the commas are whitespace, used here to indicate the insertion point
-    (int->float ,,,)
-]) -40.0)
-
 (assert-eq (macro-->> 42 []) 42)
 (assert-eq (macro-->> 42 [$(int-sub 2)]) $(int-sub 2 42))
 (assert-eq (macro-->> 42 [$(int-sub 2) $(int->float)]) $(int->float (int-sub 2 42)))
@@ -4346,14 +4546,7 @@ In effect, this threads the value `v` through the applications, inserting it (or
 
 If the array is empty, returns `v`. If the array contains one item `w`, returns `(let pattern v w)`. If the array contains more than one item, `w` and `rest...`, returns the result of evaluating `(macro-as-> pattern (let pattern v w) rest...)`, throwing any error.
 
-In effect, this threads the value `v` through the applications, matching it against the pattern between each step to update the bindings with the result of the previous application.
-
 ```pavo
-(assert-eq (as-> foo 42 [
-    (int-sub foo 2)
-    (int-sub 3 foo)
-]) -37)
-
 (assert-eq (macro-as-> $foo 42 []) 42)
 (assert-eq (macro-as-> $foo 42 [$(int-sub foo 2)]) $(let foo 42 (int-sub foo 2)))
 (assert-eq (macro-as-> $foo 42 [$(int-sub foo 2) $(int-sub 3 foo)]) $(let foo (let foo 42 (int-sub foo 2)) (int-sub 3 foo)))
@@ -4361,7 +4554,7 @@ In effect, this threads the value `v` through the applications, matching it agai
 
 #### `(macro-or [])` `(macro-or [v])` `(macro-or [v rest...])`
 
-If the array is empty, returns `false`. If the array contains one item `v`, returns `v`. If the array contains two arguments or more items `v` and `rest...`, returns `(let <sym> v (sf-if <sym> <sym> <rec>))`, where `<sym>` is a freshly generated symbol, and `<rec>` is the result of evaluating `(macro-or [rest...])`.
+If the array is empty, returns `false`. If the array contains one item `v`, returns `v`. If the array contains two arguments or more items `v` and `rest...`, returns `(let <sym> v (if <sym> <sym> <rec>))`, where `<sym>` is a freshly generated symbol, and `<rec>` is the result of evaluating `(macro-or [rest...])`.
 
 ```pavo
 (assert-eq (macro-or []) false)
@@ -4377,7 +4570,7 @@ If the array is empty, returns `false`. If the array contains one item `v`, retu
 
 #### `(macro-|| v w)`
 
-Returns `(let <sym> v (sf-if <sym> <sym> w))`, where `<sym>` is a freshly generated symbol.
+Returns `(let <sym> v (if <sym> <sym> w))`, where `<sym>` is a freshly generated symbol.
 
 ```pavo
 (assert-eq (|| 0 1) 0)
@@ -4388,7 +4581,7 @@ Returns `(let <sym> v (sf-if <sym> <sym> w))`, where `<sym>` is a freshly genera
 
 #### `(macro-and [])` `(macro-and [v])` `(macro-and [v rest...])`
 
-If the array is empty, returns `true`. If the array contains one item `v`, returns `v`. If the array contains two arguments or more items `v` and `rest...`, returns `(let <sym> v (sf-if <sym> <rec> <sym>))`, where `<sym>` is a freshly generated symbol, and `<rec>` is the result of evaluating `(macro-and [rest...])`.
+If the array is empty, returns `true`. If the array contains one item `v`, returns `v`. If the array contains two arguments or more items `v` and `rest...`, returns `(let <sym> v (if <sym> <rec> <sym>))`, where `<sym>` is a freshly generated symbol, and `<rec>` is the result of evaluating `(macro-and [rest...])`.
 
 ```pavo
 (assert-eq (macro-and []) true)
@@ -4398,6 +4591,7 @@ If the array is empty, returns `true`. If the array contains one item `v`, retur
 (assert-eq (and [0 false]) false)
 (assert-eq (and [false 1]) false)
 (assert-eq (and [false nil]) false)
+(assert-eq (and [false (throw 42)]) false)
 (assert-eq (and [nil false 2]) nil)
 (assert-eq (and [nil false 2 3]) nil)
 (assert-eq (and [3 2 false nil]) false)
@@ -4405,7 +4599,7 @@ If the array is empty, returns `true`. If the array contains one item `v`, retur
 
 #### `(macro-&& v w)`
 
-Returns `(let <sym> v (sf-if <sym> w <sym>))`, where `<sym>` is a freshly generated symbol.
+Returns `(let <sym> v (if <sym> w <sym>))`, where `<sym>` is a freshly generated symbol.
 
 ```pavo
 (assert-eq (&& 0 1) 1)
@@ -4448,164 +4642,49 @@ Reminder: \`v is a shorthand for `(quasiquote v)`, `~v` for `(:unquote v)`, `@~v
 ]))
 ```
 
+#### `(macro-case v [branches...])`
+
+If there is an even number of branches, returns `(sf-case v branches)`. Otherwise returns `(sf-case v <modified-branches>)`, where `<modified-branches>` is an array containing all but the last of the original `branches...`, followed by a fresh symbol, followed by the last value of the `branches...`.
+
+```pavo
+(assert-eq (macro-case 0 $[a b]) $(sf-case 0 [a b]))
+```
+
 #### `(macro-match v p yay nay)`
 
-The most basic pattern-based macro. Evaluates `yay` if `v` matches the pattern `p`, using the bindings introduced by the pattern. Otherwise, evaluates to `nay`.
-
-Whether a value `v` matches a pattern `p` is determined as follows:
-
-- if `p` is `nil`, a bool, an int, a float, a char, a string, a bytes or a keyword, `v` matches it if `(= v p)`
-- if `p` is a name (identifier or symbol), the pattern matches and the name is immutably bound to `v`
-- if `p` is an array, `v` matches it if:
-  - `v` is an array
-  - of the same length
-  - the items of the value `v` match the subpatterns (items) of the pattern `p` (checking and introducing bindings is done in the order of the items in the arrays)
-- if `p` is a map, the `v` matches it if:
-  - `v` is a map
-  - for each entry (`[k, vp]`) in `p`:
-    - `v` contains an entry with key `k`
-    - the value of this entry matches the pattern `vp`
-- if `p` is an application `(:app rest...)`, `v` matches it if:
-  - `v` is an application
-  - of the same length there are values in `rest...`
-  - the items of the value `v` match the subpatterns (items) of `rest...` (checking and introducing bindings is done in the order of the items in the arrays)
-- if `p` is an application `(:mut some-name)`, the pattern matches and the name is mutably bound to `v`
-- if `p` is an application `(:guard p_ exp)`, the value is matched against the pattern `p_` and if it matches `p_`, `exp` is evaluated (with the bindings introduced in `p_` in scope). If `exp` evaluates to `nil` or `false`, the value did not match `p`, otherwise it did.
-- if `p` is an application `(:named some-name p_)`, the value is immutably bound to the name and then `v` is matched against `p_` (with the binding in scope)
-- if `p` is an application `(:named (:mut some-name) p_)`, the value is mutably bound to the name and then `v` is matched against `p_` (with the binding in scope)
-- if `p` is an application `(:map-exact some-map)`, works like a regular map pattern except that after checking whether `v` is a map, the number of entries of `v` is compared to the number of entries of the `some-map` pattern
-- if `p` is an application `(:= w)`, `v` matches if `(= v w)` is `true`
-- if `p` is an application `(:typeof w)`, `v` matches if `(= (typeof v) w)` is `true`
-
-If `p` is neither of the above, throws `{:tag :err-pattern}`.
+Returns `(sf-case v [p yay, <sym> nay])`, where `<sym>` is a fresh symbol.
 
 ```pavo
-(assert-eq (match 42 42 true false) true)
-(assert-eq (match 42 43 true false) false)
-(assert-eq (match [] 42 true false) false)
-
-(assert-eq (match 42 n n false) 42)
-
-(assert-eq (match [1] [2] true false) false)
-(assert-eq (match [1] [1] true false) true)
-(assert-eq (match [1 2] [1 2] true false) true)
-(assert-eq (match [1] [a] a false) 1)
-(assert-eq (match [1 2] [a b] (int-add a b) false) 3)
-(assert-eq (match [1 2] [a 3] (int-add a 3) false) false)
-(assert-eq (match [1 2] [3 b] (int-add 3 b) false) false)
-(assert-eq (match [1] [a b] (int-add a b) false) false)
-(assert-eq (match [1 2 3] [a b] (int-add a b) false) false)
-(assert-eq (match 42 [a b] (int-add a b) false) false)
-
-(assert-eq (match {0 42 1 43 2 44} {0 x 1 y} (int-add x y) false) 85)
-(assert-eq (match {0 42 2 44} {0 x 1 y} (int-add x y) false) false)
-
-(assert-eq (match $(1) (:app 2) true false) false)
-(assert-eq (match $(1) (:app 1) true false) true)
-(assert-eq (match $(1 2) (:app 1 2) true false) true)
-(assert-eq (match $(1) (:app a) a false) 1)
-(assert-eq (match $(1 2) (:app a b) (int-add a b) false) 3)
-(assert-eq (match $(1 2) (:app a 3) (int-add a 3) false) false)
-(assert-eq (match $(1 2) (:app 3 b) (int-add 3 b) false) false)
-(assert-eq (match $(1) (:app a b) (int-add a b) false) false)
-(assert-eq (match $(1 2 3) (:app a b) (int-add a b) false) false)
-(assert-eq (match 42 (:app a b) (int-add a b) false) false)
-
-(assert-eq (match 42 (:mut n) n false) 42)
-(assert-eq (match 42 (:mut n) (do [(set! n (int-add n 1)) n]) false) 43)
-
-(assert-eq (match 42 (:guard n (>= n 17)) n false) 42)
-(assert-eq (match 16 (:guard n (>= n 17)) n false) false)
-(assert-eq (match [42 3] [(:guard n (>= n 17)) (:guard n (< n 17))] n false) 3)
-(assert-eq (match [42 43] [(:guard n (>= n 17)) (:guard m (< n m))] [m n] false) [43 42])
-
-(assert-eq (match [42] (:named outer [inner]) outer false) [42])
-(assert-eq (match [42] (:named outer [inner]) inner false) 42)
-(assert-eq (match [42] (:named x [x]) x false) 42)
-(assert-eq (match [42] (:named (:mut outer) [inner]) (do [(set! outer (arr-update outer 0 17)) outer]) false) [17])
-
-(assert-eq (match {0 42 1 43} (:map-exact {0 x 1 y}) (int-add x y) false) 85)
-(assert-eq (match {0 42 1 43 2 44} (:map-exact {0 x 1 y}) (int-add x y) false) false)
-(assert-eq (match {0 42} (:map-exact {0 x 1 y}) (int-add x y) false) false)
-
-(assert-eq (match 42 (:= 42) true false) true)
-(assert-eq (match 42 (:= 43) true false) false)
-
-(assert-eq (match 42 (:typeof :int) true false) true)
-(assert-eq (match 42 (:typeof :float) true false) false)
-
-(assert-throw (macro-match 42 @{} true false) {:tag :err-pattern})
-(assert-throw (macro-match [42] [@{}] true false) {:tag :err-pattern})
-(assert-throw (macro-match 42 $() true false) {:tag :err-pattern})
-(assert-throw (macro-match 42 $(:llll) true false) {:tag :err-pattern})
-(assert-throw (macro-match 42 $(:mut) true false) {:tag :err-pattern})
-(assert-throw (macro-match 42 $(:mut a b) true false) {:tag :err-pattern})
-(assert-throw (macro-match 42 $(:guard a) true false) {:tag :err-pattern})
-(assert-throw (macro-match 42 $(:guard a b c) true false) {:tag :err-pattern})
-(assert-throw (macro-match 42 $(:named a) true false) {:tag :err-pattern})
-(assert-throw (macro-match 42 $(:named a b c) true false) {:tag :err-pattern})
-(assert-throw (macro-match 42 $(:named [a] b) true false) {:tag :err-pattern})
-(assert-throw (macro-match [42] $(:map-exact [a]) true false) {:tag :err-pattern})
+(assert-eq (match 0 0 1 2) 1)
+(assert-eq (match 42 0 1 2) 2)
 ```
 
-#### `(macro-case v [p-1, yay-1, p-2, yay-2, ...])` `(macro-case v [p-1, yay-1, p-2, yay-2, ... else])`
+#### `(macro-letfn fn-map cont)`
 
-Evaluates to the `yay-n` for the first `p-n` that matches `v` (bringing the bindings of `p-n` into scope). If no pattern matches evaluates to `else` if supplied, or `nil` otherwise.
+`fn-map` must be a map from arbitrary keys to applications of two items, whose first item is an array: `{key-1 ([patterns-1...] body-1), key-2 ([patterns-2...] body-2), ...}`.
+
+Returns `(sf-letfn {key-1 ([args-1...] (case [args-1...] [[patterns-1...] body-1])), ...} cont)`, where `args-n...` are as many fresh symbols as there are `pattern-n...`s.
 
 ```pavo
-(assert-eq (case 0 [0 42 1 43 :else]) 42)
-(assert-eq (case 1 [0 42 1 43 :else]) 43)
-(assert-eq (case 2 [0 42 1 43 :else]) :else)
-(assert-eq (case 2 [0 42 1 43]) nil)
+(assert-eq (letfn {foo ([[a, true]] a)} (foo [42 true])) 42)
+(assert-throw (letfn {foo ([[a, true]] a)} (foo [42 false])) {:tag :err-type})
 ```
 
-#### `(macro-loop v [p-1, yay-1, p-2, yay-2, ...])`
+#### `(macro-fn u v w)`
 
-Evaluate `v`. If it does not match any of the patterns, evaluates to `nil`. Otherwise, evaluate the corresponding `yay-n`, then repeat.
+Returns `(letfn {u (v w)} u)`.
 
 ```pavo
-(assert-eq (loop 0 [1 2]) nil)
-
-(assert-eq
-    (do [
-        (:let (:mut sum) 0)
-        (:let (:mut n) 0)
-        (loop n [
-            (:guard x (<= x 10000)) (do [
-                    (set! sum (int-add sum x))
-                    (set! n (int-add n 1))
-                ])
-            :foo :bar
-        ])
-        sum
-    ])
-    50005000 # 50005000 == 1 + 2 + ... + 10000
-)
+(assert-eq (macro-fn 0 1 2) $(letfn {0 (1 2)} 0))
 ```
 
-#### `(macro-fn name [args...] body)`
+#### `(macro-try v pattern w)`
 
-Defines a function that takes the arguments `args...` and has the body `body`. When evaluating the body, the name `name` is immutably bound to the function itself. It's magic - well actually it's a fixpoint combinator, see appendix C for the precise definition.
-
-```pavo
-(assert-eq
-    (
-        # https://en.wikipedia.org/wiki/Triangular_number
-        (fn triangular [acc n] (if
-            (= x 0) acc
-            (triangular (+ acc n) (- n 1))
-        ))
-        10000
-    )
-    50005000 # 50005000 == 1 + 2 + ... + 10000
-)
-```
+Returns `(sf-try v <sym> (case <sym> [pattern w]))`, where `<sym>` is a freshly generated symbol.
 
 #### `(macro-while cond body)`
 
-A [while loop](https://en.wikipedia.org/wiki/While_loop): While `cond` evaluates to neither `nil` nor `false`, evaluates the `body` and then checks the condition again. When `cond` evalutes to `nil` or `false`, evalutes to `nil`.
-
-Implemented as `((fn <sym> [] (sf-if cond (sf-do [body (<sym>)]) nil)))`, where `<sym>` is a new symbol.
+Returns `((fn <sym> [<sym'>] (if cond (<sym> body) <sym'>)) nil)`, where `<sym>` and `<sym'>` are new symbols.
 
 ```pavo
 (assert-eq
@@ -4624,14 +4703,25 @@ Implemented as `((fn <sym> [] (sf-if cond (sf-do [body (<sym>)]) nil)))`, where 
 # An infinite loop: (while true nil)
 ```
 
+#### `(macro-loop v [p1, then1, p2, then2, ...])`
 
-TODO
+Returns `((fn <sym> [<sym'>] (case v [p1 (<sym> then1), p2 (<sym> then2), ..., <sym''> <sym'>])) nil)`, where `<sym>`, `<sym'>` and `<sym''>` are new symbols.
 
-- `letfn`
-- `lambda`
-- `try`
 
-- `case`, `loop` ?
+```pavo
+(assert-throw (macro-loop 42 [:odd]) {:tag :err-type})
+(assert-eq (loop 0 [1 2]) nil)
+(assert-eq (do [
+    (:let (:mut cond) true)
+    (loop cond [
+        true (do [
+              (set! cond false)
+              42
+          ])
+    ])
+])
+42)
+```
 
 ## Appendix A: Precise Definition of `(write v)`
 
@@ -4741,189 +4831,6 @@ Collections serialize their components and separate them by a single space (ther
 
 TODO, refer to the reference implementation for now.
 
-## Appendix C: Named Recursion
-
-The builtin macros that provide named function that can recur by referring to their own names are implemented through [fixpoint combinators](https://en.wikipedia.org/wiki/Fixed-point_combinator#Fixed_point_combinators_in_lambda_calculus). This explanation assumes familiarity with how the strict Y combinator works. There are *many* resources on the web that explain it.
-
-We write `Y-k` for the strict Y combinator that works for functions of arity k (the "regular" Y combinator is `Y-1`):
-
-```pavo
-(sf-lambda [g] (
-    (sf-lambda [f] (f f)) # the M combinator
-    (sf-lambda [x] (
-        g
-        (sf-lambda [arg-1 arg-2 ,,, arg-k] ((x x) arg-1 arg-2 ,,, arg-k))
-    ))
-))
-```
-
-Take for example a [tail-recursive](https://en.wikipedia.org/wiki/Tail_call) function to compute [triangular numbers](https://en.wikipedia.org/wiki/Triangular_number):
-
-```pavo
-(assert-eq
-    (
-        (fn triangular [acc n] (if
-            (= n 0) acc
-            (triangular (int-add acc n) (int-sub n 1))
-        ))
-        0 10000
-    )
-    50005000 # 50005000 == 1 + 2 + ... + 10000
-)
-```
-
-It takes two arguments, so the corresponding fixpoint combinator is `Y-2`:
-
-```pavo
-(sf-lambda [g] (
-    (sf-lambda [f] (f f))
-    (sf-lambda [x] (
-        g
-        (sf-lambda [arg-1 arg-2] ((x x) arg-1 arg-2))
-    ))
-))
-```
-
-To define `triangular` without named recursion, we wrap it in a lambda that takes the recursion point as its single argument:
-
-```pavo
-(sf-lambda [triangular] (lambda [acc n] (if
-    (= n 0) acc
-    (triangular (int-add acc n) (int-sub n 1))
-)))
-```
-
-The original `triangular` function is obtained by passing this form to `Y-2`:
-
-```pavo
-(
-    (sf-lambda [g] (
-        (sf-lambda [f] (f f))
-        (sf-lambda [x] (
-            g
-            (sf-lambda [arg-1 arg-2] ((x x) arg-1 arg-2))
-        ))
-    ))
-    (sf-lambda [triangular] (lambda [acc n] (if
-        (= n 0) acc
-        (triangular (int-add acc n) (int-sub n 1))
-    )))
-) # evaluates to a function that is equivalent to the recursive definition
-```
-
-The `(fn name [args...] body)` macro performs exactly this expansion: Count the number of args to find the appropriate fixpoint combinator, wrap the args and body in a lambda, enclose that lambda in a lambda that provides the recursion point, finally put the combinator and the function in an application. All names in the combinator are freshly generated symbols, the name for the recursion point is the `name` of the fn form.
-
-The macro for defining mutually recursive functions is `letfn`, to make the example more interesting, we add an additional, unused argument to the definition of `odd?`:
-
-```pavo
-(assert-eq
-    (letfn [
-        (even? [n] (if (= n 0) true (odd? (int-sub n 1) nil)))
-        (odd? [n _] (if (= n 0) false (even? (int-sub n 1))))
-        ]
-        (even? 10000)
-    )
-    true
-)
-```
-
-The functions are wrapped in a lambda that supplies the recursion points:
-
-```pavo
-(sf-lambda [even? odd?] (lambda [n] (if (= n 0) true (odd? (int-sub n 1) nil)))))
-(sf-lambda [even? odd?] (lambda [n _] (if (= n 0) false (even? (int-sub n 1))))
-```
-
-We now need a 2-adic Y combinator (since there are two functions) that is tailored to their specific function arities. We write `Y<1-2>` for this combinator, and `Y<arity1-arity2-...-arityk>` in general. Note that by design, these are not [poly-variadic](http://okmij.org/ftp/Computation/fixed-point-combinators.html#Poly-variadic) combinators. A poly-variadic combinator can handle an arbitrary number of functions, we deliberately use the appropriate special case. Since the `letfn` macro always knows the number of functions and their arities in advance, there's no need to use a generic map operation.
-
-TODO
-
-```pavo
-(
-    (sf-lambda [g] (
-        (sf-lambda [f] (f f))
-        (sf-lambda [x] (
-            g
-            (sf-lambda [arg-1 arg-2] ((x x) arg-1 arg-2))
-        ))
-    ))
-    (sf-lambda [even? odd?] (lambda [n] (if (= n 0) true (odd? (int-sub n 1) nil)))))
-    (sf-lambda [even? odd?] (lambda [n _] (if (= n 0) false (even? (int-sub n 1))))
-) # evaluates to [even? odd?]
-```
-
-```pavo
-(
-    (sf-lambda [open-even? open-odd?] [
-        (
-            (sf-lambda [oe? oo?] (oe? oe? oo?))
-            (sf-lambda [oe? oo?] (
-                open-even?
-                (sf-lambda [n] ((oe? oe? oo?) n))
-                second-arg?
-            ))
-            (sf-lambda [oe? oo?] (
-                open-odd?
-                (sf-lambda [n _] ((oo? oe? oo?) n _))
-                second-arg?
-            ))
-        )
-        (
-            (sf-lambda [oe? oo?] (oo? oe? oo?))
-            (sf-lambda [oe? oo?] (
-                open-even?
-                (sf-lambda [n] ((oe? oe? oo?) n))
-                second-arg?
-            ))
-            (sf-lambda [oe? oo?] (
-                open-odd?
-                (sf-lambda [n _] ((oo? oe? oo?) n _))
-                second-arg?
-            ))
-        )
-    ])
-    (sf-lambda [even? odd?] (lambda [n] (if (= n 0) true (odd? (int-sub n 1) nil)))))
-    (sf-lambda [even? odd?] (lambda [n _] (if (= n 0) false (even? (int-sub n 1))))
-) # evaluates to [even? odd?]
-```
-
-```pavo
-(
-    (sf-lambda [open-triangular] [
-        (
-            (sf-lambda [f] (f f))
-            (sf-lambda [x] (
-                open-triangular
-                (sf-lambda [arg-1 arg-2] ((x x) arg-1 arg-2))
-            ))
-        )
-    ])
-    (sf-lambda [triangular] (lambda [acc n] (if
-        (= n 0) acc
-        (triangular (int-add acc n) (int-sub n 1))
-    )))
-) # evaluates to a function that is equivalent to the recursive definition
-```
-
-```pavo
-(
-    (sf-lambda [e o] (
-        (sf-lambda [f] (f f)) # M combinator
-        (sf-lambda [x] (
-            e
-            (sf-lambda [e_n] ((x x) e_n))
-            (sf-lambda [o_n o_foo] ((x x) o_n o_foo))
-        ))
-    ))
-    (sf-lambda [even? odd?] (lambda [n] (if (= n 0) true (odd? (int-sub n 1) nil)))))
-    (sf-lambda [even? odd?] (lambda [n foo] (if (= n 0) false (even? (int-sub n 1))))
-) # evaluates to even?
-```
-
 ---
 
 TODO `require` (dynamic linking, *not* loading)
-
-TODO while and loop should evaluate to last loop body (or nil if none)
-
-TODO remove sf-if, add truthy?
