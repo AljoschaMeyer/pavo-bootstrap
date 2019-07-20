@@ -2728,6 +2728,41 @@ pub fn exval(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
     }
 }
 
+pub fn require(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let opts = map!(args.0[1]);
+
+    let mut expand_opts = ImOrdMap::new();
+    if let Some(v) = opts.0.get(&Value::kw_str("def-remove")) {
+        expand_opts.insert(Value::kw_str("def-remove"), v.clone());
+    }
+    if let Some(v) = opts.0.get(&Value::kw_str("def-mutable")) {
+        expand_opts.insert(Value::kw_str("def-mutable"), v.clone());
+    }
+    if let Some(v) = opts.0.get(&Value::kw_str("def-immutable")) {
+        expand_opts.insert(Value::kw_str("def-immutable"), v.clone());
+    }
+    if let Some(v) = opts.0.get(&Value::kw_str("macro-remove")) {
+        expand_opts.insert(Value::kw_str("macro-remove"), v.clone());
+    }
+    if let Some(v) = opts.0.get(&Value::kw_str("macro-add")) {
+        expand_opts.insert(Value::kw_str("macro-add"), v.clone());
+    }
+
+    let mut eval_opts = ImOrdMap::new();
+    if let Some(v) = opts.0.get(&Value::kw_str("remove")) {
+        eval_opts.insert(Value::kw_str("remove"), v.clone());
+    }
+    if let Some(v) = opts.0.get(&Value::kw_str("mutable")) {
+        eval_opts.insert(Value::kw_str("muable"), v.clone());
+    }
+    if let Some(v) = opts.0.get(&Value::kw_str("immutable")) {
+        eval_opts.insert(Value::kw_str("immutable"), v.clone());
+    }
+
+    return cx.require(&args.0[0], &expand_opts, &eval_opts);
+}
+
 /////////////////////////////////////////////////////////////////////////////
 
 pub fn typeof_(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {

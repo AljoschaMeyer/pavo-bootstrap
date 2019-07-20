@@ -18,3 +18,4 @@ ordered-float = "1.0.1"
 ropey = "1.0.1"
 ryu-ecmascript = "0.1.1"
 strtod = { git = "https://github.com/ssbrs/strtod" }
+structopt = "0.2.18"

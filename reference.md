@@ -4723,6 +4723,26 @@ Returns `((fn <sym> [<sym'>] (case v [p1 (<sym> then1), p2 (<sym> then2), ..., <
 42)
 ```
 
+### Modularizing Code
+
+Pavo provides the `require` function to allow code to be split up across multiple files. The definition is fairly generic and is not tied to any concrete model of a file system. Implementations need to specify the exact semantics of how they obtain the code to load.
+
+`require` corresponds to dynamic *linking*, not dynamic loading. The basic difference is that when starting to execute a program, the mapping from the location supplied to `require` to the actual chunk of code is fixed, at it won't change during the execution of the program. True dynamic *loading* should be implemented through effectful file access APIs that might be provided by the runtime. *Static* linking is easily emulated by calling `require` in a macro function at compile time.
+
+The key guarantee of `require` is that code that is loaded multiple times with the same options is only evaluated once. For example requiring a file with the content `(symbol)` mutliple times with the same options will return the same symbol every time.
+
+#### `(require v opts)`
+
+Loads some code depending on a value `v` and the map `opts` in multiple steps:
+
+First, retrieves a code value via an implementation-defined mapping from `v`. The first time `require` is called with a value `v`, this implementation-defined mapping is computed (and may throw `{:tag :err-require}` if it fails). For example, strings might be interpreted as relative paths to a file containing the code to load, or keywords might be resolved by a package manager. The resulting code value must be cached, further calls to `require` with an equal argument `v` must return map to an equal code value.
+
+Next, this value is expanded according to the opts, as if `(expand the-code opts)` had been called. This result is cached again, all further calls to `require` with the same `v` and equivalent options must return the same value (without performing expansion again, since that might duplicate side-effects). The options are equivalent if the entries of the following keys are equal: `:def-remove`, `:def-mutable`, `:def-immutable`, `:macro-remove`, and `:macro-add`.
+
+Finally, the expanded code is evaluated, as if `(eval the-expanded-code opts)` had been called. The result is cached, all further calls to `require` with the same `v` and equivalent options must return the same value (without evaluating again, since that might duplicate side-effects). The options are equivalent if the entries of the following keys are equal: `:remove`, `:mutable`, and `:immutable`.
+
+The result is then returned.
+
 ## Appendix A: Precise Definition of `(write v)`
 
 This section defines the return value of `(write v)` for any expression `v`, defined through structural induction (examples/tests are below).
@@ -4829,8 +4849,4 @@ Collections serialize their components and separate them by a single space (ther
 
 ## Appendix B: Precise Definition of `(quasiquote v)`
 
-TODO, refer to the reference implementation for now.
-
----
-
-TODO `require` (dynamic linking, *not* loading)
+Refer to the reference implementation for now. Sorry =/

@@ -913,7 +913,7 @@ impl Fun {
             Fun::Builtin(Builtin::MacroLoop) => builtins::macro_loop(args, cx),
             Fun::Builtin(Builtin::MacroTry) => builtins::macro_try(args, cx),
 
-            Fun::Builtin(Builtin::Require) => unimplemented!(),
+            Fun::Builtin(Builtin::Require) => builtins::require(args, cx),
         }
     }
 }
