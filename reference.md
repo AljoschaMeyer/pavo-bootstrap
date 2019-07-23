@@ -2971,17 +2971,6 @@ Time: Worst-case O(log(n)), where n is the number of elements in the underlying 
 
 ### Applications
 
-#### `(app-apply app)`
-
-Applies the first value in the application `app` to the remaining values.
-
-```pavo
-(assert-eq (app-apply `(~int-add 1 2)) 3)
-(assert-throw (app-apply `(~int-add 1)) {:tag :err-num-args})
-(assert-throw (app-apply $()) {:tag :err-lookup})
-(assert-throw (app-apply $(42)) {:tag :err-type})
-```
-
 #### `(app->arr app)`
 
 Returns an array that contains the same items in the same order as the application `app`.
@@ -3950,6 +3939,29 @@ Time: Worst-case O(log(n)), where n is the number of entries in the underlying m
 ]))
 ```
 
+### Functions
+
+#### `(fun-arity f)`
+
+Returns the number of arguments the function `f` expects.
+
+Time: O(1)
+
+```pavo
+(assert-eq (fun-arity symbol) 0)
+(assert-eq (fun-arity fun-arity) 1)
+(assert-eq (fun-arity (lambda [a b c d e f g h] nil)) 8)
+```
+
+#### `(fun-apply f args)`
+
+Applies the function `f` to the values in the array `args`.
+
+```pavo
+(assert-eq (fun-apply int-add [1 2]) 3)
+(assert-throw (fun-apply int-add [1]) {:tag :err-num-args})
+```
+
 ### Symbols
 
 Symbols are values that are only equal to themselves. There's nothing you can do with symbols except comparing them and generating new ones.
@@ -4135,7 +4147,7 @@ Returns `:<` if the value `v` is less than the value `w`, `:=` if they are equal
 (assert-eq (cmp {0 1, 2 3} {0 1, 2 4}) :<)
 (assert-eq (cmp {0 1} {0 1, 2 3}) :<)
 (assert-eq (cmp cmp cmp) :=)
-(assert-eq (cmp app-apply cmp) :<)
+(assert-eq (cmp < cmp) :<)
 (assert-eq (cmp cmp (sf-lambda [] nil)) :<)
 (assert-eq (cmp (sf-lambda [] nil) (sf-lambda [] nil)) :<)
 (assert-eq (cmp (cell 42) (cell 41)) :<)

@@ -794,7 +794,6 @@ impl Fun {
             Fun::Builtin(Builtin::AppSplice) => builtins::app_splice(args, cx),
             Fun::Builtin(Builtin::AppConcat) => builtins::app_concat(args, cx),
             Fun::Builtin(Builtin::AppCursor) => builtins::app_cursor(args, cx),
-            Fun::Builtin(Builtin::AppApply) => builtins::app_apply(args, cx),
 
             Fun::Builtin(Builtin::SetCount) => builtins::set_count(args, cx),
             Fun::Builtin(Builtin::SetContains) => builtins::set_contains(args, cx),
@@ -846,6 +845,9 @@ impl Fun {
             Fun::Builtin(Builtin::MapCursorGreaterStrict) => builtins::map_cursor_greater_strict(args, cx),
             Fun::Builtin(Builtin::MapCursorLess) => builtins::map_cursor_less(args, cx),
             Fun::Builtin(Builtin::MapCursorGreater) => builtins::map_cursor_greater(args, cx),
+
+            Fun::Builtin(Builtin::FunArity) => builtins::fun_arity(args, cx),
+            Fun::Builtin(Builtin::FunApply) => builtins::fun_apply(args, cx),
 
             Fun::Builtin(Builtin::Symbol) => builtins::symbol(args, cx),
 
@@ -927,7 +929,6 @@ pub enum Builtin {
     Gte,
 
     AppToArr,
-    AppApply,
     AppConcat,
     AppCount,
     AppCursor,
@@ -1049,6 +1050,9 @@ pub enum Builtin {
     FloatTan,
     FloatTanH,
     FloatTrunc,
+
+    FunApply,
+    FunArity,
 
     IdToStr,
 

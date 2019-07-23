@@ -8,7 +8,7 @@ use ryu_ecmascript::Buffer;
 
 use crate::context::Context;
 use crate::gc_foreign::{OrdMap, OrdSet, Vector, Rope};
-use crate::value::{Value, Atomic, Id, Opaque, BuiltinOpaque, self};
+use crate::value::{Value, Atomic, Id, Opaque, BuiltinOpaque, Builtin, self, Fun};
 use crate::read::{is_id_char, parse_id, read as read_};
 use crate::expand::expand as expand_;
 use crate::check::check as check_;
@@ -301,6 +301,15 @@ macro_rules! arr {
     ($v:expr) => (
         match &$v {
             Value::Arr(arr) => arr.clone(),
+            _ => return Err(type_error()),
+        }
+    )
+}
+
+macro_rules! fun {
+    ($v:expr) => (
+        match &$v {
+            Value::Fun(fun) => fun.clone(),
             _ => return Err(type_error()),
         }
     )
@@ -1925,20 +1934,6 @@ pub fn cursor_app_prev(args: Vector<Value>, _cx: &mut Context) -> Result<Value, 
     }
 }
 
-pub fn app_apply(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
-    num_args(&args, 1)?;
-    let a = app!(args.0[0]);
-
-    if a.0.len() == 0 {
-        return Err(lookup_error());
-    } else {
-        match a.0[0].as_fun() {
-            None => return Err(type_error()),
-            Some(fun) => fun.compute(Vector(a.0.skip(1)), cx),
-        }
-    }
-}
-
 /////////////////////////////////////////////////////////////////////////////
 
 pub fn set_count(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
@@ -2465,6 +2460,306 @@ pub fn cursor_map_prev(args: Vector<Value>, _cx: &mut Context) -> Result<Value, 
         Some((k, v)) => return Ok(Value::arr_from_vec(vec![k.clone(), v.clone()])),
         None => return Err(Value::kw_str("cursor-end"))
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+pub fn fun_arity(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 1)?;
+    let f = fun!(args.0[0]);
+
+    let arity = match f {
+        Fun::Opaque{..} => 1,
+        Fun::Closure(ref c, _) => c.args.clone(),
+        Fun::Builtin(Builtin::BoolNot) => 1,
+        Fun::Builtin(Builtin::BoolAnd) => 2,
+        Fun::Builtin(Builtin::BoolOr) => 2,
+        Fun::Builtin(Builtin::BoolIf) => 2,
+        Fun::Builtin(Builtin::BoolIff) => 2,
+        Fun::Builtin(Builtin::BoolXor) => 2,
+
+        Fun::Builtin(Builtin::IntCountOnes) => 1,
+        Fun::Builtin(Builtin::IntCountZeros) => 1,
+        Fun::Builtin(Builtin::IntLeadingOnes) => 1,
+        Fun::Builtin(Builtin::IntLeadingZeros) => 1,
+        Fun::Builtin(Builtin::IntTrailingOnes) => 1,
+        Fun::Builtin(Builtin::IntTrailingZeros) => 1,
+        Fun::Builtin(Builtin::IntRotateLeft) => 1,
+        Fun::Builtin(Builtin::IntRotateRight) => 1,
+        Fun::Builtin(Builtin::IntReverseBytes) => 1,
+        Fun::Builtin(Builtin::IntReverseBits) => 1,
+        Fun::Builtin(Builtin::IntAdd) => 2,
+        Fun::Builtin(Builtin::IntSub) => 2,
+        Fun::Builtin(Builtin::IntMul) => 2,
+        Fun::Builtin(Builtin::IntDiv) => 2,
+        Fun::Builtin(Builtin::IntDivTrunc) => 2,
+        Fun::Builtin(Builtin::IntMod) => 2,
+        Fun::Builtin(Builtin::IntModTrunc) => 2,
+        Fun::Builtin(Builtin::IntNeg) => 1,
+        Fun::Builtin(Builtin::IntShl) => 2,
+        Fun::Builtin(Builtin::IntShr) => 2,
+        Fun::Builtin(Builtin::IntAbs) => 1,
+        Fun::Builtin(Builtin::IntPow) => 2,
+        Fun::Builtin(Builtin::IntAddSat) => 2,
+        Fun::Builtin(Builtin::IntSubSat) => 2,
+        Fun::Builtin(Builtin::IntMulSat) => 2,
+        Fun::Builtin(Builtin::IntPowSat) => 2,
+        Fun::Builtin(Builtin::IntAddWrap) => 2,
+        Fun::Builtin(Builtin::IntSubWrap) => 2,
+        Fun::Builtin(Builtin::IntMulWrap) => 2,
+        Fun::Builtin(Builtin::IntDivWrap) => 2,
+        Fun::Builtin(Builtin::IntDivTruncWrap) => 2,
+        Fun::Builtin(Builtin::IntModWrap) => 2,
+        Fun::Builtin(Builtin::IntModTruncWrap) => 2,
+        Fun::Builtin(Builtin::IntNegWrap) => 1,
+        Fun::Builtin(Builtin::IntAbsWrap) => 1,
+        Fun::Builtin(Builtin::IntPowWrap) => 2,
+        Fun::Builtin(Builtin::IntSignum) => 1,
+
+        Fun::Builtin(Builtin::BytesCount) => 1,
+        Fun::Builtin(Builtin::BytesGet) => 2,
+        Fun::Builtin(Builtin::BytesInsert) => 3,
+        Fun::Builtin(Builtin::BytesRemove) => 2,
+        Fun::Builtin(Builtin::BytesUpdate) => 3,
+        Fun::Builtin(Builtin::BytesSplit) => 2,
+        Fun::Builtin(Builtin::BytesSlice) => 3,
+        Fun::Builtin(Builtin::BytesSplice) => 3,
+        Fun::Builtin(Builtin::BytesConcat) => 2,
+        Fun::Builtin(Builtin::BytesCursor) => 2,
+
+        Fun::Builtin(Builtin::IntToChar) => 1,
+        Fun::Builtin(Builtin::IsIntToChar) => 1,
+        Fun::Builtin(Builtin::CharToInt) => 1,
+
+        Fun::Builtin(Builtin::StrToBytes) => 1,
+        Fun::Builtin(Builtin::BytesToStr) => 1,
+        Fun::Builtin(Builtin::IsBytesToStr) => 1,
+        Fun::Builtin(Builtin::StrCount) => 1,
+        Fun::Builtin(Builtin::StrCountUtf8) => 1,
+        Fun::Builtin(Builtin::StrGet) => 2,
+        Fun::Builtin(Builtin::StrGetUtf8) => 2,
+        Fun::Builtin(Builtin::StrIndexCharToUtf8) => 2,
+        Fun::Builtin(Builtin::StrIndexUtf8ToChar) => 2,
+        Fun::Builtin(Builtin::StrInsert) => 3,
+        Fun::Builtin(Builtin::StrRemove) => 2,
+        Fun::Builtin(Builtin::StrUpdate) => 3,
+        Fun::Builtin(Builtin::StrSplit) => 2,
+        Fun::Builtin(Builtin::StrSlice) => 3,
+        Fun::Builtin(Builtin::StrSplice) => 3,
+        Fun::Builtin(Builtin::StrConcat) => 2,
+        Fun::Builtin(Builtin::StrCursor) => 2,
+        Fun::Builtin(Builtin::StrCursorUtf8) => 2,
+
+        Fun::Builtin(Builtin::FloatAdd) => 2,
+        Fun::Builtin(Builtin::FloatSub) => 2,
+        Fun::Builtin(Builtin::FloatMul) => 2,
+        Fun::Builtin(Builtin::FloatDiv) => 2,
+        Fun::Builtin(Builtin::FloatMulAdd) => 3,
+        Fun::Builtin(Builtin::FloatNeg) => 1,
+        Fun::Builtin(Builtin::FloatFloor) => 1,
+        Fun::Builtin(Builtin::FloatCeil) => 1,
+        Fun::Builtin(Builtin::FloatRound) => 1,
+        Fun::Builtin(Builtin::FloatTrunc) => 1,
+        Fun::Builtin(Builtin::FloatFract) => 1,
+        Fun::Builtin(Builtin::FloatAbs) => 1,
+        Fun::Builtin(Builtin::FloatSignum) => 1,
+        Fun::Builtin(Builtin::FloatPow) => 2,
+        Fun::Builtin(Builtin::FloatSqrt) => 1,
+        Fun::Builtin(Builtin::FloatExp) => 1,
+        Fun::Builtin(Builtin::FloatExp2) => 1,
+        Fun::Builtin(Builtin::FloatLn) => 1,
+        Fun::Builtin(Builtin::FloatLog2) => 1,
+        Fun::Builtin(Builtin::FloatLog10) => 1,
+        Fun::Builtin(Builtin::FloatHypot) => 2,
+        Fun::Builtin(Builtin::FloatSin) => 1,
+        Fun::Builtin(Builtin::FloatCos) => 1,
+        Fun::Builtin(Builtin::FloatTan) => 1,
+        Fun::Builtin(Builtin::FloatAsin) => 1,
+        Fun::Builtin(Builtin::FloatAcos) => 1,
+        Fun::Builtin(Builtin::FloatAtan) => 1,
+        Fun::Builtin(Builtin::FloatAtan2) => 2,
+        Fun::Builtin(Builtin::FloatExpM1) => 1,
+        Fun::Builtin(Builtin::FloatLn1P) => 1,
+        Fun::Builtin(Builtin::FloatSinH) => 1,
+        Fun::Builtin(Builtin::FloatCosH) => 1,
+        Fun::Builtin(Builtin::FloatTanH) => 1,
+        Fun::Builtin(Builtin::FloatAsinH) => 1,
+        Fun::Builtin(Builtin::FloatAcosH) => 1,
+        Fun::Builtin(Builtin::FloatAtanH) => 1,
+        Fun::Builtin(Builtin::FloatIsNormal) => 1,
+        Fun::Builtin(Builtin::FloatIsIntegral) => 1,
+        Fun::Builtin(Builtin::FloatToDegrees) => 1,
+        Fun::Builtin(Builtin::FloatToRadians) => 1,
+        Fun::Builtin(Builtin::FloatToInt) => 1,
+        Fun::Builtin(Builtin::IntToFloat) => 1,
+        Fun::Builtin(Builtin::FloatToBits) => 1,
+        Fun::Builtin(Builtin::BitsToFloat) => 1,
+        Fun::Builtin(Builtin::IsBitsToFloat) => 1,
+
+        Fun::Builtin(Builtin::StrToId) => 1,
+        Fun::Builtin(Builtin::IsStrToId) => 1,
+        Fun::Builtin(Builtin::IdToStr) => 1,
+
+        Fun::Builtin(Builtin::StrToKw) => 1,
+        Fun::Builtin(Builtin::IsStrToKw) => 1,
+        Fun::Builtin(Builtin::KwToStr) => 1,
+
+        Fun::Builtin(Builtin::ArrToApp) => 1,
+        Fun::Builtin(Builtin::ArrCount) => 1,
+        Fun::Builtin(Builtin::ArrGet) => 2,
+        Fun::Builtin(Builtin::ArrInsert) => 3,
+        Fun::Builtin(Builtin::ArrRemove) => 2,
+        Fun::Builtin(Builtin::ArrUpdate) => 3,
+        Fun::Builtin(Builtin::ArrSplit) => 2,
+        Fun::Builtin(Builtin::ArrSlice) => 3,
+        Fun::Builtin(Builtin::ArrSplice) => 3,
+        Fun::Builtin(Builtin::ArrConcat) => 2,
+        Fun::Builtin(Builtin::ArrCursor) => 2,
+
+        Fun::Builtin(Builtin::AppToArr) => 1,
+        Fun::Builtin(Builtin::AppCount) => 1,
+        Fun::Builtin(Builtin::AppGet) => 2,
+        Fun::Builtin(Builtin::AppInsert) => 3,
+        Fun::Builtin(Builtin::AppRemove) => 2,
+        Fun::Builtin(Builtin::AppUpdate) => 3,
+        Fun::Builtin(Builtin::AppSplit) => 2,
+        Fun::Builtin(Builtin::AppSlice) => 3,
+        Fun::Builtin(Builtin::AppSplice) => 3,
+        Fun::Builtin(Builtin::AppConcat) => 2,
+        Fun::Builtin(Builtin::AppCursor) => 2,
+
+        Fun::Builtin(Builtin::SetCount) => 1,
+        Fun::Builtin(Builtin::SetContains) => 2,
+        Fun::Builtin(Builtin::SetMin) => 1,
+        Fun::Builtin(Builtin::SetMax) => 1,
+        Fun::Builtin(Builtin::SetFindLT) => 2,
+        Fun::Builtin(Builtin::SetFindGT) => 2,
+        Fun::Builtin(Builtin::SetFindLTE) => 2,
+        Fun::Builtin(Builtin::SetFindGTE) => 2,
+        Fun::Builtin(Builtin::SetInsert) => 2,
+        Fun::Builtin(Builtin::SetRemove) => 2,
+        Fun::Builtin(Builtin::SetUnion) => 2,
+        Fun::Builtin(Builtin::SetIntersection) => 2,
+        Fun::Builtin(Builtin::SetDifference) => 2,
+        Fun::Builtin(Builtin::SetSymmetricDifference) => 2,
+        Fun::Builtin(Builtin::SetSplit) => 2,
+        Fun::Builtin(Builtin::SetSlice) => 2,
+        Fun::Builtin(Builtin::SetCursorMin) => 1,
+        Fun::Builtin(Builtin::SetCursorMax) => 1,
+        Fun::Builtin(Builtin::SetCursorLessStrict) => 2,
+        Fun::Builtin(Builtin::SetCursorGreaterStrict) => 2,
+        Fun::Builtin(Builtin::SetCursorLess) => 2,
+        Fun::Builtin(Builtin::SetCursorGreater) => 2,
+
+        Fun::Builtin(Builtin::MapCount) => 1,
+        Fun::Builtin(Builtin::MapGet) => 2,
+        Fun::Builtin(Builtin::MapFindLT) => 2,
+        Fun::Builtin(Builtin::MapFindGT) => 2,
+        Fun::Builtin(Builtin::MapFindLTE) => 2,
+        Fun::Builtin(Builtin::MapFindGTE) => 2,
+        Fun::Builtin(Builtin::MapContains) => 2,
+        Fun::Builtin(Builtin::MapMin) => 1,
+        Fun::Builtin(Builtin::MapMinKey) => 1,
+        Fun::Builtin(Builtin::MapMinEntry) => 1,
+        Fun::Builtin(Builtin::MapMax) => 1,
+        Fun::Builtin(Builtin::MapMaxKey) => 1,
+        Fun::Builtin(Builtin::MapMaxEntry) => 1,
+        Fun::Builtin(Builtin::MapInsert) => 3,
+        Fun::Builtin(Builtin::MapRemove) => 2,
+        Fun::Builtin(Builtin::MapUnion) => 2,
+        Fun::Builtin(Builtin::MapIntersection) => 2,
+        Fun::Builtin(Builtin::MapDifference) => 2,
+        Fun::Builtin(Builtin::MapSymmetricDifference) => 2,
+        Fun::Builtin(Builtin::MapSplit) => 2,
+        Fun::Builtin(Builtin::MapSlice) => 3,
+        Fun::Builtin(Builtin::MapCursorMin) => 1,
+        Fun::Builtin(Builtin::MapCursorMax) => 1,
+        Fun::Builtin(Builtin::MapCursorLessStrict) => 2,
+        Fun::Builtin(Builtin::MapCursorGreaterStrict) => 2,
+        Fun::Builtin(Builtin::MapCursorLess) => 2,
+        Fun::Builtin(Builtin::MapCursorGreater) => 2,
+
+        Fun::Builtin(Builtin::FunArity) => 1,
+        Fun::Builtin(Builtin::FunApply) => 2,
+
+        Fun::Builtin(Builtin::Symbol) => 0,
+
+        Fun::Builtin(Builtin::Cell) => 1,
+        Fun::Builtin(Builtin::CellGet) => 1,
+        Fun::Builtin(Builtin::CellSet) => 2,
+
+        Fun::Builtin(Builtin::Opaque) => 0,
+
+        Fun::Builtin(Builtin::Cmp) => 2,
+        Fun::Builtin(Builtin::Eq) => 2,
+        Fun::Builtin(Builtin::Lt) => 2,
+        Fun::Builtin(Builtin::Lte) => 2,
+        Fun::Builtin(Builtin::Gt) => 2,
+        Fun::Builtin(Builtin::Gte) => 2,
+
+        Fun::Builtin(Builtin::Read) => 1,
+        Fun::Builtin(Builtin::Write) => 1,
+        Fun::Builtin(Builtin::Check) => 2,
+        Fun::Builtin(Builtin::Eval) => 2,
+        Fun::Builtin(Builtin::Expand) => 2,
+        Fun::Builtin(Builtin::Exval) => 2,
+
+        Fun::Builtin(Builtin::Typeof) => 1,
+        Fun::Builtin(Builtin::IsTruthy) => 1,
+        Fun::Builtin(Builtin::Not) => 1,
+        Fun::Builtin(Builtin::Diverge) => 1,
+        Fun::Builtin(Builtin::Trace) => 1,
+
+        Fun::Builtin(Builtin::CursorArrNext) => 1,
+        Fun::Builtin(Builtin::CursorArrPrev) => 1,
+        Fun::Builtin(Builtin::CursorAppNext) => 1,
+        Fun::Builtin(Builtin::CursorAppPrev) => 1,
+        Fun::Builtin(Builtin::CursorBytesNext) => 1,
+        Fun::Builtin(Builtin::CursorBytesPrev) => 1,
+        Fun::Builtin(Builtin::CursorStrNext) => 1,
+        Fun::Builtin(Builtin::CursorStrPrev) => 1,
+        Fun::Builtin(Builtin::CursorStrUtf8Next) => 1,
+        Fun::Builtin(Builtin::CursorStrUtf8Prev) => 1,
+        Fun::Builtin(Builtin::CursorSetNext) => 1,
+        Fun::Builtin(Builtin::CursorSetPrev) => 1,
+        Fun::Builtin(Builtin::CursorMapNext) => 1,
+        Fun::Builtin(Builtin::CursorMapPrev) => 1,
+
+        Fun::Builtin(Builtin::MacroIf) => 3,
+        Fun::Builtin(Builtin::MacroSetBang) => 2,
+        Fun::Builtin(Builtin::MacroThrow) => 1,
+        Fun::Builtin(Builtin::MacroDo) => 1,
+        Fun::Builtin(Builtin::MacroCond) => 1,
+        Fun::Builtin(Builtin::MacroLet) => 3,
+        Fun::Builtin(Builtin::MacroLetFn) => 2,
+        Fun::Builtin(Builtin::MacroFn) => 3,
+        Fun::Builtin(Builtin::MacroLambda) => 2,
+        Fun::Builtin(Builtin::MacroThreadFirst) => 2,
+        Fun::Builtin(Builtin::MacroThreadLast) => 2,
+        Fun::Builtin(Builtin::MacroThreadAs) => 3,
+        Fun::Builtin(Builtin::MacroOr) => 1,
+        Fun::Builtin(Builtin::MacroOr2) => 2,
+        Fun::Builtin(Builtin::MacroAnd) => 1,
+        Fun::Builtin(Builtin::MacroAnd2) => 2,
+        Fun::Builtin(Builtin::MacroQuasiquote) => 1,
+        Fun::Builtin(Builtin::MacroWhile) => 2,
+        Fun::Builtin(Builtin::MacroMatch) => 4,
+        Fun::Builtin(Builtin::MacroCase) => 2,
+        Fun::Builtin(Builtin::MacroLoop) => 2,
+        Fun::Builtin(Builtin::MacroTry) => 3,
+
+        Fun::Builtin(Builtin::Require) => 2,
+    };
+
+    return Ok(Value::int(arity as i64));
+}
+
+pub fn fun_apply(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    let f = fun!(args.0[0]);
+    let f_args = arr!(args.0[1]);
+
+    return f.compute(f_args, cx);
 }
 
 /////////////////////////////////////////////////////////////////////////////

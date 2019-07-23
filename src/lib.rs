@@ -1900,13 +1900,6 @@ mod tests {
         ");
 
         test_example("
-        (assert-eq (app-apply `(~int-add 1 2)) 3)
-        (assert-throw (app-apply `(~int-add 1)) {:tag :err-num-args})
-        (assert-throw (app-apply $()) {:tag :err-lookup})
-        (assert-throw (app-apply $(42)) {:tag :err-type})
-        ");
-
-        test_example("
         (assert-throw (app-cursor $(0 1 2) -1) {:tag :err-lookup})
         (assert-eq (cursor-app-next! (app-cursor $(0 1 2) 0)) 0)
         (assert-eq (cursor-app-next! (app-cursor $(0 1 2) 1)) 1)
@@ -2343,6 +2336,20 @@ mod tests {
     }
 
     #[test]
+    fn test_toplevel_fun() {
+        test_example("
+        (assert-eq (fun-arity symbol) 0)
+        (assert-eq (fun-arity fun-arity) 1)
+        (assert-eq (fun-arity (lambda [a b c d e f g h] nil)) 8)
+        ");
+
+        test_example("
+        (assert-eq (fun-apply int-add [1 2]) 3)
+        (assert-throw (fun-apply int-add [1]) {:tag :err-num-args})
+        ");
+    }
+
+    #[test]
     fn test_toplevel_symbol() {
         test_example("
         (assert (let x (symbol) (= x x)))
@@ -2440,7 +2447,7 @@ mod tests {
         (assert-eq (cmp {0 1, 2 3} {0 1, 2 4}) :<)
         (assert-eq (cmp {0 1} {0 1, 2 3}) :<)
         (assert-eq (cmp cmp cmp) :=)
-        (assert-eq (cmp app-apply cmp) :<)
+        (assert-eq (cmp < cmp) :<)
         (assert-eq (cmp cmp (sf-lambda [] nil)) :<)
         (assert-eq (cmp (sf-lambda [] nil) (sf-lambda [] nil)) :<)
         (assert-eq (cmp (cell 42) (cell 41)) :<)

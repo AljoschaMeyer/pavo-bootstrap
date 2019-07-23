@@ -166,7 +166,6 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "app-splice", Builtin::AppSplice);
     env_add(&mut m, "app-concat", Builtin::AppConcat);
     env_add(&mut m, "app-cursor", Builtin::AppCursor);
-    env_add(&mut m, "app-apply", Builtin::AppApply);
 
     env_add(&mut m, "set-count", Builtin::SetCount);
     env_add(&mut m, "set-contains?", Builtin::SetContains);
@@ -218,6 +217,9 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
     env_add(&mut m, "map-cursor->", Builtin::MapCursorGreaterStrict);
     env_add(&mut m, "map-cursor-<=", Builtin::MapCursorLess);
     env_add(&mut m, "map-cursor->=", Builtin::MapCursorGreater);
+
+    env_add(&mut m, "fun-arity", Builtin::FunArity);
+    env_add(&mut m, "fun-apply", Builtin::FunApply);
 
     env_add(&mut m, "symbol", Builtin::Symbol);
 
