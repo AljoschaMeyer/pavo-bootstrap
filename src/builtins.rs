@@ -3447,11 +3447,17 @@ fn quasiquote(v: &Value, fresh_names: &mut HashMap<Id, u64>, cx: &mut Context) -
                                 None => return Err(type_error()),
                                 Some(id) => {
                                     if let Some(symbol_id) = fresh_names.get(id) {
-                                        return Ok(Value::Id(Id::Symbol(*symbol_id)));
+                                        return Ok(Value::app_from_vec(vec![
+                                            Value::id_str("sf-quote"),
+                                            Value::Id(Id::Symbol(*symbol_id)),
+                                            ]));
                                     } else {
                                         let symbol_id = cx.next_symbol_id();
                                         fresh_names.insert((*id).clone(), symbol_id);
-                                        return Ok(Value::Id(Id::Symbol(symbol_id)));
+                                        return Ok(Value::app_from_vec(vec![
+                                            Value::id_str("sf-quote"),
+                                            Value::Id(Id::Symbol(symbol_id)),
+                                            ]));
                                     }
                                 }
                             }

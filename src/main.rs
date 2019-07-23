@@ -127,7 +127,14 @@ fn main() -> Result<(), io::Error> {
             return Ok(());
         }
         Err(err) => {
-            panic!("{:?}", err);
+            match err {
+                ExecuteError::E(E::Eval(err)) => {
+                    let mut buf = String::new();
+                    value::debug_print(&err, 0, 2, &mut buf);
+                    panic!("Thrown:\n{}", buf);
+                }
+                _ => panic!("{:?}", err),
+            }
         }
     }
 }
