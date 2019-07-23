@@ -859,6 +859,7 @@ impl Fun {
 
             Fun::Builtin(Builtin::Cmp) => builtins::pavo_cmp(args, cx),
             Fun::Builtin(Builtin::Eq) => builtins::pavo_eq(args, cx),
+            Fun::Builtin(Builtin::Neq) => builtins::pavo_neq(args, cx),
             Fun::Builtin(Builtin::Lt) => builtins::pavo_lt(args, cx),
             Fun::Builtin(Builtin::Lte) => builtins::pavo_lte(args, cx),
             Fun::Builtin(Builtin::Gt) => builtins::pavo_gt(args, cx),
@@ -922,6 +923,7 @@ impl Fun {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub enum Builtin {
+    Neq,
     Lt,
     Lte,
     Eq,

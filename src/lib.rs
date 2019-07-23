@@ -2466,6 +2466,12 @@ mod tests {
         ");
 
         test_example("
+        (assert-eq (!= 0 0) false)
+        (assert-eq (!= 0.0 -0.0) false)
+        (assert-eq (!= 0 0.0) true)
+        ");
+
+        test_example("
         (assert-eq (< 0 1) true)
         (assert-eq (< false true) true)
         (assert-eq (< true 0) true)

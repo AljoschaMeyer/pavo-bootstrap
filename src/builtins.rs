@@ -2692,6 +2692,7 @@ pub fn fun_arity(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value>
 
         Fun::Builtin(Builtin::Cmp) => 2,
         Fun::Builtin(Builtin::Eq) => 2,
+        Fun::Builtin(Builtin::Neq) => 2,
         Fun::Builtin(Builtin::Lt) => 2,
         Fun::Builtin(Builtin::Lte) => 2,
         Fun::Builtin(Builtin::Gt) => 2,
@@ -2825,6 +2826,11 @@ pub fn pavo_cmp(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> 
 pub fn pavo_eq(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 2)?;
     Ok(Value::bool_(args.0[0] == args.0[1]))
+}
+
+pub fn pavo_neq(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
+    num_args(&args, 2)?;
+    Ok(Value::bool_(args.0[0] != args.0[1]))
 }
 
 pub fn pavo_lt(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {

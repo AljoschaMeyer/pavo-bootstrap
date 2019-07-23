@@ -231,6 +231,7 @@ pub fn default() -> HashMap<Id, (Value, bool)> {
 
     env_add(&mut m, "cmp", Builtin::Cmp);
     env_add(&mut m, "=", Builtin::Eq);
+    env_add(&mut m, "!=", Builtin::Neq);
     env_add(&mut m, "<", Builtin::Lt);
     env_add(&mut m, "<=", Builtin::Lte);
     env_add(&mut m, ">", Builtin::Gt);

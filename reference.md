@@ -4028,7 +4028,7 @@ This function allows user code to introduce new opaque types. It returns a map c
 
 #### Equality and Ordering
 
-Pavo defines a [total order](https://en.wikipedia.org/wiki/Total_order) over all values. The order is defined via the `cmp` function that takes two arguments and returns whether the first is `:less`, `:equal` or `greater` than the second.
+Pavo defines a [total order](https://en.wikipedia.org/wiki/Total_order) over all values. The order is defined via the `cmp` function that takes two arguments and returns whether the first is less, equal or greater than the second.
 
 Since pavo has deterministic semantics, the ordering can not be established according to implementation details such as the numeric value of pointers. Instead, whenever the ordering is essentially arbitrary, the creation order of the values is used.
 
@@ -4167,6 +4167,16 @@ Returns `true` if `v` and `w` are equal, `false` otherwise. See `(cmp v w)` for 
 (assert-eq (= 0 0) true)
 (assert-eq (= 0.0 -0.0) true)
 (assert-eq (= 0 0.0) false)
+```
+
+#### `(!= v w)`
+
+Returns `false` if `v` and `w` are equal, `true` otherwise. See `(cmp v w)` for more details.
+
+```pavo
+(assert-eq (!= 0 0) false)
+(assert-eq (!= 0.0 -0.0) false)
+(assert-eq (!= 0 0.0) true)
 ```
 
 #### `(< v w)`
