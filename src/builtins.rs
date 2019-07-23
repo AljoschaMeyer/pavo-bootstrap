@@ -2464,7 +2464,7 @@ pub fn cursor_map_prev(args: Vector<Value>, _cx: &mut Context) -> Result<Value, 
 
 /////////////////////////////////////////////////////////////////////////////
 
-pub fn fun_arity(args: Vector<Value>, cx: &mut Context) -> Result<Value, Value> {
+pub fn fun_arity(args: Vector<Value>, _cx: &mut Context) -> Result<Value, Value> {
     num_args(&args, 1)?;
     let f = fun!(args.0[0]);
 
