@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use gc::{Gc, GcCell};
 use gc_derive::{Trace, Finalize};
@@ -13,7 +12,7 @@ use crate::value::{Value, Fun, Id, Atomic};
 pub type BBId = usize;
 pub type BindingId = usize;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub enum CompiledPattern {
     Atomic(Atomic),
     Name(DeBruijn),
@@ -25,7 +24,7 @@ pub enum CompiledPattern {
 }
 
 // Indicates the path from a bound identifier site to its binder.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Trace, Finalize)]
 pub struct DeBruijn {
     // How many environments we need to go up to find the binder.
     pub up: usize,
@@ -34,7 +33,7 @@ pub struct DeBruijn {
 }
 
 // Addresses a storage slot where a computation can write `Value`s to (or from where to read them).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub enum Addr {
     Stack,
     Environment(DeBruijn),
@@ -47,7 +46,7 @@ impl Addr {
 }
 
 /// A single instruction of the ir.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub enum Instruction {
     /// Push the value to the stack.
     Literal(Value),
@@ -62,7 +61,7 @@ pub enum Instruction {
     Map(usize),
     /// Create a closure value with the given IrChunk, push it to the stack.
     /// This can't be done via `Instruction::Literal` since the environmen must be set at runtime.
-    FunLiteral(Rc<IrChunk>, usize),
+    FunLiteral(Gc<IrChunk>, usize),
     /// Jump to the given basic block. If the bb is `BB_RETURN`, return from the function instead.
     Jump(BBId),
     /// Pop the topmost stack element. Jump to the first basic block if the value was truthy,
@@ -102,7 +101,7 @@ use Instruction::*;
 pub const BB_RETURN: BBId = std::usize::MAX;
 
 /// A control flow graph of basic blocks, each consisting of a sequence of statements.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub struct IrChunk {
     // The ir instructions, as a graph of basic blocks.
     pub basic_blocks: Vec<Vec<Instruction>>,
@@ -171,26 +170,28 @@ impl std::fmt::Debug for Environment {
 impl Environment {
     // Look up the value addressed by the given DeBruijnPair. Panics if the address is invalid
     // (which only happens if compilation is buggy).
-    pub fn get(&self, mut addr: DeBruijn) -> Value {
+    pub fn get(&self, addr: &DeBruijn) -> Value {
         if addr.up == 0 {
             self.bindings[addr.id].clone()
         } else {
+            let mut addr = addr.clone();
             addr.up -= 1;
-            self.parent.as_ref().unwrap().borrow().get(addr)
+            self.parent.as_ref().unwrap().borrow().get(&addr)
         }
     }
 
     // Set the value at the given address. Panics if the address is invalid (which only happens if
     // compilation is buggy).
-    pub fn set(&mut self, mut addr: DeBruijn, val: Value) {
+    pub fn set(&mut self, addr: &DeBruijn, val: Value) {
         if addr.up == 0 {
             if addr.id >= self.bindings.len()  {
                 self.bindings.resize_with(addr.id + 1, Value::nil);
             }
             self.bindings[addr.id] = val;
         } else {
+            let mut addr = addr.clone();
             addr.up -= 1;
-            self.parent.as_ref().unwrap().borrow_mut().set(addr, val);
+            self.parent.as_ref().unwrap().borrow_mut().set(&addr, val);
         }
     }
 
@@ -218,7 +219,7 @@ impl Environment {
         let ret = Environment::root();
 
         for (id, (val, _)) in toplevel.values().enumerate() {
-            ret.borrow_mut().set(DeBruijn { up: 0, id}, val.clone());
+            ret.borrow_mut().set(&DeBruijn { up: 0, id}, val.clone());
         }
 
         ret
@@ -228,14 +229,13 @@ impl Environment {
 // An IrChunk together with an environment. This is a runtime value.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Trace, Finalize)]
 pub struct Closure {
-    #[unsafe_ignore_trace]
-    pub fun: Rc<IrChunk>,
+    pub fun: Gc<IrChunk>,
     pub env: Gc<GcCell<Environment>>,
     pub args: usize,
 }
 
 impl Closure {
-    fn from_chunk(fun: Rc<IrChunk>, env: Gc<GcCell<Environment>>, args: usize) -> Closure {
+    fn from_chunk(fun: Gc<IrChunk>, env: Gc<GcCell<Environment>>, args: usize) -> Closure {
         Closure {
             fun,
             env,
@@ -252,7 +252,7 @@ impl std::fmt::Debug for Closure {
 
 impl Addr {
     // Use an `Addr` to retrieve a value. This can not fail, unless we created erroneous ir code.
-    fn load(self, local: &mut LocalState, env: &Gc<GcCell<Environment>>) -> Value {
+    fn load(&self, local: &mut LocalState, env: &Gc<GcCell<Environment>>) -> Value {
         match self {
             Addr::Stack => local.stack.pop().unwrap(),
             Addr::Environment(de_bruijn) => env.borrow().get(de_bruijn),
@@ -260,7 +260,7 @@ impl Addr {
     }
 
     // Use an `Addr` to store a value. This can not fail, unless we created erroneous vm code.
-    fn store(self, val: Value, local: &mut LocalState, env: &Gc<GcCell<Environment>>) {
+    fn store(&self, val: Value, local: &mut LocalState, env: &Gc<GcCell<Environment>>) {
         match self {
             Addr::Stack => local.stack.push(val),
             Addr::Environment(de_bruijn) => env.borrow_mut().set(de_bruijn, val),
@@ -491,7 +491,7 @@ fn handle_match(
 ) -> bool {
     match p {
         CompiledPattern::Name(db) => {
-            Addr::env(*db).store(val, state, env);
+            Addr::env(db.clone()).store(val, state, env);
             return true;
         }
 
@@ -541,7 +541,7 @@ fn handle_match(
         }
 
         CompiledPattern::Named(db, inner) => {
-            Addr::env(*db).store(val.clone(), state, env);
+            Addr::env(db.clone()).store(val.clone(), state, env);
             return handle_match(val, inner, state, env);
         }
     }

@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 failure = "0.1.5"
 failure_derive = "0.1.5"
-gc = "0.3.2"
+gc = "0.3.3"
 gc_derive = "0.3.2"
 im-rc = "12.3.3"
 libmath = "0.2.1"

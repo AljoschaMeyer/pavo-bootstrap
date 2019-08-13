@@ -1,0 +1,30 @@
+
+[package]
+name = "pavo-bootstrap-fuzz"
+version = "0.0.1"
+authors = ["Automatically generated"]
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies.pavo-bootstrap]
+path = ".."
+[dependencies.libfuzzer-sys]
+git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "map_basics"
+path = "fuzz_targets/map_basics.rs"
+
+[[bin]]
+name = "map_cursors"
+path = "fuzz_targets/map_cursors.rs"
+
+[[bin]]
+name = "map_bulk"
+path = "fuzz_targets/map_bulk.rs"

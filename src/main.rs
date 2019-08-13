@@ -24,6 +24,8 @@ mod value;
 mod read;
 mod vm;
 mod opaques;
+mod arr;
+mod map;
 
 use compile::StaticError;
 use context::Context;

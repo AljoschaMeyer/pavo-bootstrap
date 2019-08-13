@@ -58,8 +58,9 @@ pub struct OrdMap<K: Clone + Ord, V: Clone>(pub im_rc::OrdMap<K, V>);
 impl<K: Trace + Clone + Ord, V: Trace + Clone> Finalize for OrdMap<K, V> {}
 unsafe impl<K: Trace + Clone + Ord, V: Trace + Clone> Trace for OrdMap<K, V> {
     custom_trace!(this, {
-        for e in this.0.iter() {
-            mark(e);
+        for (k, v) in this.0.iter() {
+            mark(k);
+            mark(v);
         }
     });
 }

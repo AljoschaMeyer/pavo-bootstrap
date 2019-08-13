@@ -11,7 +11,6 @@ Pavo is a [homoiconic](https://en.wikipedia.org/wiki/Homoiconicity), [dynamicall
 3. A number of *static checks* guarantees that the obtained value is a valid pavo program.
 4. The program value is *evaluated* into the final result.
 
-
 ## Values
 
 Values are the entities that the pavo programming language manipulates. Programming is about telling the machine how to derive new values from old ones. While hardware typically only knows about zeros and ones, pavo presents a more high-level interface to the programmer. The set of pavo values consists of the following things:
@@ -3731,6 +3730,8 @@ Returns the map that contains all the entries in the map `lhs` and all the entri
 
 Throws `{:tag :err-collection-full}` if the resulting map would contain 2^63 or more elements.
 
+Time: O(n log m), where n is the `map-count` of the smaller input and m is the `map-count` of the larger input.
+
 ```pavo
 (assert-eq (map-union {0 42, 1 41} {1 17, 2 40}) {0 42, 1 41, 2 40})
 (assert-eq (map-union {0 42, 1 41} {}) {0 42, 1 41})
@@ -3738,11 +3739,11 @@ Throws `{:tag :err-collection-full}` if the resulting map would contain 2^63 or 
 (assert-eq (map-union {} {}) {})
 ```
 
-Time: O(n log m), where n is the `map-count` of the smaller input and m is the `map-count` of the larger input.
-
 #### `(map-intersection lhs rhs)`
 
 Returns the map that contains all the entries in the map `lhs` whose key is also the key of an entry in the map `rhs`.
+
+Time: O((n + m) log (n + m)), where n is `(map-count lhs)` and m is `(map-count rhs)`.
 
 ```pavo
 (assert-eq (map-intersection {0 42, 1 41} {1 17, 2 40}) {1 41})
@@ -3751,11 +3752,11 @@ Returns the map that contains all the entries in the map `lhs` whose key is also
 (assert-eq (map-intersection {} {}) {})
 ```
 
-Time: O((n + m) log (n + m)), where n is `(map-count lhs)` and m is `(map-count rhs)`.
-
 #### `(map-difference lhs rhs)`
 
 Returns the map that contains all the entries in the map `lhs` whose key is not the key of an entry in the map `rhs`.
+
+Time: O(m log n), where n is `(map-count lhs)` and m is `(map-count rhs)`.
 
 ```pavo
 (assert-eq (map-difference {0 42, 1 41} {1 17, 2 40}) {0 42})
@@ -3764,11 +3765,11 @@ Returns the map that contains all the entries in the map `lhs` whose key is not 
 (assert-eq (map-difference {} {}) {})
 ```
 
-Time: O(m log n), where n is `(map-count lhs)` and m is `(map-count rhs)`.
-
 #### `(map-symmetric-difference lhs rhs)`
 
 Returns the map that contains all the entries in the maps `lhs` and `rhs` whose key does not occur in both maps.
+
+Time: O((n + m) log (n + m)), where n is `(map-count lhs)` and m is `(map-count rhs)`.
 
 ```pavo
 (assert-eq (map-symmetric-difference {0 42, 1 41} {1 17, 2 40}) {0 42, 2 40})
@@ -3776,8 +3777,6 @@ Returns the map that contains all the entries in the maps `lhs` and `rhs` whose 
 (assert-eq (map-symmetric-difference {} {1 41, 2 40}) {1 41, 2 40})
 (assert-eq (map-symmetric-difference {} {}) {})
 ```
-
-Time: O((n + m) log (n + m)), where n is `(map-count lhs)` and m is `(map-count rhs)`.
 
 #### `(map-split map v)`
 
@@ -3838,6 +3837,9 @@ Time: O(log n), where n is `(map-count map)`.
 #### `(map-cursor-< map v)`
 
 Returns a new map cursor (see below), positioned right behind the greatest entry of the map `map` whose key is strictly less than the value `v`, or right before the minimal entry of the set if no such entry exists.
+
+TODO throw if no such entry exists instead?
+TODO analogously everywhere else (other map cursors, set cursors)
 
 Time: O(log n), where n is `(map-count map)`.
 
@@ -4872,3 +4874,15 @@ Collections serialize their components and separate them by a single space (ther
 ## Appendix B: Precise Definition of `(quasiquote v)`
 
 Refer to the reference implementation for now. Sorry =/
+
+---
+
+TODO
+
+- rename xxx-min to xxx-min-get, add xxx-min-delete, same for xxx-max
+- set-subset? and map-submap?
+- map-union-by (calling function to tie-break)?
+- map-insert-tentatively (needs proper name)
+- cursor-xxx-clone
+- split cursor creation functions into regular (positioning before the target) and -post (positioning behind the target)
+- all get/find functions also as removes

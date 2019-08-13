@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use im_rc::{Vector as ImVector, OrdMap as ImOrdMap};
+use gc::Gc;
 
 use crate::builtins;
 use crate::check::{check_toplevel, BindingError};
@@ -146,7 +146,7 @@ pub fn compile_code(
     check_toplevel(c.clone(), toplevel)?;
 
     let mut s = Stack::from_toplevel(toplevel);
-    let chunk = Rc::new(compile_lambda(Vector(ImVector::new()), c, &mut s));
+    let chunk = Gc::new(compile_lambda(Vector(ImVector::new()), c, &mut s));
 
     return Ok(Closure {
         fun: chunk,
@@ -353,7 +353,7 @@ fn code_to_ir(c: Code, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
 
         Code::Lambda(args, body) => {
             let len = args.0.len();
-            let ir_chunk = Rc::new(compile_lambda(args, *body, s));
+            let ir_chunk = Gc::new(compile_lambda(args, *body, s));
             bbb.append(FunLiteral(ir_chunk, len));
         }
 
@@ -368,7 +368,7 @@ fn code_to_ir(c: Code, push: bool, bbb: &mut BBB, tail: bool, s: &mut Stack) {
             for (name, (args, body)) in defs.0.iter() {
                 let len = args.0.len();
                 let db = s.resolve(name);
-                let ir_chunk = Rc::new(compile_lambda(args.clone(), body.clone(), s));
+                let ir_chunk = Gc::new(compile_lambda(args.clone(), body.clone(), s));
                 bbb.append(FunLiteral(ir_chunk, len));
                 bbb.append(Pop(Addr::env(db)));
             }
