@@ -18,6 +18,10 @@ git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
 members = ["."]
 
 [[bin]]
+name = "arr_basics"
+path = "fuzz_targets/arr_basics.rs"
+
+[[bin]]
 name = "map_basics"
 path = "fuzz_targets/map_basics.rs"
 

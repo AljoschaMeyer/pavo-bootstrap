@@ -22,6 +22,7 @@ mod vm;
 mod opaques;
 pub mod arr;
 pub mod map;
+pub mod set;
 
 use compile::StaticError;
 use context::Context;
