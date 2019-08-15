@@ -22,6 +22,10 @@ name = "arr_basics"
 path = "fuzz_targets/arr_basics.rs"
 
 [[bin]]
+name = "arr_cursors"
+path = "fuzz_targets/arr_cursors.rs"
+
+[[bin]]
 name = "map_basics"
 path = "fuzz_targets/map_basics.rs"
 

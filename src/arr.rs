@@ -138,6 +138,42 @@ impl Arr {
             }
         }
     }
+
+    pub fn cursor_at(&self, at: usize) -> ActualCursor {
+        match self {
+            Arr::Empty => ActualCursor::Empty,
+            Arr::NonEmpty(n, _) => match n {
+                Leaf(v) => ActualCursor::Singleton(v.clone()),
+                _ => ActualCursor::Cursor(Cursor::new(n, at)),
+            }
+        }
+    }
+
+    pub fn cursor_start(&self) -> ActualCursor {
+        match self {
+            Arr::Empty => ActualCursor::Empty,
+            Arr::NonEmpty(n, _) => match n {
+                Leaf(v) => ActualCursor::Singleton(v.clone()),
+                _ => ActualCursor::Cursor(Cursor::new_start(n)),
+            }
+        }
+    }
+
+    pub fn cursor_end(&self) -> ActualCursor {
+        match self {
+            Arr::Empty => ActualCursor::Empty,
+            Arr::NonEmpty(n, _) => match n {
+                Leaf(v) => ActualCursor::Singleton(v.clone()),
+                _ => ActualCursor::Cursor(Cursor::new_end(n)),
+            }
+        }
+    }
+}
+
+pub enum ActualCursor {
+    Empty,
+    Singleton(Value),
+    Cursor(Cursor),
 }
 
 impl Node {
@@ -246,6 +282,37 @@ impl Node {
         match self {
             Leaf(_) => true,
             _ => false,
+        }
+    }
+
+    // appends the leftmost path from self (inclusive) to a leaf (exclusive) of positions
+    fn positions_start(&self, out: &mut Vec<Position>) {
+        match self {
+            Leaf(_) => {}
+            N2(n) => {
+                out.push(N2Left(n.clone()));
+                n.0.positions_start(out);
+            }
+            N3(n) => {
+                out.push(N3Left(n.clone()));
+                n.0.positions_start(out);
+            }
+        }
+    }
+
+    // appends the rightmost path from self (inclusive) to a leaf (exclusive) of positions
+    // (places the cursor *before* the rightmost element)
+    fn positions_end(&self, out: &mut Vec<Position>) {
+        match self {
+            Leaf(_) => {}
+            N2(n) => {
+                out.push(N2Right(n.clone()));
+                n.2.positions_end(out);
+            }
+            N3(n) => {
+                out.push(N3Right(n.clone()));
+                n.4.positions_end(out);
+            }
         }
     }
 }
@@ -620,6 +687,368 @@ enum Remove {
     Up(Node),
 }
 
+#[derive(Debug, Clone)]
+pub struct Cursor(Vec<Position>);
+
+#[derive(Debug, Clone)]
+enum Position {
+    N2Left(Gc<(Node, usize, Node, usize /* count */)>),
+    N2Right(Gc<(Node, usize, Node, usize /* count */)>),
+    N2Post(Gc<(Node, usize, Node, usize /* count */)>),
+    N3Left(Gc<(Node, usize, Node, usize, Node, usize /* count */)>),
+    N3Middle(Gc<(Node, usize, Node, usize, Node, usize /* count */)>),
+    N3Right(Gc<(Node, usize, Node, usize, Node, usize /* count */)>),
+    N3Post(Gc<(Node, usize, Node, usize, Node, usize /* count */)>),
+}
+use self::Position::*;
+
+impl Position {
+    fn is_post(&self) -> bool {
+        match self {
+            N2Post(_) | N3Post(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_pre(&self) -> bool {
+        match self {
+            N2Left(_) | N3Left(_) => true,
+            _ => false,
+        }
+    }
+
+    // true if it changed, false if not
+    fn step_next(positions: &mut Vec<Position>) -> bool {
+        let len = positions.len();
+        let must_post = len == 1 || positions[len - 2].is_post();
+        let p = positions[len - 1].clone();
+
+        match p {
+            N2Left(n) => {
+                if n.2.is_leaf() {
+                    positions[len - 1] = N2Right(n);
+                    return true;
+                } else {
+                    positions[len - 1] = N2Right(n.clone());
+                    n.2.positions_start(positions);
+                    return true;
+                }
+            }
+            N2Right(n) => {
+                if must_post {
+                    positions[len - 1] = N2Post(n);
+                    return Position::step_next(positions);
+                } else {
+                    positions.pop();
+                    return Position::step_next(positions);
+                }
+            }
+            N2Post(_) => return false,
+            N3Left(n) => {
+                if n.2.is_leaf() {
+                    positions[len - 1] = N3Middle(n);
+                    return true;
+                } else {
+                    positions[len - 1] = N3Middle(n.clone());
+                    n.2.positions_start(positions);
+                    return true;
+                }
+            }
+            N3Middle(n) => {
+                if n.4.is_leaf() {
+                    positions[len - 1] = N3Right(n);
+                    return true;
+                } else {
+                    positions[len - 1] = N3Right(n.clone());
+                    n.4.positions_start(positions);
+                    return true;
+                }
+            }
+            N3Right(n) => {
+                if must_post {
+                    positions[len - 1] = N3Post(n);
+                    return Position::step_next(positions);
+                } else {
+                    positions.pop();
+                    return Position::step_next(positions);
+                }
+            }
+            N3Post(_) => return false,
+        };
+    }
+
+    fn step_prev(positions: &mut Vec<Position>) -> bool {
+        let len = positions.len();
+        let must_stay = len == 1 || positions[len - 2].is_post();
+        let p = positions[len - 1].clone();
+
+        match p {
+            N2Left(_) => {
+                if positions.iter().rev().all(|p| p.is_pre()) {
+                    return false;
+                } else {
+                    positions.pop();
+                    return Position::step_prev(positions);
+                }
+            }
+            N2Right(n) => {
+                if n.0.is_leaf() {
+                    positions[len - 1] = N2Left(n);
+                    return true;
+                } else {
+                    positions[len - 1] = N2Left(n.clone());
+                    n.0.positions_end(positions);
+                    return true;
+                }
+            }
+            N2Post(n) => {
+                if n.2.is_leaf() {
+                    positions[len - 1] = N2Right(n);
+                    return true;
+                } else {
+                    positions[len - 1] = N2Right(n.clone());
+                    n.2.positions_end(positions);
+                    return true;
+                }
+            }
+            N3Left(_) => {
+                if positions.iter().rev().all(|p| p.is_pre()) {
+                    return false;
+                } else {
+                    positions.pop();
+                    return Position::step_prev(positions);
+                }
+            }
+            N3Middle(n) => {
+                if n.0.is_leaf() {
+                    positions[len - 1] = N3Left(n);
+                    return true;
+                } else {
+                    positions[len - 1] = N3Left(n.clone());
+                    n.0.positions_end(positions);
+                    return true;
+                }
+            }
+            N3Right(n) => {
+                if n.2.is_leaf() {
+                    positions[len - 1] = N3Middle(n);
+                    return true;
+                } else {
+                    positions[len - 1] = N3Middle(n.clone());
+                    n.2.positions_end(positions);
+                    return true;
+                }
+            }
+            N3Post(n) => {
+                if n.4.is_leaf() {
+                    positions[len - 1] = N3Right(n);
+                    return true;
+                } else {
+                    positions[len - 1] = N3Right(n.clone());
+                    n.4.positions_end(positions);
+                    return true;
+                }
+            }
+        };
+    }
+}
+
+impl Cursor {
+    pub fn new(n: &Node, at: usize) -> Self {
+        unimplemented!();
+        // let mut buf = Vec::new();
+        // n.positions_start(&mut buf);
+        // return Cursor(buf);
+    }
+
+    pub fn new_start(n: &Node) -> Self {
+        let mut buf = Vec::new();
+        n.positions_start(&mut buf);
+        return Cursor(buf);
+    }
+
+    pub fn new_end(n: &Node) -> Self {
+        let mut buf = Vec::new();
+        n.positions_end(&mut buf);
+        return Cursor(buf);
+    }
+
+    // TODO other creation functions
+
+    pub fn current(&mut self) -> Option<Value> {
+        let len = self.0.len();
+        match &self.0[len - 1] {
+            N2Left(n) => {
+                let (ref l, _, _, _) = &(**n);
+                match l {
+                    Node::Leaf(v) => Some(v.clone()),
+                    _ => unreachable!(),
+                }
+            }
+            N2Right(n) => {
+                let (_, _, ref r, _) = &(**n);
+                match r {
+                    Node::Leaf(v) => Some(v.clone()),
+                    _ => unreachable!(),
+                }
+            }
+            N3Left(n) => {
+                let (ref l, _, _, _, _, _) = &(**n);
+                match l {
+                    Node::Leaf(v) => Some(v.clone()),
+                    _ => unreachable!(),
+                }
+            }
+            N3Middle(n) => {
+                let (_, _, ref m, _, _, _) = &(**n);
+                match m {
+                    Node::Leaf(v) => Some(v.clone()),
+                    _ => unreachable!(),
+                }
+            }
+            N3Right(n) => {
+                let (_, _, _, _, ref r, _) = &(**n);
+                match r {
+                    Node::Leaf(v) => Some(v.clone()),
+                    _ => unreachable!(),
+                }
+            }
+            N2Post(_) | N3Post(_) => if len == 1 {
+                return None;
+            } else {
+                let _ = self.0.pop();
+                return self.current();
+            }
+        }
+    }
+
+    // true if it moved, false, if it was already at the end
+    pub fn next(&mut self) -> bool {
+        Position::step_next(&mut self.0)
+    }
+
+    // true if it moved, false, if it was already at the start
+    pub fn prev(&mut self) -> bool {
+        Position::step_prev(&mut self.0)
+    }
+}
+
+impl PartialEq for Arr {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Arr::Empty, Arr::Empty) => true,
+            (Arr::Empty, Arr::NonEmpty(_, _)) => false,
+            (Arr::NonEmpty(_, _), Arr::Empty) => false,
+            (Arr::NonEmpty(self_n, _), Arr::NonEmpty(other_n, _)) => self_n.eq(other_n),
+        }
+    }
+}
+impl Eq for Arr {}
+
+impl PartialOrd for Arr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Arr {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Arr::Empty, Arr::Empty) => Equal,
+            (Arr::Empty, Arr::NonEmpty(_, _)) => Less,
+            (Arr::NonEmpty(_, _), Arr::Empty) => Greater,
+            (Arr::NonEmpty(self_n, _), Arr::NonEmpty(other_n, _)) => self_n.cmp(other_n),
+        }
+    }
+}
+
+impl PartialEq for Node {
+    // Neither arg may be a leaf.
+    fn eq(&self, other: &Self) -> bool {
+        let mut ca = Cursor::new(&self, 0);
+        let mut cb = Cursor::new(&other, 0);
+
+        loop {
+            match (ca.current(), cb.current()) {
+                (None, None) => return true,
+                (None, Some(_)) => return false,
+                (Some(_), None) => return false,
+                (Some(ka), Some(kb)) => {
+                    if ka == kb {
+                        continue
+                    } else {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+}
+impl Eq for Node {}
+
+impl PartialOrd for Node {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Node {
+    // Neither arg may be a leaf.
+    fn cmp(&self, other: &Self) -> Ordering {
+        let mut ca = Cursor::new(&self, 0);
+        let mut cb = Cursor::new(&other, 0);
+
+        loop {
+            match (ca.current(), cb.current()) {
+                (None, None) => return Equal,
+                (None, Some(_)) => return Less,
+                (Some(_), None) => return Greater,
+                (Some(ka), Some(kb)) => {
+                    let compare_keys = ka.cmp(&kb);
+                    match compare_keys {
+                        Equal => {
+                            ca.next();
+                            cb.next();
+                        }
+                        _ => return compare_keys,
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub struct Iter(Option<Cursor>);
+
+impl Iter {
+    fn new(n: &Node) -> Self {
+        if n.count() == 0 {
+            Iter(None)
+        } else {
+            Iter(Some(Cursor::new(n, 0)))
+        }
+    }
+}
+
+impl std::iter::Iterator for Iter {
+    type Item = Value;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.0.as_mut() {
+            None => None,
+            Some(c) => {
+                match c.current() {
+                    None => None,
+                    Some(current) => {
+                        c.next();
+                        Some(current)
+                    }
+                }
+            }
+        }
+    }
+}
+
 //////////////////////////////////////// debug/testing stuff
 
 pub fn arr_to_vec(m: &Arr, out: &mut Vec<Value>) {
@@ -646,258 +1075,107 @@ fn node_to_vec(n: &Node, out: &mut Vec<Value>) {
     }
 }
 
-//
-// use std::collections::BTreeArr;
+fn fuzzy_cursor(data: &[u8]) {
+    let mut control = Vec::new();
+    let mut m = Arr::new();
+    let half = data.len() / 2;
 
-// fn fuzzy(data: &[u8]) {
-//     // Foo
-//     let mut control = BTreeArr::new();
-//     let mut m = Arr::new();
-//
-//     for b in data {
-//         // m = m.insert(Value::int(*b as i64), Foo);
-//         // control.insert(Value::int(*b as i64), Foo);
-//
-//         match *b {
-//             0...63 => {
-//                 m = m.insert(Value::int((b & 0b0011_1111) as i64), Foo);
-//                 control.insert(Value::int((b & 0b0011_1111) as i64), Foo);
-//                 println!("insert {:?}", b & 0b0011_1111);
-//             }
-//             64...127 => {
-//                 m = m.remove(&Value::int((b & 0b0011_1111) as i64));
-//                 control.remove(&Value::int((b & 0b0011_1111) as i64));
-//                 println!("remove {:?}", b & 0b0011_1111);
-//             }
-//             128...191 => {
-//                 let key = Value::int((b & 0b0011_1111) as i64);
-//                 let (l, k, _) = m.split(&key);
-//                 println!("split-l {:?}", b & 0b0011_1111);
-//                 println!("splitl: ({:?}, {:?}, _)", l, k);
-//
-//                 // m = l;
-//                 match k {
-//                     None => m = l,
-//                     Some((k, v)) => m = l.insert(k.clone(), v.clone()),
-//                 }
-//
-//                 let mut new_control = BTreeArr::new();
-//                 for (k, v) in control.iter() {
-//                     // if k < &key {
-//                     //     new_control.insert(k.clone(), v.clone());
-//                     // }
-//                     if k <= &key {
-//                         new_control.insert(k.clone(), v.clone());
-//                     }
-//                 }
-//                 control = new_control;
-//             }
-//             192...255 => {
-//                 let key = Value::int((b & 0b0011_1111) as i64);
-//                 let (_, k, r) = m.split(&key);
-//                 println!("{:?}", m);
-//                 println!("split-r {:?}", b & 0b0011_1111);
-//                 println!("splitr: (_, {:?}, {:?})", k, r);
-//
-//                 // m = r;
-//                 match k {
-//                     None => m = r,
-//                     Some((k, v)) => m = r.insert(k.clone(), v.clone()),
-//                 }
-//
-//                 let mut new_control = BTreeArr::new();
-//                 for (k, v) in control.iter() {
-//                     if k >= &key {
-//                         new_control.insert(k.clone(), v.clone());
-//                     }
-//                     // if k > &key {
-//                     //     new_control.insert(k.clone(), v.clone());
-//                     // }
-//                 }
-//                 control = new_control;
-//             }
-//         }
-//     }
-//
-//     let mut out = vec![];
-//     map_to_vec(&m, &mut out);
-//     let out_control: Vec<Value> = control.into_iter().collect();
-//
-//     if out != out_control {
-//         println!("{:?}", "-----");
-//         println!("{:?}", out_control);
-//         println!("{:?}", out);
-//     }
-//
-//     assert!(out == out_control);
-// }
+    for data in data.chunks_exact(2) {
+        let b = data[0];
+        let at = data[1] as usize;
+        match b {
+            0...63 => {
+                if at > control.len() {
+                    continue;
+                }
+                m = m.insert(at, Value::int((b & 0b0011_1111) as i64));
+                control.insert(at, Value::int((b & 0b0011_1111) as i64));
+            }
+            64...127 => {
+                if at >= control.len() {
+                    continue;
+                }
+                m = m.remove(at);
+                control.remove(at);
+            }
+            128...191 => {
+                if at > control.len() {
+                    continue;
+                }
+                let (l, _) = m.split(at);
+                m = l;
+                control.split_off(at);
+            }
+            192...255 => {
+                if at > control.len() {
+                    continue;
+                }
+                let (_, r) = m.split(at);
+                m = r;
+                let new_control = control.split_off(at);
+                control = new_control;
+            }
+        }
+    }
 
-// fn fuzzy_cursor(data: &[u8]) {
-//     let mut control = BTreeArr::new();
-//     let mut m = Arr::new();
-//     let half = data.len() / 2;
-//
-//     for b in &data[..half] {
-//         match *b {
-//             0...63 => {
-//                 m = m.insert(Value::int((b & 0b0011_1111) as i64), Foo);
-//                 control.insert(Value::int((b & 0b0011_1111) as i64), Foo);
-//             }
-//             64...127 => {
-//                 m = m.remove(&Value::int((b & 0b0011_1111) as i64));
-//                 control.remove(&Value::int((b & 0b0011_1111) as i64));
-//             }
-//             128...191 => {
-//                 let key = Value::int((b & 0b0011_1111) as i64);
-//                 let (l, k, _) = m.split(&key);
-//
-//                 match k {
-//                     None => m = l,
-//                     Some((k, v)) => m = l.insert(k.clone(), v.clone()),
-//                 }
-//
-//                 let mut new_control = BTreeArr::new();
-//                 for (k, v) in control.iter() {
-//                     if k <= &key {
-//                         new_control.insert(k.clone(), v.clone());
-//                     }
-//                 }
-//                 control = new_control;
-//             }
-//             192...255 => {
-//                 let key = Value::int((b & 0b0011_1111) as i64);
-//                 let (_, k, r) = m.split(&key);
-//
-//                 match k {
-//                     None => m = r,
-//                     Some((k, v)) => m = r.insert(k.clone(), v.clone()),
-//                 }
-//
-//                 let mut new_control = BTreeArr::new();
-//                 for (k, v) in control.iter() {
-//                     if k >= &key {
-//                         new_control.insert(k.clone(), v.clone());
-//                     }
-//                 }
-//                 control = new_control;
-//             }
-//         }
-//     }
-//
-//     let out_control: Vec<Value> = control.into_iter().collect();
-//     let len = out_control.len();
-//     if len == 0 {
-//         return;
-//     } else {
-//         let (mut cursor, mut control_index) = if data[0] % 2 == 0 {
-//             (m.cursor_min().unwrap(), 0)
-//         } else {
-//             (m.cursor_max().unwrap(), len - 1)
-//         };
-//         let mut skip = false;
-//
-//         println!("Initial: ({:?}, {:?})\n===", out_control, control_index);
-//
-//         for b in &data[half..] {
-//             println!("control_index: {:?}", control_index);
-//             println!("{:?}", cursor);
-//             println!("---");
-//             if skip {
-//                 assert!(control_index == len || control_index == 0)
-//             } else {
-//                 match cursor.current() {
-//                     None => assert!(control_index == len),
-//                     Some((k, v)) => assert!((k, v) == out_control[control_index]),
-//                 }
-//             }
-//
-//             if b % 2 == 0 {
-//                 skip = !cursor.next();
-//                 if control_index != len {
-//                     control_index += 1;
-//                 }
-//             } else {
-//                 skip = !cursor.prev();
-//                 if control_index != 0 {
-//                     control_index -= 1;
-//                 }
-//             }
-//         }
-//     }
-// }
-//
-// fn fuzzy_bulk(data: &[u8]) {
-//     let mut control = BTreeArr::new();
-//     let mut control2 = BTreeArr::new();
-//     let mut m = Arr::new();
-//     let mut n = Arr::new();
-//     let half = data.len() / 2;
-//
-//     if data.len() == 0 {
-//         return;
-//     }
-//
-//     for b in &data[..half] {
-//         match *b {
-//             0...127 => {
-//                 m = m.insert(Value::int((b & 0b0111_1111) as i64), Foo);
-//                 control.insert(Value::int((b & 0b0111_1111) as i64), Foo);
-//             }
-//             128...255 => {
-//                 m = m.remove(&Value::int((b & 0b0111_1111) as i64));
-//                 control.remove(&Value::int((b & 0b0111_1111) as i64));
-//             }
-//         }
-//     }
-//
-//     for b in &data[half..] {
-//         match *b {
-//             0...127 => {
-//                 n = n.insert(Value::int((b & 0b0111_1111) as i64), Foo);
-//                 control2.insert(Value::int((b & 0b0111_1111) as i64), Foo);
-//             }
-//             128...255 => {
-//                 n = n.remove(&Value::int((b & 0b0111_1111) as i64));
-//                 control2.remove(&Value::int((b & 0b0111_1111) as i64));
-//             }
-//         }
-//     }
-//
-//     let mut out = vec![];
-//     let out_control: Vec<Value>;
-//
-//     match data[0] {
-//         _ => {
-//             let union_ = m.union(&n);
-//             map_to_vec(&union_, &mut out);
-//
-//             let mut tmp = control2.clone();
-//             for (k, v) in control.into_iter() {
-//                 tmp.insert(k, v);
-//             }
-//             out_control = tmp.into_iter().collect();
-//         }
-//     }
-//
-//     if out != out_control {
-//         println!("{:?}", out_control);
-//         println!("{:?}", out);
-//     }
-//
-//     assert!(out == out_control);
-// }
-//
-// #[test]
-// fn test_fuzzy_bulk() {
-//     fuzzy_bulk(&[0, 0, 0, 1]);
-// }
+    let out_control: Vec<Value> = control.into_iter().collect();
+    let len = out_control.len();
+    if len <= 1 {
+        return;
+    } else {
+        let (mut cursor, mut control_index) = if data[0] % 2 == 0 {
+            (
+                match m.cursor_start() {
+                    ActualCursor::Cursor(c) => c,
+                    _ => unreachable!(),
+                },
+                0,
+            )
+        } else {
+            (
+                match m.cursor_end() {
+                    ActualCursor::Cursor(c) => c,
+                    _ => unreachable!(),
+                },
+                len - 1,
+            )
+        };
+        let mut skip = false;
 
-// #[test]
-// fn test_fuzzy_cursor() {
-//     fuzzy_cursor(&[0x1f,0x0,0x1,0x32,0x0,0x1d,0xff,0xff]);
-//     fuzzy(&[0x10,0x1,0x0,0x23]);
-//     fuzzy(&[0xca,0x31,0xd1,0x0,0x6b]);
-//     fuzzy(&[0x3b,0x1,0x0,0x1,0x10]);
-//     fuzzy(&[0x2a,0x2d,0xa,0x1,0x0,0x80]);
-//     fuzzy(&[0x1,0xa,0xa]);
-// }
+        println!("Initial: ({:?}, {:?})\n===", out_control, control_index);
+
+        for b in &data[half..] {
+            println!("control_index: {:?}", control_index);
+            println!("{:?}", cursor);
+            println!("---");
+            if skip {
+                assert!(control_index == len || control_index == 0)
+            } else {
+                match cursor.current() {
+                    None => assert!(control_index == len),
+                    Some(v) => assert!(v == out_control[control_index]),
+                }
+            }
+
+            if b % 2 == 0 {
+                skip = !cursor.next();
+                if control_index != len {
+                    control_index += 1;
+                }
+            } else {
+                skip = !cursor.prev();
+                if control_index != 0 {
+                    control_index -= 1;
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn test_fuzzy_cursor() {
+    fuzzy_cursor(&[0x1,0x0,0x0,0x0,0x0,0x1,0x1,0x0]);
+    // fuzzy_cursor(&[0x1,0x0,0x0,0x0,0x1,0x1,0x0,0x0]);
+    // fuzzy_cursor(&[0x1,0x0,0x0,0x0]);
+    // fuzzy_cursor(&[0x1,0x0]);
+}

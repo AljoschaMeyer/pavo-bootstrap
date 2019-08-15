@@ -1638,11 +1638,11 @@ fn fuzzy_bulk(data: &[u8]) {
     assert!(out == out_control);
 }
 
-#[test]
-fn test_fuzzy_bulk() {
-    fuzzy_bulk(&[0, 0, 0, 1]);
-}
-
+// #[test]
+// fn test_fuzzy_bulk() {
+//     fuzzy_bulk(&[0, 0, 0, 1]);
+// }
+// 
 // #[test]
 // fn test_fuzzy_cursor() {
 //     fuzzy_cursor(&[0x1f,0x0,0x1,0x32,0x0,0x1d,0xff,0xff]);
