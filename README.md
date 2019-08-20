@@ -4,7 +4,9 @@ An interpreter for the pavo programming language, implemented in rust.
 
 Pavo is a homoiconic, dynamically typed language with deterministic semantics. It is defined in the [reference.md](./reference.md).
 
-**Status: Prerelease, will not be considered released until there is a guide-level explanation of the language and better documentation in general. The code quality of the implementation is deliberately low, this is not intended to be used beyond bootstrapping. This _is_ a working pavo implementation however.**
+**~~Status: Prerelease, will not be considered released until there is a guide-level explanation of the language and better documentation in general. The code quality of the implementation is deliberately low, this is not intended to be used beyond bootstrapping. This _is_ a working pavo implementation however.~~**
+
+**Status: Please stand by while I defile everything that is holy and convert the language to a C-like syntax. I'm not joking, I decided against the complexity of a macro system. Long live computable compilation functions!**
 
 Usage: `cargo run -- path/to/pavo/file.pavo`
 
